@@ -1,0 +1,32 @@
+name: Feature request / 功能建议
+description: Propose a focused improvement that keeps RiftLens small and screen-only
+title: "[Feature] "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: scenario
+    attributes:
+      label: User scenario / 使用场景
+      description: What happens in a real match, champion select, or stream?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior / 建议行为
+    validations:
+      required: true
+  - type: textarea
+    id: tradeoffs
+    attributes:
+      label: Performance, privacy, and UI impact / 性能、隐私与界面影响
+      description: Mention any new network request, dependency, setting, or game overlay behavior.
+    validations:
+      required: true
+  - type: checkboxes
+    id: boundaries
+    attributes:
+      label: Project boundaries / 项目边界
+      options:
+        - label: This request does not require game-memory access, injection, packet capture, input automation, automatic chat sending, telemetry, or bundled credentials.
+          required: true

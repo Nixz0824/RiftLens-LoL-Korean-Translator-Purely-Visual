@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AssemblyName>RiftLens</AssemblyName>
+    <RootNamespace>RiftLens</RootNamespace>
+    <NuGetAudit>false</NuGetAudit>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Assets\heroes.json" LogicalName="RiftLens.Assets.heroes.json" />
+    <EmbeddedResource Include="Assets\tessdata\kor.traineddata" LogicalName="RiftLens.Assets.tessdata.kor.traineddata" />
+    <EmbeddedResource Include="Assets\tessdata\eng.traineddata" LogicalName="RiftLens.Assets.tessdata.eng.traineddata" />
+    <EmbeddedResource Include="WebUI\assets\home-reference.png" LogicalName="RiftLens.Assets.design.main.png" />
+    <EmbeddedResource Include="WebUI\assets\voice-reference.png" LogicalName="RiftLens.Assets.design.voice.png" />
+    <EmbeddedResource Include="$(NuGetPackageRoot)\tesseract\5.2.0\x64\leptonica-1.82.0.dll" LogicalName="RiftLens.Assets.native.x64.leptonica-1.82.0.dll" />
+    <EmbeddedResource Include="$(NuGetPackageRoot)\tesseract\5.2.0\x64\tesseract50.dll" LogicalName="RiftLens.Assets.native.x64.tesseract50.dll" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4078.44" />
+    <PackageReference Include="NAudio" Version="2.0.0" />
+    <PackageReference Include="Tesseract" Version="5.2.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="WebUI\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+
+</Project>

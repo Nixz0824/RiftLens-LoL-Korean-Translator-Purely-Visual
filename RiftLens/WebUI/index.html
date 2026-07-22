@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>RiftLens</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到主要内容</a>
+  <div id="viewport">
+    <div id="stage" class="stage">
+      <svg class="svg-defs" aria-hidden="true">
+        <defs>
+          <symbol id="i-home" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="2.5"/></symbol>
+          <symbol id="i-chat" viewBox="0 0 24 24"><path d="M5 18.5 3.8 21l3.5-1.1c1.3.7 2.9 1.1 4.7 1.1 5.3 0 9-3.7 9-8.5S17.3 4 12 4 3 7.7 3 12.5c0 2.3.7 4.3 2 6Z"/><circle cx="8" cy="12.5" r=".8" class="fill"/><circle cx="12" cy="12.5" r=".8" class="fill"/><circle cx="16" cy="12.5" r=".8" class="fill"/></symbol>
+          <symbol id="i-wave" viewBox="0 0 24 24"><path d="M3 13v-2M7 17V7m4 13V4m4 13V7m4 7v-4m4 3v-2"/></symbol>
+          <symbol id="i-settings" viewBox="0 0 24 24"><path d="m8 3-5 9 5 9h8l5-9-5-9H8Z"/><circle cx="12" cy="12" r="2.5"/></symbol>
+          <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6.1 8.2A7.5 7.5 0 0 1 19.6 11M4.4 13a7.5 7.5 0 0 0 13.5 2.8"/></symbol>
+          <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5h.01"/></symbol>
+          <symbol id="i-volume" viewBox="0 0 24 24"><path d="M4 10v4h4l5 4V6L8 10H4Z"/><path d="M16 9c1.2 1.1 1.2 4.9 0 6M18.5 6.5c3 3 3 8 0 11"/></symbol>
+          <symbol id="i-scan" viewBox="0 0 24 24"><path d="M8 3H4a1 1 0 0 0-1 1v4M16 3h4a1 1 0 0 1 1 1v4M8 21H4a1 1 0 0 1-1-1v-4m13 5h4a1 1 0 0 0 1-1v-4"/><circle cx="12" cy="12" r="3"/></symbol>
+          <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M6.5 18h11a4 4 0 0 0 .6-8A6.5 6.5 0 0 0 5.8 9.2 4.5 4.5 0 0 0 6.5 18Z"/></symbol>
+          <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="7.5" r="4"/><path d="M4 21c.5-5 3.2-7.3 8-7.3s7.5 2.3 8 7.3"/></symbol>
+          <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></symbol>
+          <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 3h6l1 4H8l1-4Zm-3 4 1 14h10l1-14M10 11v6m4-6v6"/></symbol>
+          <symbol id="i-filter" viewBox="0 0 24 24"><path d="M3 5h18l-7 8v6l-4 2v-8L3 5Z"/></symbol>
+          <symbol id="i-spark" viewBox="0 0 24 24"><path d="m12 2 1.8 5.2L19 9l-5.2 1.8L12 16l-1.8-5.2L5 9l5.2-1.8L12 2ZM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8L19 16Z"/></symbol>
+          <symbol id="i-monitor" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8m-4-4v4"/></symbol>
+          <symbol id="i-bolt" viewBox="0 0 24 24"><path d="m13 2-8 12h6l-1 8 9-13h-6V2Z"/></symbol>
+          <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.8 9a2.4 2.4 0 1 1 3.6 2.1c-1 .5-1.4 1-1.4 2M12 17h.01"/></symbol>
+          <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 5 2.8 8.4 7 10 4.2-1.6 7-5 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></symbol>
+          <symbol id="i-play" viewBox="0 0 24 24"><path d="m8 5 11 7-11 7V5Z" class="fill"/></symbol>
+          <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+          <symbol id="i-eye" viewBox="0 0 24 24"><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6Z"/><circle cx="12" cy="12" r="2.5"/></symbol>
+          <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+          <symbol id="i-max" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12"/></symbol>
+          <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+          <symbol id="i-check" viewBox="0 0 24 24"><path d="m7 12 3 3 7-7"/></symbol>
+          <symbol id="i-gauge" viewBox="0 0 24 24"><path d="M4 18a8 8 0 1 1 16 0M12 12l4-3"/><path d="M6 18h12"/></symbol>
+        </defs>
+      </svg>
+
+      <header class="topbar drag-region">
+        <div class="brand" aria-label="RiftLens"><span class="brand-orb"></span><span>RIFTLENS</span></div>
+        <div class="window-controls no-drag">
+          <button class="window-button" data-action="minimize" aria-label="最小化"><svg><use href="#i-minus"/></svg></button>
+          <button class="window-button" data-action="maximize" aria-label="最大化"><svg><use href="#i-max"/></svg></button>
+          <button class="window-button close" data-action="close" aria-label="关闭"><svg><use href="#i-close"/></svg></button>
+        </div>
+      </header>
+
+      <aside class="sidebar glass-panel" aria-label="主导航">
+        <nav class="primary-nav">
+          <button class="nav-button active" data-nav="home" aria-label="主界面"><svg><use href="#i-home"/></svg></button>
+          <button class="nav-button" data-nav="history" aria-label="翻译记录"><svg><use href="#i-chat"/></svg></button>
+          <button class="nav-button" data-nav="voice" aria-label="语音播报"><svg><use href="#i-wave"/></svg></button>
+          <button class="nav-button" data-nav="settings" aria-label="设置"><svg><use href="#i-settings"/></svg></button>
+        </nav>
+        <div class="utility-nav">
+          <button class="utility-button" data-action="checkUpdate"><svg><use href="#i-refresh"/></svg><span>更新</span></button>
+          <button class="utility-button" data-action="showAbout"><svg><use href="#i-info"/></svg><span>软件</span></button>
+        </div>
+      </aside>
+
+      <main id="main-content">
+        <section class="page active" id="page-home" aria-labelledby="home-title">
+          <article class="hero-card glass-card">
+            <div class="hero-art" aria-hidden="true"></div>
+            <div class="hero-copy">
+              <h1 id="home-title">正在翻译</h1>
+              <p>韩文聊天 · 实时识别</p>
+              <button class="dark-button primary-run" data-action="togglePrimary">暂停</button>
+            </div>
+            <span class="card-number">3</span>
+          </article>
+
+          <article class="recognition-card glass-card">
+            <div class="recognition-heading"><h2>识别区域</h2><span class="ready-label"><i></i><span>已就绪</span></span></div>
+            <div class="recognition-visual">
+              <span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
+              <div class="chat-preview">
+                <svg><use href="#i-chat"/></svg>
+                <div class="preview-row"><i class="violet"></i><span></span><b></b></div>
+                <div class="preview-row"><i class="mint"></i><span></span><b></b></div>
+              </div>
+              <strong>游戏聊天框</strong><small>适用于游戏、选人及直播画面</small>
+            </div>
+            <div class="recognition-actions">
+              <button class="outline-button" data-action="selectRegion">重选翻译识别区</button>
+              <button class="text-button" data-action="selectDisplayRegion">框选译文显示区</button>
+            </div>
+            <span class="card-number">1</span>
+          </article>
+
+          <article class="recent-card glass-card">
+            <h2>最近结果</h2>
+            <div class="recent-original"><svg><use href="#i-volume"/></svg><span id="recent-original">레오나: 탑 조심</span></div>
+            <div class="recent-translation" id="recent-translation"><em>蕾欧娜：</em>上路小心</div>
+            <div class="recent-meta"><span id="recent-time">刚刚</span><span class="spoken"><svg><use href="#i-volume"/></svg>已播报</span></div>
+            <button class="history-link" data-nav="history">查看全部记录 <svg><use href="#i-chevron"/></svg></button>
+          </article>
+
+          <article class="api-card glass-card">
+            <div class="api-title"><div><h2>DeepSeek API</h2><p>连接翻译服务 <span id="api-state">未配置</span></p></div><span class="mode-pill"><svg><use href="#i-monitor"/></svg>屏显 + 播报</span></div>
+            <label class="api-field"><span>API Key</span><span class="input-shell"><input id="api-key" type="password" autocomplete="off" placeholder="sk-••••••••••••"><button id="reveal-key" aria-label="显示或隐藏密钥"><svg><use href="#i-eye"/></svg></button></span></label>
+            <div class="api-actions"><button class="dark-button" id="save-api">保存并连接</button><button class="text-button" data-action="showApiHelp">如何获取 API Key</button></div>
+            <p class="credential-note"><svg><use href="#i-shield"/></svg>仅保存在 Windows 凭据管理器</p>
+            <span class="card-number">2</span>
+          </article>
+        </section>
+
+        <section class="page" id="page-history" aria-labelledby="history-title">
+          <div class="page-heading"><div><h1 id="history-title">翻译记录</h1><p>本次运行中的识别与翻译</p></div><div class="stats"><span><svg><use href="#i-chat"/></svg><b id="stat-total">0</b> 条消息</span><span><svg><use href="#i-volume"/></svg><b id="stat-spoken">0</b> 条已播报</span><span><svg><use href="#i-filter"/></svg><b id="stat-filtered">0</b> 条已过滤</span></div></div>
+          <article class="history-card glass-card">
+            <div class="history-toolbar">
+              <label class="search-box"><svg><use href="#i-search"/></svg><input id="history-search" type="search" placeholder="搜索英雄或内容" aria-label="搜索英雄或内容"></label>
+              <div class="segment" id="history-filter"><button class="active" data-filter="all">全部</button><button data-filter="spoken">已播报</button><button data-filter="priority">高优先级</button></div>
+              <button class="clear-button" data-action="clearHistory"><svg><use href="#i-trash"/></svg>清空记录</button>
+            </div>
+            <div class="history-list-wrap">
+              <div class="list-heading"><b>今天 · 本次会话</b><span id="list-count">共 0 条 · 可滚动查看</span></div>
+              <div class="history-columns" aria-hidden="true"><span></span><span>时间</span><span>OCR 识别原文</span><span>中文翻译</span><span>类型</span><span>播报</span></div>
+              <div class="history-list" id="history-list" tabindex="0"></div>
+            </div>
+            <p class="privacy-note"><svg><use href="#i-shield"/></svg>记录仅保存在本次运行中，关闭软件后自动清除</p>
+          </article>
+        </section>
+
+        <section class="page" id="page-voice" aria-labelledby="voice-title">
+          <div class="page-heading voice-heading"><div><h1 id="voice-title">语音播报</h1><p>把重要信息自然地说出来</p></div><span class="service-pill"><i></i>语音服务可用</span></div>
+          <div class="voice-upper">
+            <article class="voice-profile glass-card">
+              <div class="voice-avatar avatar-large" role="img" aria-label="晓晓语音形象"></div>
+              <div class="voice-profile-copy"><h2>晓晓 Neural</h2><p>Windows 神经语音 · 中文</p><span>当前音色</span><small>自然、清晰，适合游戏提醒</small><button class="outline-button" data-action="testSpeech"><svg><use href="#i-play"/></svg>试听音色</button></div>
+              <div class="voice-orb-art" aria-hidden="true"></div>
+            </article>
+            <article class="quick-controls glass-card">
+              <h2>快速控制</h2>
+              <div class="control-row"><span><svg><use href="#i-volume"/></svg>自动播报</span><label class="switch"><input id="auto-speech" type="checkbox" checked aria-label="自动播报"><i></i></label></div>
+              <div class="control-row"><span><svg><use href="#i-volume"/></svg>播报音量</span><input class="range mint" id="voice-volume" type="range" min="0" max="100" value="65" aria-label="播报音量"><output id="voice-volume-value">65%</output></div>
+              <div class="control-row"><span><svg><use href="#i-gauge"/></svg>语速</span><input class="range mint" id="speech-rate" type="range" min="-5" max="5" value="1" aria-label="语音速度"><output id="speech-rate-value">标准</output></div>
+              <div class="control-row"><span><svg><use href="#i-monitor"/></svg>输出设备</span><span class="static-value device-value" title="当前使用 Windows 系统默认输出设备">Windows 系统默认</span></div>
+            </article>
+          </div>
+          <article class="strategy-card glass-card">
+            <h2>播报策略</h2>
+            <div class="strategy-columns">
+              <div class="strategy-column"><h3>A. 播报方式</h3><div class="strategy-summary" role="note"><svg><use href="#i-chat"/></svg><span><strong>按发言人归纳</strong><small>换人或短暂停顿后，忠实播报上一位玩家</small></span></div></div>
+              <div class="strategy-column"><h3>B. 播报内容</h3>
+                <div class="check-row fixed-check"><span class="fixed-checkmark" aria-hidden="true"><svg><use href="#i-check"/></svg></span><span>队友聊天</span><span class="fixed-label">始终启用</span><button type="button" class="help" data-tip="最高优先级；同一玩家连续内容会合并，换人时结算上一位" aria-label="队友聊天说明"><svg><use href="#i-help"/></svg></button></div>
+                <div class="check-row"><label class="check-option"><input id="signal-voice" type="checkbox" checked><i></i><span>战术信号</span></label><button type="button" class="help" data-tip="仅在没有玩家发言时，限频播报撤退、支援与危险信息" aria-label="战术信号说明"><svg><use href="#i-help"/></svg></button></div>
+                <div class="check-row muted"><label class="check-option"><input id="low-priority" type="checkbox"><i></i><span>低优先级消息</span></label><button type="button" class="help" data-tip="开启后才会在空闲时播报回城、金币或技能状态" aria-label="低优先级消息说明"><svg><use href="#i-help"/></svg></button></div>
+              </div>
+              <div class="strategy-column expression"><h3>C. 表达方式</h3><div class="expression-policy" role="status" aria-live="polite"><svg><use href="#i-spark"/></svg><span><strong id="expression-policy-title">保留情绪摘要</strong><small id="expression-policy-detail">保留焦急、提醒等语气，不复述辱骂</small></span></div><label class="check-row"><input id="keep-emotion" type="checkbox" checked><i></i>保留情绪，但不朗读脏话</label></div>
+            </div>
+            <div class="sample-speech"><svg><use href="#i-volume"/></svg><span>蕾欧娜提醒上路小心，并注意敌方打野。</span><button class="clear-button" data-action="testSpeech"><svg><use href="#i-play"/></svg>试听这句话</button></div>
+          </article>
+        </section>
+
+        <section class="page" id="page-settings" aria-labelledby="settings-title">
+          <div class="page-heading settings-heading"><div><h1 id="settings-title">设置</h1><p>按你的使用习惯调整 RiftLens</p></div><div class="settings-head-actions"><div class="language-control"><span>界面与输出语言</span><span class="language-switch" role="group" aria-label="界面、翻译与播报语言"><button class="active" type="button" data-language="zh-CN">中文</button><button type="button" data-language="en-US">English</button></span></div><span class="autosave"><svg><use href="#i-cloud"/></svg>设置会自动保存</span></div></div>
+          <div class="settings-grid">
+            <article class="settings-card glass-card"><h2 class="mint-title"><svg><use href="#i-spark"/></svg>翻译服务</h2><div class="setting-row"><span>接口类型</span><span class="static-value"><i></i>OpenAI-compatible</span></div><div class="setting-row"><span>模型</span><strong id="settings-model">deepseek-chat</strong></div><div class="setting-row"><span>API 密钥</span><span class="saved">已安全保存</span><button class="small-outline" data-action="manageApiKey">管理密钥</button></div><p class="card-note">密钥仅保存在 Windows 凭据管理器</p></article>
+            <article class="settings-card glass-card"><h2 class="mint-title"><svg><use href="#i-filter"/></svg>识别与过滤</h2><div class="setting-row"><span>系统消息过滤</span><div class="three-segment" id="system-filter"><button data-value="0">宽松</button><button class="active" data-value="1">均衡</button><button data-value="2">严格</button></div></div><div class="setting-row"><span>仅在画面变化时识别</span><label class="switch"><input id="change-only" type="checkbox" checked><i></i></label></div><div class="setting-row"><span>播报战术信号</span><label class="switch"><input id="settings-signal" type="checkbox"><i></i></label></div><div class="setting-row"><span>保留玩家情绪</span><label class="switch"><input id="settings-emotion" type="checkbox" checked><i></i></label></div><p class="card-note">击杀、投降及健康提醒始终不会进入语音；宽松模式仅额外接收未分类文字</p></article>
+            <article class="settings-card glass-card"><h2 class="violet-title"><svg><use href="#i-monitor"/></svg>屏显与悬浮</h2><div class="setting-row"><span>输出方式</span><div class="three-segment output-mode" id="output-mode"><button data-value="0">仅屏显</button><button data-value="1">仅播报</button><button class="active" data-value="2">屏显 + 播报</button></div></div><div class="setting-row"><span>显示位置</span><select class="select-like select-control" id="overlay-placement" aria-label="翻译显示位置"><option value="0">自动避让</option><option value="1">识别区上方</option><option value="2">识别区下方</option><option value="3">识别区左侧</option><option value="4">识别区右侧</option><option value="5">自定义区域</option></select></div><div class="setting-row"><span>文字透明度</span><input class="range violet" id="overlay-opacity" type="range" min="20" max="90" value="80" aria-label="翻译文字透明度"><output id="opacity-value">80%</output></div><div class="setting-row"><span>显示悬浮控制按钮</span><label class="switch"><input id="floating-button" type="checkbox" checked aria-label="显示悬浮控制按钮"><i></i></label></div></article>
+            <article class="settings-card glass-card"><h2 class="orange-title"><svg><use href="#i-bolt"/></svg>运行方式</h2><div class="setting-row"><span>游戏中保持低占用</span><label class="switch"><input id="low-usage" type="checkbox" checked><i></i></label></div><div class="setting-row"><span>启动后最小化</span><label class="switch"><input id="minimize-after-start" type="checkbox" checked><i></i></label></div><div class="setting-row"><span>开机自动启动</span><span class="unavailable-note">暂未提供</span></div><div class="setting-row"><span>关闭窗口时缩小到托盘</span><label class="switch"><input id="close-to-tray" type="checkbox" checked><i></i></label></div><div class="setting-row"><span>OCR 模型</span><span class="bundled-state"><svg><use href="#i-check"/></svg>韩文 + 英文 · 已内置</span></div></article>
+          </div>
+          <div class="settings-actions"><button class="outline-button" data-action="restoreDefaults">恢复默认设置</button><button class="dark-button" data-action="saveSettings">完成</button></div>
+        </section>
+      </main>
+
+      <footer class="status-bar glass-panel">
+        <div class="voice-status"><div class="status-avatar" role="img" aria-label="晓晓"></div><strong>晓晓 · 自然播报</strong><span class="mini-wave"><i></i><i></i><i></i><i></i><i></i></span></div>
+        <div class="global-volume"><svg><use href="#i-volume"/></svg><input class="range mint" id="global-volume" type="range" min="0" max="100" value="65" aria-label="全局播报音量"><output id="global-volume-value">65%</output></div>
+        <div class="system-pill" id="ocr-pill"><svg><use href="#i-scan"/></svg>本地 OCR <i><svg><use href="#i-check"/></svg></i></div>
+        <div class="system-pill" id="ai-pill"><svg><use href="#i-cloud"/></svg>AI 在线 <i><svg><use href="#i-check"/></svg></i></div>
+        <button class="developer" data-action="showAbout"><svg><use href="#i-user"/></svg>@Nixz</button>
+      </footer>
+
+      <div id="toast" class="toast" role="status" aria-live="polite"></div>
+      <div id="tooltip" class="tooltip" role="tooltip"></div>
+    </div>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

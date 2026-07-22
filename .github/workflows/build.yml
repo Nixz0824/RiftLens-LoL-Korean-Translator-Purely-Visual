@@ -1,0 +1,57 @@
+name: Windows build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        shell: pwsh
+        run: |
+          dotnet restore RiftLens.SelfTest/RiftLens.SelfTest.csproj --configfile NuGet.Config
+          dotnet restore RiftLens/RiftLens.csproj -r win-x64 --configfile NuGet.Config
+
+      - name: Build
+        run: dotnet build RiftLens.SelfTest/RiftLens.SelfTest.csproj -c Release --no-restore
+
+      - name: Run core self-tests
+        run: dotnet run --project RiftLens.SelfTest/RiftLens.SelfTest.csproj -c Release --no-build --no-restore
+
+      - name: Test Chinese and English UI interactions
+        run: node RiftLens.SelfTest/webui-interaction-test.js
+
+      - name: Publish framework-dependent build
+        run: dotnet publish RiftLens/RiftLens.csproj -c Release -r win-x64 --self-contained false --no-restore -o artifacts/RiftLens-portable
+
+      - name: Include notices
+        shell: pwsh
+        run: |
+          Copy-Item README.md, README.en.md, LICENSE, PRIVACY.md, THIRD_PARTY_NOTICES.md, SECURITY.md -Destination artifacts/RiftLens-portable
+          Copy-Item licenses -Destination artifacts/RiftLens-portable -Recurse
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: RiftLens-portable-${{ github.sha }}
+          path: artifacts/RiftLens-portable
+          if-no-files-found: error
+          retention-days: 14

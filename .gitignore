@@ -1,0 +1,47 @@
+# IDE / local assistants
+.vs/
+.vscode/
+.idea/
+.claude/
+.agents/
+.codex/
+
+# Local toolchains, caches, build output, and previews
+.tools/
+artifacts/
+TestResults/
+**/bin/
+**/obj/
+*.user
+*.suo
+*.cache
+*.log
+*.tmp
+temp_*.cs
+tmp_*.cs
+*.csx
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+settings.json
+appsettings.*.json
+*.pfx
+*.p12
+*.pem
+*.key
+*.snk
+
+# Internal notes and design working files
+RIFTLENS_AI交接文档.md
+CLAUDE_CODE_项目交接与开发前言.md
+skills-lock.json
+design-references/
+design-system/
+tmp_proj/
+
+# OS metadata
+Thumbs.db
+Desktop.ini
+.DS_Store

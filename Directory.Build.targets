@@ -1,0 +1,9 @@
+<Project>
+  <!-- RiftLens only hosts WebView2 through WinForms. The NuGet package also injects its
+       unused WPF assembly, which conflicts with the net8 WindowsBase reference. -->
+  <Target Name="RemoveUnusedWebView2WpfReference" BeforeTargets="ResolveAssemblyReferences">
+    <ItemGroup>
+      <Reference Remove="@(Reference)" Condition="'%(Filename)' == 'Microsoft.Web.WebView2.Wpf'" />
+    </ItemGroup>
+  </Target>
+</Project>
