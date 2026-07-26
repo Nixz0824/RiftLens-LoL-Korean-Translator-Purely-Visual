@@ -8,15 +8,24 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\RiftLens.ico</ApplicationIcon>
     <AssemblyName>RiftLens</AssemblyName>
     <RootNamespace>RiftLens</RootNamespace>
+    <Version>2.0.0</Version>
     <NuGetAudit>false</NuGetAudit>
   </PropertyGroup>
 
   <ItemGroup>
     <EmbeddedResource Include="Assets\heroes.json" LogicalName="RiftLens.Assets.heroes.json" />
+    <EmbeddedResource Include="Assets\RiftLens.ico" LogicalName="RiftLens.Assets.RiftLens.ico" />
+    <EmbeddedResource Include="Assets\lol_terms.json" LogicalName="RiftLens.Assets.lol_terms.json" />
     <EmbeddedResource Include="Assets\tessdata\kor.traineddata" LogicalName="RiftLens.Assets.tessdata.kor.traineddata" />
     <EmbeddedResource Include="Assets\tessdata\eng.traineddata" LogicalName="RiftLens.Assets.tessdata.eng.traineddata" />
+    <EmbeddedResource Include="Assets\ocr\ppocrv5_mobile_det.onnx" LogicalName="RiftLens.Assets.ocr.ppocrv5_mobile_det.onnx" />
+    <EmbeddedResource Include="Assets\ocr\ppocrv5_mobile_rec_korean.onnx" LogicalName="RiftLens.Assets.ocr.ppocrv5_mobile_rec_korean.onnx" />
+    <EmbeddedResource Include="Assets\ocr\ppocrv5_mobile_rec_chinese.onnx" LogicalName="RiftLens.Assets.ocr.ppocrv5_mobile_rec_chinese.onnx" />
+    <EmbeddedResource Include="Assets\ocr\ppocrv5_korean_dict.txt" LogicalName="RiftLens.Assets.ocr.ppocrv5_korean_dict.txt" />
+    <EmbeddedResource Include="Assets\ocr\ppocrv5_dict.txt" LogicalName="RiftLens.Assets.ocr.ppocrv5_dict.txt" />
     <EmbeddedResource Include="WebUI\assets\home-reference.png" LogicalName="RiftLens.Assets.design.main.png" />
     <EmbeddedResource Include="WebUI\assets\voice-reference.png" LogicalName="RiftLens.Assets.design.voice.png" />
     <EmbeddedResource Include="$(NuGetPackageRoot)\tesseract\5.2.0\x64\leptonica-1.82.0.dll" LogicalName="RiftLens.Assets.native.x64.leptonica-1.82.0.dll" />
@@ -25,6 +34,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4078.44" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.23.2" />
     <PackageReference Include="NAudio" Version="2.0.0" />
     <PackageReference Include="Tesseract" Version="5.2.0" />
   </ItemGroup>

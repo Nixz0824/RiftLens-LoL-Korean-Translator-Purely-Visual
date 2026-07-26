@@ -6,7 +6,7 @@
 
 ### 核心原则
 
-RiftLens 采用数据最小化设计。它不是云端 OCR 客户端：框选区域的屏幕截图只在本机内存中短暂存在，用于画面变化检测和应用内置的 Tesseract OCR，默认不会被保存或发送到服务器。
+RiftLens 采用数据最小化设计。它不是云端 OCR 客户端：框选区域的屏幕截图只在本机内存中短暂存在，用于画面变化检测和应用内置的 PaddleOCRv5/ONNX Runtime 本地识别；必要时会在本机回退到 Tesseract。截图默认不会被保存或发送到服务器。
 
 ### 数据清单
 
@@ -43,7 +43,7 @@ RiftLens 不包含遥测、广告 SDK、用户账号系统、服务端数据库�
 
 ### Core principle
 
-RiftLens follows data minimization. It is not a cloud OCR client: screenshots of the selected region exist briefly in local memory for change detection and bundled Tesseract OCR. RiftLens does not save or upload them by default.
+RiftLens follows data minimization. It is not a cloud OCR client: screenshots of the selected region exist briefly in local memory for change detection and bundled local PaddleOCRv5 inference through ONNX Runtime, with an on-device Tesseract fallback when needed. RiftLens does not save or upload screenshots by default.
 
 ### Data inventory
 

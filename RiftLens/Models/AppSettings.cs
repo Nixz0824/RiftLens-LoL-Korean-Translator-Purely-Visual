@@ -61,7 +61,7 @@ public sealed class ScreenRegion
 
 public sealed class AppSettings
 {
-    public int SchemaVersion { get; set; } = 4;
+    public int SchemaVersion { get; set; } = 7;
     public AppLanguage Language { get; set; } = AppLanguage.Chinese;
     public ScreenRegion CaptureRegion { get; set; } = new();
     public ScreenRegion DisplayRegion { get; set; } = new();
@@ -76,23 +76,45 @@ public sealed class AppSettings
     public OverlayPlacement OverlayPlacement { get; set; } = OverlayPlacement.Auto;
     public double OverlayOpacity { get; set; } = 0.68;
     public int OverlayFontSize { get; set; } = 16;
-    public int OverlayDurationMs { get; set; } = 5200;
+    public int OverlayDurationMs { get; set; } = 7000;
     public bool ShowOriginalText { get; set; }
     public int SpeechVolume { get; set; } = 65;
     public int SpeechRate { get; set; } = 1;
     public SpeechFilterLevel SpeechFilter { get; set; } = SpeechFilterLevel.Standard;
+    [System.Text.Json.Serialization.JsonIgnore]
     public SystemMessageFilterMode SystemMessageFilter { get; set; } = SystemMessageFilterMode.Balanced;
     public bool UseXiaoxiaoNeural { get; set; } = true;
     public int SummaryWindowMs { get; set; } = 900;
     public int MaxSummaryChars { get; set; } = 64;
     public bool KeepEmotionSummary { get; set; } = true;
     public bool PreferChampionPersonalName { get; set; } = true;
-    public bool SignalVoiceEnabled { get; set; } = true;
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool SignalVoiceEnabled { get; set; }
+    public bool TacticalSignalEnabled { get; set; }
+    public bool KillEventEnabled { get; set; }
+    public bool ObjectiveEventEnabled { get; set; }
+    public bool ClientReminderEnabled { get; set; }
+    public bool OtherSystemEventEnabled { get; set; }
+    public bool SpeakUrgentPlayerChat { get; set; } = true;
+    public bool SpeakImportantPlayerChat { get; set; } = true;
+    public bool SpeakNeutralPlayerChat { get; set; }
     public bool ShowFloatingControl { get; set; } = true;
+    public int? FloatingControlX { get; set; }
+    public int? FloatingControlY { get; set; }
     public bool MinimizeAfterStart { get; set; } = true;
     public bool CloseToTray { get; set; } = true;
     public int ActivePresetIndex { get; set; } = -1;
     public List<CapturePreset> Presets { get; set; } = new();
+
+    public bool IsSystemMessageEnabled(GameMessageKind kind) => kind switch
+    {
+        GameMessageKind.TacticalSignal => TacticalSignalEnabled,
+        GameMessageKind.KillEvent => KillEventEnabled,
+        GameMessageKind.ObjectiveEvent => ObjectiveEventEnabled,
+        GameMessageKind.ClientReminder => ClientReminderEnabled,
+        GameMessageKind.OtherSystemEvent => OtherSystemEventEnabled,
+        _ => false
+    };
 }
 
 public sealed class CapturePreset

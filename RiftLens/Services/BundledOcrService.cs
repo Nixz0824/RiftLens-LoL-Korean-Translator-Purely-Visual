@@ -1,31 +1,33 @@
 using System.Reflection;
-using Tesseract;
+using RiftLens.Models;
 
 namespace RiftLens.Services;
 
 public sealed class BundledOcrService : IDisposable
 {
-    private const string ModelVersion = "tessdata-fast-chat-v2";
-    private static readonly (string FileName, string ResourceName)[] Models =
+    private const string ModelVersion = "ppocrv5-mobile-trilingual-v1";
+    private static readonly (string FileName, string ResourceName)[] PaddleAssets =
     {
-        ("kor.traineddata", "RiftLens.Assets.tessdata.kor.traineddata"),
-        ("eng.traineddata", "RiftLens.Assets.tessdata.eng.traineddata")
-    };
-    private static readonly (string FileName, string ResourceName)[] NativeLibraries =
-    {
-        ("leptonica-1.82.0.dll", "RiftLens.Assets.native.x64.leptonica-1.82.0.dll"),
-        ("tesseract50.dll", "RiftLens.Assets.native.x64.tesseract50.dll")
+        ("ppocrv5_mobile_det.onnx", "RiftLens.Assets.ocr.ppocrv5_mobile_det.onnx"),
+        ("ppocrv5_mobile_rec_korean.onnx", "RiftLens.Assets.ocr.ppocrv5_mobile_rec_korean.onnx"),
+        ("ppocrv5_mobile_rec_chinese.onnx", "RiftLens.Assets.ocr.ppocrv5_mobile_rec_chinese.onnx"),
+        ("ppocrv5_korean_dict.txt", "RiftLens.Assets.ocr.ppocrv5_korean_dict.txt"),
+        ("ppocrv5_dict.txt", "RiftLens.Assets.ocr.ppocrv5_dict.txt")
     };
 
     private readonly string _storageRoot;
-    private readonly string _modelDirectory;
-    private readonly string _nativeRoot;
-    private readonly Lazy<TesseractEngine> _engine;
+    private readonly string _paddleDirectory;
+    private readonly Lazy<PaddleOcrEngine> _paddle;
+    private readonly Lazy<TesseractFallbackOcrEngine> _fallback;
+    private readonly BitmapPreprocessor _fallbackPreprocessor = new();
+    private readonly SemaphoreSlim _recognitionGate = new(1, 1);
     private bool _disposed;
 
-    public static string DisplayName => "Tesseract 韩英 OCR";
-    public static bool IsBundled => Models.Concat(NativeLibraries).All(item =>
-        Assembly.GetExecutingAssembly().GetManifestResourceInfo(item.ResourceName) is not null);
+    public static string DisplayName => "PaddleOCRv5 韩中英（Tesseract 兜底）";
+
+    public static bool IsBundled => PaddleAssets.All(item =>
+            Assembly.GetExecutingAssembly().GetManifestResourceInfo(item.ResourceName) is not null)
+        && TesseractFallbackOcrEngine.IsBundled;
 
     public BundledOcrService(string? storageRoot = null)
     {
@@ -34,36 +36,52 @@ public sealed class BundledOcrService : IDisposable
             "RiftLens",
             "ocr",
             ModelVersion);
-        _modelDirectory = Path.Combine(_storageRoot, "tessdata");
-        _nativeRoot = Path.Combine(_storageRoot, "native");
-        _engine = new Lazy<TesseractEngine>(CreateEngine, LazyThreadSafetyMode.ExecutionAndPublication);
+        _paddleDirectory = Path.Combine(_storageRoot, "paddle");
+        _paddle = new Lazy<PaddleOcrEngine>(
+            CreatePaddleEngine,
+            LazyThreadSafetyMode.ExecutionAndPublication);
+        _fallback = new Lazy<TesseractFallbackOcrEngine>(
+            () => new TesseractFallbackOcrEngine(Path.Combine(_storageRoot, "tesseract")),
+            LazyThreadSafetyMode.ExecutionAndPublication);
     }
 
-    public Task<string> RecognizeAsync(Bitmap bitmap, CancellationToken cancellationToken)
+    public async Task<string> RecognizeAsync(
+        Bitmap bitmap,
+        CancellationToken cancellationToken,
+        int ocrScale = 3) =>
+        (await RecognizeDetailedAsync(bitmap, cancellationToken, ocrScale)).RawText;
+
+    public async Task<OcrDocument> RecognizeDetailedAsync(
+        Bitmap bitmap,
+        CancellationToken cancellationToken,
+        int ocrScale = 3)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        cancellationToken.ThrowIfCancellationRequested();
-        return Task.Run(() =>
+        await _recognitionGate.WaitAsync(cancellationToken);
+        try
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            using var encoded = new MemoryStream();
-            bitmap.Save(encoded, System.Drawing.Imaging.ImageFormat.Png);
-            using var pixels = Pix.LoadFromMemory(encoded.ToArray());
-            // LOL 聊天框通常是左对齐的多行文本块；SparseText 会把韩文字形拆成大量碎片。
-            // 很矮且很宽的框选区按单行处理，兼顾直播字幕等使用方式。
-            var pageMode = bitmap.Height <= 180 && bitmap.Width >= bitmap.Height * 3
-                ? PageSegMode.SingleLine
-                : PageSegMode.SingleBlock;
-            using var page = _engine.Value.Process(pixels, pageMode);
-            cancellationToken.ThrowIfCancellationRequested();
-            return ExtractText(page, bitmap.Height, pageMode);
-        }, cancellationToken);
+            return await Task.Run(
+                () => RecognizeCore(bitmap, ocrScale, cancellationToken),
+                cancellationToken);
+        }
+        finally
+        {
+            _recognitionGate.Release();
+        }
     }
 
     public void WarmUp()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        _ = _engine.Value;
+        try
+        {
+            _ = _paddle.Value;
+        }
+        catch
+        {
+            // A machine-specific ONNX Runtime failure must not disable the existing local OCR.
+            _fallback.Value.WarmUp();
+        }
     }
 
     public void Dispose()
@@ -73,41 +91,59 @@ public sealed class BundledOcrService : IDisposable
             return;
         }
         _disposed = true;
-        if (_engine.IsValueCreated)
+        if (_paddle.IsValueCreated)
         {
-            _engine.Value.Dispose();
+            _paddle.Value.Dispose();
         }
+        if (_fallback.IsValueCreated)
+        {
+            _fallback.Value.Dispose();
+        }
+        _recognitionGate.Dispose();
     }
 
-    private TesseractEngine CreateEngine()
+    private OcrDocument RecognizeCore(
+        Bitmap bitmap,
+        int ocrScale,
+        CancellationToken cancellationToken)
     {
-        ExtractAssets();
-        TesseractEnviornment.CustomSearchPath = _nativeRoot;
-        var engine = new TesseractEngine(_modelDirectory, "kor+eng", EngineMode.LstmOnly);
-        engine.SetVariable("preserve_interword_spaces", "1");
-        engine.SetVariable("user_defined_dpi", "300");
-        engine.DefaultPageSegMode = PageSegMode.SingleBlock;
-        return engine;
+        try
+        {
+            var paddleDocument = _paddle.Value.RecognizeDetailed(bitmap, ocrScale, cancellationToken);
+            if (HasPlausibleText(paddleDocument.RawText))
+            {
+                return Normalize(paddleDocument);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            // Keep OCR local and usable if a model, native runtime, or unusual image fails.
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        using var prepared = _fallbackPreprocessor.Prepare(bitmap, ocrScale);
+        return OcrDocument.FromText(Normalize(_fallback.Value.Recognize(prepared, cancellationToken)));
     }
 
-    private void ExtractAssets()
+    private PaddleOcrEngine CreatePaddleEngine()
     {
+        ExtractPaddleAssets();
+        return new PaddleOcrEngine(_paddleDirectory);
+    }
+
+    private void ExtractPaddleAssets()
+    {
+        Directory.CreateDirectory(_paddleDirectory);
         var assembly = Assembly.GetExecutingAssembly();
-        ExtractFiles(assembly, Models, _modelDirectory);
-        ExtractFiles(assembly, NativeLibraries, Path.Combine(_nativeRoot, "x64"));
-    }
-
-    private static void ExtractFiles(
-        Assembly assembly,
-        IEnumerable<(string FileName, string ResourceName)> assets,
-        string destinationDirectory)
-    {
-        Directory.CreateDirectory(destinationDirectory);
-        foreach (var (fileName, resourceName) in assets)
+        foreach (var (fileName, resourceName) in PaddleAssets)
         {
             using var resource = assembly.GetManifestResourceStream(resourceName)
-                ?? throw new InvalidOperationException($"内置 OCR 资源缺失：{fileName}");
-            var target = Path.Combine(destinationDirectory, fileName);
+                ?? throw new InvalidOperationException($"内置 PaddleOCR 资源缺失：{fileName}");
+            var target = Path.Combine(_paddleDirectory, fileName);
             if (File.Exists(target) && new FileInfo(target).Length == resource.Length)
             {
                 continue;
@@ -116,7 +152,11 @@ public sealed class BundledOcrService : IDisposable
             var temporary = target + "." + Environment.ProcessId + ".tmp";
             try
             {
-                using (var output = new FileStream(temporary, FileMode.Create, FileAccess.Write, FileShare.None))
+                using (var output = new FileStream(
+                    temporary,
+                    FileMode.Create,
+                    FileAccess.Write,
+                    FileShare.None))
                 {
                     resource.CopyTo(output);
                 }
@@ -132,6 +172,12 @@ public sealed class BundledOcrService : IDisposable
         }
     }
 
+    private static bool HasPlausibleText(string text)
+    {
+        var readable = text.Count(char.IsLetterOrDigit);
+        return readable >= 2;
+    }
+
     private static string Normalize(string? text) => string.Join(
         Environment.NewLine,
         (text ?? string.Empty)
@@ -139,51 +185,14 @@ public sealed class BundledOcrService : IDisposable
             .Where(line => !string.IsNullOrWhiteSpace(line)))
         .Trim();
 
-    private static string ExtractText(Page page, int imageHeight, PageSegMode pageMode)
+    private static OcrDocument Normalize(OcrDocument document)
     {
-        // A single subtitle line can legitimately touch the selected region's top edge.
-        // The clipped-line guard is only useful for scrolling, multi-line chat blocks.
-        if (pageMode == PageSegMode.SingleLine)
-        {
-            return Normalize(page.GetText());
-        }
-
-        var lines = new List<(string Text, Rect Bounds)>();
-        using var iterator = page.GetIterator();
-        iterator.Begin();
-        do
-        {
-            var text = Normalize(iterator.GetText(PageIteratorLevel.TextLine));
-            if (text.Length == 0 || !iterator.TryGetBoundingBox(PageIteratorLevel.TextLine, out var bounds))
-            {
-                continue;
-            }
-
-            lines.Add((text, bounds));
-        }
-        while (iterator.Next(PageIteratorLevel.TextLine));
-
-        if (lines.Count == 0)
-        {
-            return Normalize(page.GetText());
-        }
-
-        // When the LOL chat panel scrolls, the oldest row can be cut by the capture area's
-        // top edge. It is never the newest message, so waiting for the next complete frame is
-        // safer than sending a broken OCR fragment to translation and speech.
-        if (lines.Count > 1 && TouchesTopEdge(lines[0].Bounds, imageHeight))
-        {
-            lines.RemoveAt(0);
-        }
-
-        return string.Join(Environment.NewLine, lines.Select(line => line.Text));
-    }
-
-    private static bool TouchesTopEdge(Rect bounds, int imageHeight)
-    {
-        // Prepared chat images are normally enlarged 3x. This guard is roughly the first
-        // 1-2 source pixels and therefore does not discard a complete row with normal padding.
-        var edgeTolerance = Math.Max(3, imageHeight / 80);
-        return bounds.Y1 <= edgeTolerance;
+        var lines = document.Lines
+            .Where(line => !string.IsNullOrWhiteSpace(line.Text))
+            .Select(line => line with { Text = line.Text.Trim() })
+            .ToArray();
+        return new OcrDocument(
+            string.Join(Environment.NewLine, lines.Select(line => line.Text)),
+            lines);
     }
 }

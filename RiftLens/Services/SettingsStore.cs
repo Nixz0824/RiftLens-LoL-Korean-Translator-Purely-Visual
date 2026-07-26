@@ -51,6 +51,37 @@ public sealed class SettingsStore
                 settings.Language = AppLanguage.Chinese;
                 settings.SchemaVersion = 4;
             }
+            if (settings.SchemaVersion < 5)
+            {
+                // v5 replaces overlapping filter levels with explicit, safe-by-default
+                // system-message categories. Player chat remains always enabled.
+                settings.TacticalSignalEnabled = false;
+                settings.KillEventEnabled = false;
+                settings.ObjectiveEventEnabled = false;
+                settings.ClientReminderEnabled = false;
+                settings.OtherSystemEventEnabled = false;
+                settings.SignalVoiceEnabled = false;
+                settings.SystemMessageFilter = SystemMessageFilterMode.Strict;
+                settings.SpeechFilter = SpeechFilterLevel.Standard;
+                settings.SchemaVersion = 5;
+            }
+            if (settings.SchemaVersion < 6)
+            {
+                // v6 exposes the three player-speech tiers independently. Existing
+                // users retain standard tactical speech; only the old full mode opts
+                // into neutral chat.
+                settings.SpeakUrgentPlayerChat = true;
+                settings.SpeakImportantPlayerChat = true;
+                settings.SpeakNeutralPlayerChat = settings.SpeechFilter == SpeechFilterLevel.Full;
+                settings.SchemaVersion = 6;
+            }
+            if (settings.SchemaVersion < 7)
+            {
+                // v7 keeps each translated message visible long enough to read
+                // during play, including for users carrying older saved settings.
+                settings.OverlayDurationMs = 7000;
+                settings.SchemaVersion = 7;
+            }
             // 旧版本默认 2 倍放大，对游戏内 12-16px 韩文不足；读取时自动迁移到聊天优化值。
             settings.OcrScale = Math.Clamp(settings.OcrScale, 3, 4);
             return settings;

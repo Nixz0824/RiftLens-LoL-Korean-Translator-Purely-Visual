@@ -46,9 +46,9 @@
     actions.forEach(action => verify(messages.some(message => message.action === action), `Action failed: ${action}`));
 
     click('.sidebar [data-nav="settings"]');
-    click('#system-filter button[data-value="2"]');
-    verify(document.querySelector('#system-filter button[data-value="2"]').classList.contains("active"), "System filter lacks immediate feedback");
-    expectMessage("systemFilterChanged", 2);
+    verify(document.querySelector(".always-state").textContent.trim().length > 0, "Always-on player-chat state is missing");
+    verify(document.querySelector(".settings-card:nth-child(2) .card-note").textContent.includes(language === "en-US" ? "Colour" : "颜色"),
+      "Structure-and-colour classification note is missing");
     click('#output-mode button[data-value="1"]');
     verify(document.querySelector('#output-mode button[data-value="1"]').classList.contains("active"), "Output mode lacks immediate feedback");
     expectMessage("outputModeChanged", 1);
@@ -60,9 +60,15 @@
     expectMessage("overlayPlacementChanged", 4);
 
     const toggles = [
-      ["auto-speech", "toggleAutoSpeech"], ["signal-voice", "signalVoiceChanged"],
+      ["auto-speech", "toggleAutoSpeech"],
+      ["urgent-player-speech", "urgentPlayerSpeechChanged"],
+      ["important-player-speech", "importantPlayerSpeechChanged"],
+      ["neutral-player-speech", "neutralPlayerSpeechChanged"],
+      ["tactical-signals", "tacticalSignalsChanged"], ["kill-events", "killEventsChanged"],
+      ["objective-events", "objectiveEventsChanged"], ["client-reminders", "clientRemindersChanged"],
+      ["other-system-events", "otherSystemEventsChanged"],
       ["keep-emotion", "keepEmotionChanged"], ["change-only", "changeOnlyChanged"],
-      ["settings-signal", "signalVoiceChanged"], ["settings-emotion", "keepEmotionChanged"],
+      ["settings-emotion", "keepEmotionChanged"],
       ["floating-button", "floatingButtonChanged"], ["low-usage", "lowUsageChanged"],
       ["minimize-after-start", "minimizeAfterStartChanged"], ["close-to-tray", "closeToTrayChanged"]
     ];
@@ -72,10 +78,6 @@
       input.dispatchEvent(new Event("change", { bubbles: true }));
       expectMessage(action, input.checked);
     });
-    const lowPriority = document.querySelector("#low-priority");
-    lowPriority.checked = true;
-    lowPriority.dispatchEvent(new Event("change", { bubbles: true }));
-    expectMessage("speechFilterChanged", 2);
 
     [
       ["global-volume", "volumeChanged", 44], ["voice-volume", "volumeChanged", 47],

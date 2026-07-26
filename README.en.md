@@ -8,15 +8,29 @@
   <img alt="Platform Windows" src="https://img.shields.io/badge/Windows-10%2F11-082942?style=flat-square">
   <img alt=".NET 8" src="https://img.shields.io/badge/.NET-8.0-7b72ff?style=flat-square">
   <img alt="License MIT" src="https://img.shields.io/badge/License-MIT-08b982?style=flat-square">
+  <img alt="Version 2.0.0" src="https://img.shields.io/badge/Version-2.0.0-7b72ff?style=flat-square">
   <img alt="Status MVP" src="https://img.shields.io/badge/Status-MVP-f0a24b?style=flat-square">
 </div>
 
 > [!IMPORTANT]
 > RiftLens is a working personal MVP, not an official Riot Games product. Read the [compatibility disclaimer](#game-compatibility-and-disclaimer) before use; a low-impact design is not a zero-risk promise.
 
+## RiftLens 2.0
+
+[Download RiftLens 2.0 for Windows x64](https://github.com/Nixz0824/RiftLens-LoL-Korean-Translator-Purely-Visual/releases/tag/v2.0.0)
+
+- **More capable trilingual OCR.** Bundled PP-OCRv5 Mobile Korean-English and Chinese-English recognizers process the same selected region and fuse word results by confidence and script. Tesseract remains as an on-device fallback.
+- **Stable player–champion pairing.** Repeated official champion-name matches are learned per player for the current match, reducing later errors caused by changing chat backgrounds.
+- **Evidence-checked narration.** A lightweight local semantic layer separates markers, status shares, cooldowns, requests, plans, and actual actions. `Flash - 20s` means “Flash has 20 seconds remaining,” and an objective ping remains a marker unless its text explicitly describes an ongoing action.
+- **Conservative fallback.** AI narration must return an exact source-text evidence fragment and preserve numbers, negation, targets, and action modality. Unsupported speech is silenced while the one-to-one literal translation remains visible.
+- **Clearer player-first output.** Player chat is translated by default; tactical pings and system categories remain independently optional. Overlay lines are grouped by speaker, show literal translations for seven seconds, and use refreshed floating-window and Windows icon rendering.
+
+> [!NOTE]
+> 2.0 remains an early personal MVP. Future client wording, custom localisation, unusual HUD layouts, and OCR noise may still produce unknown cases. Redacted examples are welcome in Issues.
+
 ## What it is
 
-RiftLens is a Windows screen translator for **Korean League of Legends matches, champion-select chat, and livestreams**. Select a screen region and it performs capture, change detection, and Korean/English OCR locally. Only classified text is passed to an AI endpoint configured by the user, then shown as a low-distraction overlay or spoken naturally.
+RiftLens is a Windows screen translator for **Korean League of Legends matches, champion-select chat, and livestreams**. Select a screen region and it performs capture, change detection, and Korean, Chinese, and English OCR locally. Only classified text is passed to an AI endpoint configured by the user, then shown as a low-distraction overlay or spoken naturally.
 
 It does not read game memory, inject into the game, simulate keyboard or mouse input, send chat messages, or bundle an API key.
 
@@ -31,15 +45,15 @@ It does not read game memory, inject into the game, simulate keyboard or mouse i
 | Korean-server matches | Recognizes player chat, filters most system events, and translates or speaks important content |
 | Champion select | Lets the user select the chat area instead of assuming a fixed HUD position |
 | Korean livestreams | Works as a flexible Korean on-screen text translator for stream chat or captions |
-| OCR/translation experiments | Provides a compact WinForms, WebView2, Tesseract, and OpenAI-compatible reference implementation |
+| OCR/translation experiments | Provides a compact WinForms, WebView2, PaddleOCR/ONNX Runtime, and OpenAI-compatible reference implementation |
 
 ## Highlights
 
 - **Screen-only input.** Select the recognition region and, optionally, a separate translation display region. The main window hides while selecting and returns afterwards.
-- **Bundled OCR.** Lightweight `kor` and `eng` `tessdata_fast` models require no separate Korean language-pack download.
+- **Bundled trilingual OCR.** A shared PP-OCRv5 Mobile detector feeds Korean-English and Chinese-English recognizers. Word-level confidence and Unicode-script fusion preserve all three languages in one line; Tesseract remains an on-device fallback.
 - **Rolling-chat handling.** Small-region sampling, change detection, stabilization, partial-line rejection, timestamp cleanup, and scroll deduplication work together.
-- **Classify before translating.** Player chat, tactical pings, kill events, system events, and unknown text have separate paths. Player chat always has speech priority.
-- **Faithful speaker turns.** Consecutive lines from one player are grouped and summarized when the speaker changes. Concrete meaning is retained instead of being reduced to “a teammate is communicating.”
+- **Classify before translating.** The player ID + `(champion):` structure is primary and LoL text colours are supporting evidence only. Tactical pings, kill events, neutral objectives, client reminders, and other system notices have independent, off-by-default switches. Player chat always has priority.
+- **Evidence-checked speaker turns.** Consecutive lines from one player are grouped, but a summary may be spoken only when its evidence, numbers, negation, and action claims can be checked against the source. Otherwise the literal overlay remains visible and RiftLens stays silent.
 - **Safer speech without erasing emotion.** Normal messages retain meaning. Hostile wording is removed while useful tactics and general emotional tone are preserved where possible.
 - **No guessed champions.** A 173-champion Korean, Chinese, and English dictionary based on Data Dragon 16.14.1 is used only when a champion name is actually present.
 - **Natural speech with fallback.** Chinese uses `zh-CN-XiaoxiaoNeural`; English uses `en-US-JennyNeural`. RiftLens falls back quietly to an installed Windows voice when online synthesis is unavailable.
@@ -54,7 +68,7 @@ It does not read game memory, inject into the game, simulate keyboard or mouse i
 
 | Data | Destination | Persisted by RiftLens |
 | --- | --- | --- |
-| Selected-region screenshots | In-memory change detection and local Tesseract OCR only | No |
+| Selected-region screenshots | In-memory change detection and local PaddleOCR/ONNX Runtime inference, with local Tesseract fallback only | No |
 | New OCR text, speaker label, champion matches, and summary preferences | User-configured OpenAI-compatible translation endpoint | No |
 | AI-generated spoken summary | Microsoft Edge online speech when neural speech is enabled | No |
 | API key | Windows Credential Manager under `RiftLens/TranslationApi` | Yes, protected for the current Windows user |
@@ -72,10 +86,14 @@ See [PRIVACY.md](PRIVACY.md) for the complete bilingual privacy notes. Text sent
 - The smaller build requires .NET 8 Desktop Runtime; the self-contained build does not.
 - Borderless windowed mode is recommended. Third-party overlays are not guaranteed in exclusive fullscreen.
 
+### Download 2.0
+
+Open the [v2.0.0 release page](https://github.com/Nixz0824/RiftLens-LoL-Korean-Translator-Purely-Visual/releases/tag/v2.0.0), download `RiftLens-2.0.0-win-x64.zip`, extract the complete folder, and run `RiftLens.exe`. Keep the packaged `WebUI` folder beside the executable.
+
 ### Run from source
 
 ```powershell
-git clone https://github.com/Nixz0824/RiftLens.git
+git clone https://github.com/Nixz0824/RiftLens-LoL-Korean-Translator-Purely-Visual.git RiftLens
 cd RiftLens
 powershell -NoProfile -ExecutionPolicy Bypass -File ./build.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File ./run.ps1
@@ -117,7 +135,7 @@ RiftLens/
 ├─ Services/     Capture, preprocessing, OCR, deduplication, classification, AI, and speech
 ├─ UI/           WinForms shell, region selector, translation overlay, and floating control
 ├─ WebUI/        Locally packaged HTML, CSS, and JavaScript UI
-└─ Assets/       Champion dictionary and Korean/English OCR models
+└─ Assets/       Champion dictionary and Korean/Chinese/English OCR models
 
 RiftLens.SelfTest/
 ├─ Program.cs                    Core and boundary regression tests
@@ -150,7 +168,7 @@ Outputs go only to the Git-ignored `artifacts/` directory. Windows CI builds, ru
 - Classification favors avoiding system-message speech, but new client versions and custom localization may still introduce unknown formats.
 - Regions currently use absolute screen coordinates and may need re-selection after display, resolution, or window-position changes.
 - AI translation and neural speech depend on the user's network and third-party service availability.
-- This is a source-first personal MVP. Public release binaries should first be tested in real matches, on a clean Windows install, and with current antivirus software.
+- This remains a personal early MVP. The 2.0 package passes the included automated checks, but users should still scan downloads with current antivirus software and expect real-match edge cases.
 
 ## Game compatibility and disclaimer
 
@@ -162,7 +180,7 @@ League of Legends, champion names, Data Dragon data, and related properties belo
 
 ## License and third parties
 
-Original RiftLens source code is licensed under the [MIT License](LICENSE), Copyright © 2026 Nixz. Third-party software and data retain their own licenses, including Tesseract, tessdata_fast, the Tesseract .NET wrapper, Leptonica, NAudio, Microsoft WebView2, and Riot Data Dragon. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Original RiftLens source code is licensed under the [MIT License](LICENSE), Copyright © 2026 Nixz. Third-party software and data retain their own licenses, including PaddleOCR models, Microsoft ONNX Runtime, Tesseract, tessdata_fast, the Tesseract .NET wrapper, Leptonica, NAudio, Microsoft WebView2, and Riot Data Dragon. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 When Microsoft online speech is used, its voices and service remain subject to Microsoft's terms and availability. RiftLens does not own or resell those voices.
 

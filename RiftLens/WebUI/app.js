@@ -10,8 +10,11 @@
     statusMessage: "正在读取配置…", regionSummary: "尚未框选区域",
     modelName: "deepseek-chat", recentOriginal: "",
     recentTranslation: "", recentMeta: "",
-    volume: 65, speechRate: 1, outputModeIndex: 2, systemFilterIndex: 1,
-    autoSpeech: true, changeOnly: true, signalVoice: false, keepEmotion: true,
+    volume: 65, speechRate: 1, outputModeIndex: 2,
+    autoSpeech: true, changeOnly: true, keepEmotion: true,
+    tacticalSignals: false, killEvents: false, objectiveEvents: false,
+    clientReminders: false, otherSystemEvents: false,
+    speakUrgentPlayerChat: true, speakImportantPlayerChat: true, speakNeutralPlayerChat: false,
     floatingButton: true, lowUsage: true, minimizeAfterStart: true,
     closeToTray: true, overlayOpacity: 68, overlayPlacementIndex: 0, language: "zh-CN", history: []
   };
@@ -42,28 +45,32 @@
     "当前音色": "Current voice", "自然、清晰，适合游戏提醒": "Natural and clear for in-game alerts", "试听音色": "Preview voice",
     "快速控制": "Quick controls", "自动播报": "Automatic speech", "播报音量": "Speech volume", "语速": "Speech rate",
     "输出设备": "Output device", "当前使用 Windows 系统默认输出设备": "Uses the Windows default output device", "Windows 系统默认": "Windows default",
-    "播报策略": "Speech strategy", "A. 播报方式": "A. Turn handling", "按发言人归纳": "Group by speaker",
-    "换人或短暂停顿后，忠实播报上一位玩家": "Faithfully summarizes a player after the speaker changes or pauses",
-    "B. 播报内容": "B. What to speak", "队友聊天": "Team chat", "战术信号": "Tactical signals", "低优先级消息": "Low-priority messages",
+    "播报策略": "Speech strategy", "A. 播报方式": "A. Turn handling", "紧急优先 · 重点合并": "Urgent first · Group key messages",
+    "危险提醒立即处理；其他有效沟通按发言人短暂合并": "Danger calls skip the wait; other useful messages are briefly grouped by speaker",
+    "B. 播报内容": "B. What to speak", "队友聊天": "Team chat", "战术信号": "Tactical signals", "击杀播报": "Kill feed",
+    "中立资源": "Objectives", "防沉迷提示": "Wellness reminders", "其他系统通知": "Other system notices",
+    "始终翻译": "Always translated", "玩家聊天语音": "Player chat speech", "紧急提醒": "Urgent alerts",
+    "重点沟通": "Key messages", "中性闲聊": "Neutral chat", "系统语音 · 默认关闭": "System speech · Off by default",
     "C. 表达方式": "C. Wording", "保留情绪摘要": "Keep emotional tone", "保留焦急、提醒等语气，不复述辱骂": "Keeps urgency and warnings without repeating abuse",
-    "保留情绪，但不朗读脏话": "Keep emotion without reading abuse", "蕾欧娜提醒上路小心，并注意敌方打野。": "Leona warns top to be careful and watch the enemy jungler.",
+    "保留情绪，但不朗读脏话": "Keep emotion without reading abuse", "保留情绪，不朗读脏话": "Keep emotion without reading abuse",
+    "时间戳、玩家 ID 与纯辱骂不播报": "Never speaks timestamps, player IDs, or pure abuse",
+    "中性闲聊也播报": "Also speak neutral chat", "蕾欧娜提醒上路小心，并注意敌方打野。": "Leona warns top to be careful and watch the enemy jungler.",
     "试听这句话": "Preview this line", "队友聊天说明": "Team chat details", "战术信号说明": "Tactical signal details",
-    "低优先级消息说明": "Low-priority message details", "最高优先级；同一玩家连续内容会合并，换人时结算上一位": "Highest priority. Consecutive lines from one player are grouped and spoken when the speaker changes.",
-    "仅在没有玩家发言时，限频播报撤退、支援与危险信息": "Only when players are silent; retreat, assistance, and danger signals are rate-limited.",
-    "开启后才会在空闲时播报回城、金币或技能状态": "When enabled, recall, gold, and cooldown status may be spoken while idle.",
+    "始终显示翻译；语音按紧急、重点与中性三档分别控制，同一玩家连续内容会短暂合并": "Translations are always shown. Speech is controlled separately for urgent, key, and neutral messages; consecutive lines from one player are briefly grouped.",
     "按你的使用习惯调整 RiftLens": "Tune RiftLens to the way you play", "界面与输出语言": "Interface & output language",
     "界面、翻译与播报语言": "Interface, translation, and speech language", "中文": "中文", "设置会自动保存": "Settings save automatically",
     "翻译服务": "Translation service", "服务商": "Provider", "接口类型": "API type", "当前版本使用 OpenAI 兼容接口": "This version uses an OpenAI-compatible endpoint",
     "模型": "Model", "API 密钥": "API key", "已安全保存": "Saved securely", "尚未配置": "Not configured", "管理密钥": "Manage key",
     "密钥仅保存在 Windows 凭据管理器": "The key is stored only in Windows Credential Manager", "识别与过滤": "Recognition & filtering",
-    "系统消息过滤": "System message filtering", "宽松": "Relaxed", "均衡": "Balanced", "严格": "Strict",
+    "消息识别": "Message recognition", "队友个人聊天": "Player chat", "始终识别并翻译": "Always recognized and translated",
+    "分类依据": "Classification basis", "聊天结构为主 · 颜色辅助": "Chat structure first · Colour-assisted",
     "仅在画面变化时识别": "Recognize only when the image changes", "播报战术信号": "Speak tactical signals", "保留玩家情绪": "Keep player emotion",
-    "击杀、投降及健康提醒始终不会进入语音；宽松模式仅额外接收未分类文字": "Kills, surrender, and health reminders are never spoken. Relaxed mode also accepts unclassified text.",
+    "颜色不会单独决定类型；可选系统播报请在“语音播报”页逐类开启": "Colour never decides a type on its own. Enable optional system categories individually on the Speech page.",
     "屏显与悬浮": "Overlay & floating control", "输出方式": "Output mode", "显示位置": "Display position", "自动避让　⌄": "Auto avoid ⌄",
     "文字透明度": "Text opacity", "翻译文字透明度": "Translation text opacity", "显示悬浮控制按钮": "Show floating control",
     "运行方式": "Runtime", "游戏中保持低占用": "Keep resource use low in game", "启动后最小化": "Minimize after starting",
     "开机自动启动": "Start with Windows", "关闭窗口时缩小到托盘": "Close window to tray", "OCR 模型": "OCR model",
-    "韩文 + 英文 · 已内置": "Korean + English · Bundled", "始终启用": "Always on", "暂未提供": "Not available yet",
+    "韩文 + 英文 · 已内置": "Korean + English · Bundled", "韩中英 PP-OCRv5 · 已内置": "Korean, Chinese & English PP-OCRv5 · Bundled", "始终启用": "Always on", "暂未提供": "Not available yet",
     "翻译显示位置": "Translation display position", "恢复默认设置": "Restore defaults", "完成": "Done",
     "晓晓": "Xiaoxiao", "晓晓 · 自然播报": "Xiaoxiao · Natural voice", "全局播报音量": "Global speech volume",
     "本地 OCR": "Local OCR", "AI 在线": "AI online", "正在读取配置…": "Loading settings…", "尚未框选区域": "No region selected",
@@ -77,6 +84,7 @@
     "共 {count} 条 · 可滚动查看": "{count} total · Scroll to view", "没有符合筛选条件的记录": "No records match these filters",
     "开始翻译后，记录会实时显示在这里": "History will appear here after translation starts", "未播报": "Not spoken",
     "翻译记录，按回车展开完整内容": "Translation record. Press Enter to expand the full text", "紧急": "Urgent", "提醒": "Alert",
+    "玩家聊天": "Player chat", "客户端提醒": "Client reminder", "系统通知": "System notice",
     "自动避让": "Auto avoid", "识别区上方": "Above recognition region", "识别区下方": "Below recognition region",
     "识别区左侧": "Left of recognition region", "识别区右侧": "Right of recognition region", "自定义区域": "Custom region",
     "显示或隐藏密钥": "Show or hide key", "更改语言": "Change language"
@@ -138,7 +146,11 @@
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
   Object.entries({
-    "change-only": "仅在画面变化时识别", "settings-signal": "播报战术信号",
+    "change-only": "仅在画面变化时识别",
+    "tactical-signals": "战术信号", "kill-events": "击杀播报",
+    "objective-events": "中立资源", "client-reminders": "防沉迷提示",
+    "other-system-events": "其他系统通知", "urgent-player-speech": "播报紧急提醒",
+    "important-player-speech": "播报重点沟通", "neutral-player-speech": "播报中性闲聊",
     "settings-emotion": "保留玩家情绪", "low-usage": "游戏中保持低占用",
     "minimize-after-start": "启动后最小化", "close-to-tray": "关闭窗口时缩小到托盘"
   }).forEach(([id, label]) => document.getElementById(id)?.setAttribute("aria-label", label));
@@ -213,22 +225,21 @@
     if (input) input.addEventListener("change", () => post(action, input.checked));
   }
   bindToggle("auto-speech", "toggleAutoSpeech");
-  bindToggle("signal-voice", "signalVoiceChanged");
+  bindToggle("urgent-player-speech", "urgentPlayerSpeechChanged");
+  bindToggle("important-player-speech", "importantPlayerSpeechChanged");
+  bindToggle("neutral-player-speech", "neutralPlayerSpeechChanged");
+  bindToggle("tactical-signals", "tacticalSignalsChanged");
+  bindToggle("kill-events", "killEventsChanged");
+  bindToggle("objective-events", "objectiveEventsChanged");
+  bindToggle("client-reminders", "clientRemindersChanged");
+  bindToggle("other-system-events", "otherSystemEventsChanged");
   bindToggle("keep-emotion", "keepEmotionChanged");
   bindToggle("change-only", "changeOnlyChanged");
-  bindToggle("settings-signal", "signalVoiceChanged");
   bindToggle("settings-emotion", "keepEmotionChanged");
   bindToggle("floating-button", "floatingButtonChanged");
   bindToggle("low-usage", "lowUsageChanged");
   bindToggle("minimize-after-start", "minimizeAfterStartChanged");
   bindToggle("close-to-tray", "closeToTrayChanged");
-  $("#low-priority").addEventListener("change", event => post("speechFilterChanged", event.target.checked ? 2 : 1));
-
-  $$("#system-filter button").forEach(button => button.addEventListener("click", () => {
-    state.systemFilterIndex = Number(button.dataset.value);
-    setSegments("#system-filter button", state.systemFilterIndex);
-    post("systemFilterChanged", state.systemFilterIndex);
-  }));
   $$("#output-mode button").forEach(button => button.addEventListener("click", () => {
     state.outputModeIndex = Number(button.dataset.value);
     setSegments("#output-mode button", state.outputModeIndex);
@@ -380,11 +391,16 @@
     setRange("overlay-opacity", state.overlayOpacity);
     $("#overlay-placement").value = String(state.overlayPlacementIndex || 0);
     setChecked("auto-speech", state.autoSpeech);
-    setChecked("signal-voice", state.signalVoice);
-    setChecked("settings-signal", state.signalVoice);
+    setChecked("tactical-signals", state.tacticalSignals);
+    setChecked("kill-events", state.killEvents);
+    setChecked("objective-events", state.objectiveEvents);
+    setChecked("client-reminders", state.clientReminders);
+    setChecked("other-system-events", state.otherSystemEvents);
+    setChecked("urgent-player-speech", state.speakUrgentPlayerChat);
+    setChecked("important-player-speech", state.speakImportantPlayerChat);
+    setChecked("neutral-player-speech", state.speakNeutralPlayerChat);
     setChecked("keep-emotion", state.keepEmotion);
     setChecked("settings-emotion", state.keepEmotion);
-    setChecked("low-priority", state.lowPrioritySpeech);
     $("#expression-policy-title").textContent = tr(state.keepEmotion ? "保留情绪摘要" : "克制摘要");
     $("#expression-policy-detail").textContent = state.keepEmotion
       ? tr("保留焦急、提醒等语气，不复述辱骂")
@@ -394,7 +410,6 @@
     setChecked("low-usage", state.lowUsage);
     setChecked("minimize-after-start", state.minimizeAfterStart);
     setChecked("close-to-tray", state.closeToTray);
-    setSegments("#system-filter button", state.systemFilterIndex);
     setSegments("#output-mode button", state.outputModeIndex);
     $("#settings-model").textContent = state.modelName || "deepseek-chat";
     $(".settings-card .saved").textContent = tr(state.aiReady ? "已安全保存" : "尚未配置");
@@ -453,7 +468,7 @@
     }
     list.innerHTML = items.map(item => {
       const priority = Math.max(1, Math.min(3, Number(item.priority) || 1));
-      const kind = escapeHtml(priority >= 3 ? tr("紧急") : priority === 2 ? tr("提醒") : (item.kind || ""));
+      const kind = escapeHtml(item.kind || (priority >= 3 ? tr("紧急") : priority === 2 ? tr("提醒") : ""));
       const kindClass = priority >= 3 ? "urgent" : "";
       return `<article class="history-item" tabindex="0" aria-expanded="false" aria-label="${tr("翻译记录，按回车展开完整内容")}">
         <i class="history-dot p${priority}"></i><time class="history-time">${timeText(item.time)}</time>

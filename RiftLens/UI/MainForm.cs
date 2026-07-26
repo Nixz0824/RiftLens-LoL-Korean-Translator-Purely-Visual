@@ -76,7 +76,6 @@ public sealed class MainForm : Form
     private readonly ComboBox _placement = SelectInput();
     private readonly ComboBox _presetSelector = SelectInput();
     private readonly ComboBox _speechFilter = SelectInput();
-    private readonly ComboBox _systemMessageFilter = SelectInput();
     private readonly NumericUpDown _pollInterval = NumberInput(250, 3000, 500, 50);
     private readonly NumericUpDown _opacity = NumberInput(20, 90, 68, 1);
     private readonly NumericUpDown _fontSize = NumberInput(12, 28, 16, 1);
@@ -87,7 +86,11 @@ public sealed class MainForm : Form
     private readonly NumericUpDown _ocrScale = NumberInput(3, 4, 3, 1);
     private readonly CheckBox _showOriginal = CheckInput("在译文下方显示 OCR 原文");
     private readonly CheckBox _minimizeAfterStart = CheckInput("开始后隐藏到系统托盘");
-    private readonly CheckBox _signalVoice = CheckInput("语音播报队友信号（撤退、正在路上、金币差等）");
+    private readonly CheckBox _tacticalSignals = CheckInput("战术信号（撤退、支援、危险）");
+    private readonly CheckBox _killEvents = CheckInput("击杀播报");
+    private readonly CheckBox _objectiveEvents = CheckInput("中立资源刷新与击杀提醒");
+    private readonly CheckBox _clientReminders = CheckInput("防沉迷与客户端提醒");
+    private readonly CheckBox _otherSystemEvents = CheckInput("其他系统通知");
     private readonly TextBox _activity = new()
     {
         Multiline = true,
@@ -126,6 +129,13 @@ public sealed class MainForm : Form
         _overlayControl.MuteRequested += () => { _speech.Clear(); _overlay.HideImmediately(); };
         _overlayControl.ShowMainWindowRequested += ShowMainWindow;
         _overlayControl.StopRequested += async () => await StopListeningAsync();
+        _overlayControl.PositionChanged += point =>
+        {
+            _settings.FloatingControlX = point.X;
+            _settings.FloatingControlY = point.Y;
+            _volumeSaveTimer.Stop();
+            _volumeSaveTimer.Start();
+        };
         _volumeSaveTimer.Tick += async (_, _) =>
         {
             _volumeSaveTimer.Stop();
@@ -261,13 +271,27 @@ public sealed class MainForm : Form
                 await SaveSettingsAsync();
                 break;
             case SpatialAction.SpeechFilterChanged when value is int speechFilter:
-                SelectValue(_speechFilter, speechFilter switch
-                {
-                    <= 0 => SpeechFilterLevel.Quiet,
-                    >= 2 => SpeechFilterLevel.Full,
-                    _ => SpeechFilterLevel.Standard
-                });
-                _workspace.LowPrioritySpeech = speechFilter >= 2;
+                _settings.SpeakNeutralPlayerChat = speechFilter >= 2;
+                _workspace.SpeakNeutralPlayerChat = _settings.SpeakNeutralPlayerChat;
+                SyncSpeechFilterFromPlayerSwitches();
+                await SaveSettingsAsync();
+                break;
+            case SpatialAction.UrgentPlayerSpeechChanged when value is bool urgentPlayerSpeech:
+                _settings.SpeakUrgentPlayerChat = urgentPlayerSpeech;
+                _workspace.SpeakUrgentPlayerChat = urgentPlayerSpeech;
+                SyncSpeechFilterFromPlayerSwitches();
+                await SaveSettingsAsync();
+                break;
+            case SpatialAction.ImportantPlayerSpeechChanged when value is bool importantPlayerSpeech:
+                _settings.SpeakImportantPlayerChat = importantPlayerSpeech;
+                _workspace.SpeakImportantPlayerChat = importantPlayerSpeech;
+                SyncSpeechFilterFromPlayerSwitches();
+                await SaveSettingsAsync();
+                break;
+            case SpatialAction.NeutralPlayerSpeechChanged when value is bool neutralPlayerSpeech:
+                _settings.SpeakNeutralPlayerChat = neutralPlayerSpeech;
+                _workspace.SpeakNeutralPlayerChat = neutralPlayerSpeech;
+                SyncSpeechFilterFromPlayerSwitches();
                 await SaveSettingsAsync();
                 break;
             case SpatialAction.OutputModeChanged when value is int outputMode:
@@ -275,25 +299,39 @@ public sealed class MainForm : Form
                 _workspace.OutputModeIndex = Math.Clamp(outputMode, 0, 2);
                 await SaveSettingsAsync();
                 break;
-            case SpatialAction.SystemFilterChanged when value is int filter:
-                var filterMode = filter switch
-                {
-                    0 => SystemMessageFilterMode.Off,
-                    2 => SystemMessageFilterMode.Strict,
-                    _ => SystemMessageFilterMode.Balanced
-                };
-                SelectValue(_systemMessageFilter, filterMode);
-                _workspace.SystemFilterIndex = filter;
-                await SaveSettingsAsync();
-                break;
             case SpatialAction.ChangeOnlyChanged when value is bool changeOnly:
                 _workspace.ChangeOnly = changeOnly;
                 _settings.ChangeThreshold = changeOnly ? 0.035 : 0;
                 await _settingsStore.SaveAsync(_settings);
                 break;
-            case SpatialAction.SignalVoiceChanged when value is bool signalVoice:
-                _workspace.SignalVoice = signalVoice;
-                _signalVoice.Checked = signalVoice;
+            case SpatialAction.SignalVoiceChanged when value is bool legacySignal:
+                _workspace.TacticalSignals = legacySignal;
+                _tacticalSignals.Checked = legacySignal;
+                await SaveSettingsAsync();
+                break;
+            case SpatialAction.TacticalSignalsChanged when value is bool tacticalSignals:
+                _workspace.TacticalSignals = tacticalSignals;
+                _tacticalSignals.Checked = tacticalSignals;
+                await SaveSettingsAsync();
+                break;
+            case SpatialAction.KillEventsChanged when value is bool killEvents:
+                _workspace.KillEvents = killEvents;
+                _killEvents.Checked = killEvents;
+                await SaveSettingsAsync();
+                break;
+            case SpatialAction.ObjectiveEventsChanged when value is bool objectiveEvents:
+                _workspace.ObjectiveEvents = objectiveEvents;
+                _objectiveEvents.Checked = objectiveEvents;
+                await SaveSettingsAsync();
+                break;
+            case SpatialAction.ClientRemindersChanged when value is bool clientReminders:
+                _workspace.ClientReminders = clientReminders;
+                _clientReminders.Checked = clientReminders;
+                await SaveSettingsAsync();
+                break;
+            case SpatialAction.OtherSystemEventsChanged when value is bool otherSystemEvents:
+                _workspace.OtherSystemEvents = otherSystemEvents;
+                _otherSystemEvents.Checked = otherSystemEvents;
                 await SaveSettingsAsync();
                 break;
             case SpatialAction.KeepEmotionChanged when value is bool keepEmotion:
@@ -366,7 +404,6 @@ public sealed class MainForm : Form
         SelectValue(_outputMode, _settings.OutputMode);
         SelectValue(_placement, _settings.OverlayPlacement);
         SelectValue(_speechFilter, _settings.SpeechFilter);
-        SelectValue(_systemMessageFilter, _settings.SystemMessageFilter);
         _pollInterval.Value = Clamp(_settings.PollIntervalMs, _pollInterval);
         _opacity.Value = Clamp((decimal)(_settings.OverlayOpacity * 100), _opacity);
         _fontSize.Value = Clamp(_settings.OverlayFontSize, _fontSize);
@@ -376,8 +413,15 @@ public sealed class MainForm : Form
         _summaryWindow.Value = Clamp(_settings.SummaryWindowMs, _summaryWindow);
         _ocrScale.Value = Clamp(_settings.OcrScale, _ocrScale);
         _showOriginal.Checked = _settings.ShowOriginalText;
-        _signalVoice.Checked = _settings.SignalVoiceEnabled;
+        _tacticalSignals.Checked = _settings.TacticalSignalEnabled;
+        _killEvents.Checked = _settings.KillEventEnabled;
+        _objectiveEvents.Checked = _settings.ObjectiveEventEnabled;
+        _clientReminders.Checked = _settings.ClientReminderEnabled;
+        _otherSystemEvents.Checked = _settings.OtherSystemEventEnabled;
         _minimizeAfterStart.Checked = _settings.MinimizeAfterStart;
+        _overlayControl.SetPreferredPosition(
+            _settings.FloatingControlX,
+            _settings.FloatingControlY);
         _workspace.ApplySettings(_settings, _settings.MinimizeAfterStart);
     }
 
@@ -875,7 +919,7 @@ public sealed class MainForm : Form
         clear.Click += (_, _) => { _historyList.Controls.Clear(); _activity.Clear(); };
         header.Controls.Add(clear, 1, 0);
         stack.Controls.Add(header);
-        var description = MutedLabel("滚动查看本次运行的玩家聊天翻译；系统消息不会写入此处。");
+        var description = MutedLabel("滚动查看本次运行的玩家聊天翻译；主动开启的系统类别也会明确标注类型。");
         description.Margin = new Padding(0, 0, 0, 14);
         stack.Controls.Add(description);
         _historyList.Width = 1000;
@@ -1193,16 +1237,19 @@ public sealed class MainForm : Form
         overlaySettings.Margin = new Padding(0, 0, 0, 8);
         var speechSettings = SettingsCard(
             "总结式语音",
-            "默认在线使用晓晓神经语音，断网时无打扰回退到本地语音。",
+            "玩家聊天始终识别并翻译；以下系统类信息默认关闭，开启后只在玩家空闲时播报。",
             ("中文音色", BodyLabel(NaturalSpeechService.NeuralVoiceName)),
             ("播报音量", Inline(_speechVolume, Unit("%"))),
-            ("队友信号", _signalVoice),
-            ("内容取舍", _speechFilter),
-            ("系统消息", _systemMessageFilter),
+            ("玩家聊天播报", _speechFilter),
+            ("战术信号", _tacticalSignals),
+            ("击杀播报", _killEvents),
+            ("中立资源", _objectiveEvents),
+            ("客户端提醒", _clientReminders),
+            ("其他系统通知", _otherSystemEvents),
             ("运行习惯", _minimizeAfterStart),
             ("语音操作", ActionRow(("试听晓晓", new Action(TestSpeech)), ("立即静音", new Action(() => _speech.Clear())))));
         speechSettings.Dock = DockStyle.Top;
-        speechSettings.Height = CalculateSettingsCardHeight(7);
+        speechSettings.Height = CalculateSettingsCardHeight(10);
         speechSettings.Margin = new Padding(0, 8, 0, 0);
         sections.Controls.Add(overlaySettings, 0, 0);
         sections.Controls.Add(speechSettings, 0, 1);
@@ -1433,20 +1480,13 @@ public sealed class MainForm : Form
         });
         _speechFilter.Items.AddRange(new object[]
         {
-            new SelectOption<SpeechFilterLevel>("标准：战术 + 文明化情绪", SpeechFilterLevel.Standard),
-            new SelectOption<SpeechFilterLevel>("安静：只播报战术信息", SpeechFilterLevel.Quiet),
-            new SelectOption<SpeechFilterLevel>("完整：包含中性闲聊概括", SpeechFilterLevel.Full)
-        });
-        _systemMessageFilter.Items.AddRange(new object[]
-        {
-            new SelectOption<SystemMessageFilterMode>("智能：过滤系统事件，保留战术信号", SystemMessageFilterMode.Balanced),
-            new SelectOption<SystemMessageFilterMode>("严格：只接受明确的玩家聊天格式", SystemMessageFilterMode.Strict),
-            new SelectOption<SystemMessageFilterMode>("宽松：额外接受未分类文字", SystemMessageFilterMode.Off)
+            new SelectOption<SpeechFilterLevel>("默认：播报重点玩家聊天", SpeechFilterLevel.Standard),
+            new SelectOption<SpeechFilterLevel>("精简：只播报战术意图", SpeechFilterLevel.Quiet),
+            new SelectOption<SpeechFilterLevel>("完整：中性闲聊也播报", SpeechFilterLevel.Full)
         });
         _outputMode.SelectedIndex = 0;
         _placement.SelectedIndex = 0;
         _speechFilter.SelectedIndex = 0;
-        _systemMessageFilter.SelectedIndex = 0;
     }
 
     private async Task LoadSettingsAsync()
@@ -1731,10 +1771,17 @@ public sealed class MainForm : Form
         ReadControlsIntoSettings();
         var preview = new TranslationResult
         {
+            Speaker = L("蕾欧娜", "Leona"),
             DisplayTranslation = L(
-                "蕾欧娜有些着急，提醒上单及时支援并小心敌方打野。",
-                "Leona urgently asks top to rotate and watch for the enemy jungler."),
-            RawText = "레오나: 탑 합류 좀, 상대 정글 조심",
+                "蕾欧娜：请上路及时支援，并小心敌方打野。",
+                "Leona: Please rotate top and watch for the enemy jungler."),
+            DisplayLines = new List<string>
+            {
+                L("请上路及时支援。", "Please rotate top."),
+                L("小心敌方打野。", "Watch for the enemy jungler.")
+            },
+            OriginalLines = new List<string> { "탑 합류 좀", "상대 정글 조심" },
+            RawText = "레오나: 탑 합류 좀\n레오나: 상대 정글 조심",
             ExpiresAfterMs = _settings.OverlayDurationMs
         };
         try
@@ -1779,8 +1826,10 @@ public sealed class MainForm : Form
                 _settings.SpeechRate,
                 result.ExpiresAfterMs,
                 _settings.UseXiaoxiaoNeural,
-                result.SourceKind == TranslationSourceKind.TacticalSignal,
-                _settings.Language);
+                result.SourceKind is TranslationSourceKind.TacticalSignal
+                    or TranslationSourceKind.SystemMessage,
+                _settings.Language,
+                result.Priority);
         }
     }
 
@@ -1809,9 +1858,19 @@ public sealed class MainForm : Form
             _recentTranslation.Text,
             result.ShouldSpeak,
             result.Priority,
-            result.Priority >= 3
-                ? L("紧急", "Urgent")
-                : result.Priority == 2 ? L("提醒", "Alert") : string.Empty));
+            result.SourceKind switch
+            {
+                TranslationSourceKind.PlayerChat => L("玩家聊天", "Player chat"),
+                TranslationSourceKind.TacticalSignal => L("战术信号", "Tactical signal"),
+                TranslationSourceKind.SystemMessage when result.Intent == "kill_event" =>
+                    L("击杀播报", "Kill feed"),
+                TranslationSourceKind.SystemMessage when result.Intent == "objective_event" =>
+                    L("中立资源", "Objective"),
+                TranslationSourceKind.SystemMessage when result.Intent == "client_reminder" =>
+                    L("客户端提醒", "Client reminder"),
+                TranslationSourceKind.SystemMessage => L("系统通知", "System notice"),
+                _ => string.Empty
+            }));
 
         var entry = BuildHistoryRecordCard(result, speaker);
         _historyList.SuspendLayout();
@@ -2014,8 +2073,7 @@ public sealed class MainForm : Form
         _settings.ApiModel = _apiModel.Text.Trim();
         _settings.OutputMode = SelectedValue(_outputMode, OutputMode.OverlayAndVoice);
         _settings.OverlayPlacement = SelectedValue(_placement, OverlayPlacement.Auto);
-        _settings.SpeechFilter = SelectedValue(_speechFilter, SpeechFilterLevel.Standard);
-        _settings.SystemMessageFilter = SelectedValue(_systemMessageFilter, SystemMessageFilterMode.Balanced);
+        _settings.SpeechFilter = PlayerSpeechPolicy.GetModelFilter(_settings);
         _settings.PollIntervalMs = (int)_pollInterval.Value;
         _settings.OverlayOpacity = (double)_opacity.Value / 100;
         _settings.OverlayFontSize = (int)_fontSize.Value;
@@ -2025,11 +2083,23 @@ public sealed class MainForm : Form
         _settings.SummaryWindowMs = (int)_summaryWindow.Value;
         _settings.OcrScale = (int)_ocrScale.Value;
         _settings.ShowOriginalText = _showOriginal.Checked;
-        _settings.SignalVoiceEnabled = _signalVoice.Checked;
+        _settings.TacticalSignalEnabled = _tacticalSignals.Checked;
+        _settings.KillEventEnabled = _killEvents.Checked;
+        _settings.ObjectiveEventEnabled = _objectiveEvents.Checked;
+        _settings.ClientReminderEnabled = _clientReminders.Checked;
+        _settings.OtherSystemEventEnabled = _otherSystemEvents.Checked;
+        _settings.SignalVoiceEnabled = _settings.TacticalSignalEnabled;
+        _settings.SystemMessageFilter = SystemMessageFilterMode.Strict;
         _settings.ShowFloatingControl = _workspace.FloatingButton;
         _settings.MinimizeAfterStart = _workspace.MinimizeAfterStart;
         _settings.CloseToTray = _workspace.CloseToTray;
         RefreshOutputSummary();
+    }
+
+    private void SyncSpeechFilterFromPlayerSwitches()
+    {
+        _settings.SpeechFilter = PlayerSpeechPolicy.GetModelFilter(_settings);
+        SelectValue(_speechFilter, _settings.SpeechFilter);
     }
 
     private async Task SaveSettingsAsync()
@@ -2542,6 +2612,16 @@ public sealed class MainForm : Form
 
     private static Icon CreateBrandIcon()
     {
+        using (var stream = typeof(MainForm).Assembly
+            .GetManifestResourceStream("RiftLens.Assets.RiftLens.ico"))
+        {
+            if (stream is not null)
+            {
+                using var embedded = new Icon(stream, new Size(32, 32));
+                return (Icon)embedded.Clone();
+            }
+        }
+
         using var bitmap = new Bitmap(64, 64);
         using var graphics = Graphics.FromImage(bitmap);
         graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;

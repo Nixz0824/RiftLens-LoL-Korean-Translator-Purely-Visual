@@ -8,11 +8,11 @@ public sealed class CaptureCoordinator : IAsyncDisposable
     private readonly AppSettings _settings;
     private readonly ScreenCaptureService _capture = new();
     private readonly ImageChangeDetector _changeDetector = new();
-    private readonly BitmapPreprocessor _preprocessor = new();
     private readonly BundledOcrService _ocr = new();
     private readonly MessageDeduplicator _deduplicator = new();
     private readonly ChatMessageClassifier _classifier = new();
     private readonly HeroDictionary _heroes;
+    private readonly PlayerHeroSessionTracker _playerHeroes;
     private readonly ITranslationService _translator;
     private readonly Channel<ClassifiedGameMessage> _messages = Channel.CreateBounded<ClassifiedGameMessage>(new BoundedChannelOptions(24)
     {
@@ -38,6 +38,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
     {
         _settings = settings;
         _heroes = heroes;
+        _playerHeroes = new PlayerHeroSessionTracker(heroes);
         _translator = translator;
     }
 
@@ -57,6 +58,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
 
         _changeDetector.Reset();
         _deduplicator.Reset();
+        _playerHeroes.Reset();
         ClearPendingMessages();
         Interlocked.Increment(ref _stateGeneration);
         Interlocked.Exchange(ref _paused, 0);
@@ -129,8 +131,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
     public async Task<string> CaptureAndRecognizeOnceAsync(CancellationToken cancellationToken = default)
     {
         using var bitmap = _capture.Capture(_settings.CaptureRegion);
-        using var prepared = _preprocessor.Prepare(bitmap, _settings.OcrScale);
-        return await _ocr.RecognizeAsync(prepared, cancellationToken);
+        return await _ocr.RecognizeAsync(bitmap, cancellationToken, _settings.OcrScale);
     }
 
     public string OcrEngineName => BundledOcrService.DisplayName;
@@ -211,33 +212,31 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                         continue;
                     }
                     using var stableBitmap = _capture.Capture(_settings.CaptureRegion);
-                    using var prepared = _preprocessor.Prepare(stableBitmap, _settings.OcrScale);
-                    var rawText = await _ocr.RecognizeAsync(prepared, cancellationToken);
+                    var document = await _ocr.RecognizeDetailedAsync(
+                        stableBitmap,
+                        cancellationToken,
+                        _settings.OcrScale);
                     if (IsPaused || generation != Volatile.Read(ref _stateGeneration))
                     {
                         continue;
                     }
                     var capturedAt = DateTimeOffset.UtcNow;
                     var routed = _deduplicator
-                        .FindNewLines(rawText)
+                        .FindNewLines(document.RawText)
                         .Where(IsPlausibleGameChat)
-                        .Select(line => _classifier.Classify(line, _settings.SystemMessageFilter) with { CapturedAt = capturedAt })
+                        .Select(line => _classifier.Classify(
+                            line,
+                            FindColorEvidence(document, line)) with { CapturedAt = capturedAt })
+                        .Select(_playerHeroes.Observe)
                         .Where(message => message.Kind == GameMessageKind.PlayerChat
-                            || (message.Kind == GameMessageKind.TacticalSignal && _settings.SignalVoiceEnabled)
-                            || (message.Kind == GameMessageKind.Unknown && _settings.SystemMessageFilter == SystemMessageFilterMode.Off))
-                        .Select(message => message.Kind == GameMessageKind.Unknown
-                            ? message with
-                            {
-                                Kind = GameMessageKind.PlayerChat,
-                                SpeakerKey = "UNCLASSIFIED",
-                                SpeakerRaw = string.Empty,
-                                Content = message.RawText
-                            }
-                            : message)
+                            || _settings.IsSystemMessageEnabled(message.Kind))
                         .ToArray();
                     if (routed.Length > 0)
                     {
-                        var batch = new OcrBatch(rawText, routed.Select(message => message.RawText).ToArray(), capturedAt);
+                        var batch = new OcrBatch(
+                            document.RawText,
+                            routed.Select(message => message.RawText).ToArray(),
+                            capturedAt);
                         OcrRecognized?.Invoke(batch);
                         foreach (var message in routed)
                         {
@@ -264,23 +263,23 @@ public sealed class CaptureCoordinator : IAsyncDisposable
     private async Task TranslationLoopAsync(CancellationToken cancellationToken)
     {
         var turns = new PlayerTurnAggregator();
-        ClassifiedGameMessage? pendingSignal = null;
+        ClassifiedGameMessage? pendingSystemMessage = null;
         var generation = Volatile.Read(ref _stateGeneration);
         var lastPlayerObservedAt = DateTimeOffset.MinValue;
-        var lastSignalSpokenAt = DateTimeOffset.MinValue;
+        var lastSystemMessageSpokenAt = DateTimeOffset.MinValue;
 
         while (!cancellationToken.IsCancellationRequested)
         {
             if (generation != Volatile.Read(ref _stateGeneration))
             {
                 _ = turns.Flush();
-                pendingSignal = null;
+                pendingSystemMessage = null;
                 generation = Volatile.Read(ref _stateGeneration);
             }
 
             var timeoutMs = turns.HasPending
                 ? Math.Clamp(_settings.SummaryWindowMs, 500, 2500)
-                : pendingSignal is not null ? 450 : Timeout.Infinite;
+                : pendingSystemMessage is not null ? 450 : Timeout.Infinite;
             var message = await ReadNextMessageAsync(timeoutMs, cancellationToken);
 
             if (message is null)
@@ -295,20 +294,21 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                     continue;
                 }
 
-                if (pendingSignal is not null)
+                if (pendingSystemMessage is not null)
                 {
                     var now = DateTimeOffset.UtcNow;
-                    var signalAge = now - pendingSignal.CapturedAt;
+                    var messageAge = now - pendingSystemMessage.CapturedAt;
                     if (now - lastPlayerObservedAt >= TimeSpan.FromMilliseconds(2200)
-                        && now - lastSignalSpokenAt >= TimeSpan.FromSeconds(4)
-                        && signalAge <= TimeSpan.FromSeconds(4)
+                        && now - lastSystemMessageSpokenAt >= TimeSpan.FromSeconds(4)
+                        && messageAge <= TimeSpan.FromSeconds(4)
+                        && _settings.IsSystemMessageEnabled(pendingSystemMessage.Kind)
                         && !IsPaused
                         && generation == Volatile.Read(ref _stateGeneration))
                     {
-                        TranslationReady?.Invoke(CreateTacticalResult(pendingSignal));
-                        lastSignalSpokenAt = now;
+                        TranslationReady?.Invoke(CreateSystemResult(pendingSystemMessage));
+                        lastSystemMessageSpokenAt = now;
                     }
-                    pendingSignal = null;
+                    pendingSystemMessage = null;
                 }
                 continue;
             }
@@ -321,16 +321,24 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             if (message.Kind == GameMessageKind.PlayerChat)
             {
                 lastPlayerObservedAt = DateTimeOffset.UtcNow;
-                pendingSignal = null;
+                pendingSystemMessage = null;
                 var completed = turns.Add(message);
                 if (completed is not null)
                 {
                     await TranslatePlayerTurnAsync(completed, generation, cancellationToken);
                 }
+                if (PlayerSpeechPolicy.IsLikelyUrgent(message.Content) && turns.HasPending)
+                {
+                    var urgent = turns.Flush();
+                    if (urgent is not null)
+                    {
+                        await TranslatePlayerTurnAsync(urgent, generation, cancellationToken);
+                    }
+                }
                 continue;
             }
 
-            if (message.Kind != GameMessageKind.TacticalSignal || !_settings.SignalVoiceEnabled)
+            if (!_settings.IsSystemMessageEnabled(message.Kind))
             {
                 continue;
             }
@@ -338,21 +346,14 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             var observedAt = DateTimeOffset.UtcNow;
             if (turns.HasPending
                 || observedAt - lastPlayerObservedAt < TimeSpan.FromMilliseconds(2200)
-                || observedAt - lastSignalSpokenAt < TimeSpan.FromSeconds(4))
+                || observedAt - lastSystemMessageSpokenAt < TimeSpan.FromSeconds(4))
             {
                 continue;
             }
 
-            // Standard defaults to only important tactical pings. Full additionally allows
-            // low-priority status such as recall, gold or cooldown reminders.
-            if (message.Priority < 2 && _settings.SpeechFilter != SpeechFilterLevel.Full)
+            if (pendingSystemMessage is null || message.Priority >= pendingSystemMessage.Priority)
             {
-                continue;
-            }
-
-            if (pendingSignal is null || message.Priority >= pendingSignal.Priority)
-            {
-                pendingSignal = message;
+                pendingSystemMessage = message;
             }
         }
     }
@@ -392,11 +393,21 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             var mentions = _heroes.FindMentions(
                 mentionSource,
                 _settings.PreferChampionPersonalName,
-                _settings.Language);
-            var speakerMention = _heroes.FindSpeakerMention(
-                turn.SpeakerRaw,
-                _settings.PreferChampionPersonalName,
-                _settings.Language);
+                _settings.Language).ToList();
+            var speakerMention = _heroes.FindById(
+                    turn.SpeakerHeroId,
+                    _settings.PreferChampionPersonalName,
+                    _settings.Language)
+                ?? _heroes.FindSpeakerMention(
+                    turn.SpeakerRaw,
+                    _settings.PreferChampionPersonalName,
+                    _settings.Language);
+            if (speakerMention is not null
+                && mentions.All(mention =>
+                    !string.Equals(mention.Id, speakerMention.Id, StringComparison.OrdinalIgnoreCase)))
+            {
+                mentions.Add(speakerMention);
+            }
             var speakerLabel = speakerMention?.SpokenName
                 ?? (_settings.Language == AppLanguage.English ? "Teammate" : "队友");
             var canonicalLines = _heroes.CanonicalizeLines(glossedLines, mentions);
@@ -410,7 +421,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             var request = new TranslationRequest(
                 canonicalLines,
                 mentions,
-                _settings.SpeechFilter,
+                PlayerSpeechPolicy.GetModelFilter(_settings),
                 maxSummaryCharacters,
                 speakerLabel,
                 _settings.KeepEmotionSummary,
@@ -423,8 +434,15 @@ public sealed class CaptureCoordinator : IAsyncDisposable
 
             result.SourceKind = TranslationSourceKind.PlayerChat;
             result.Speaker = speakerLabel;
-            result.Priority = 3;
             result.RawText = string.Join("\n", turn.RawLines);
+            result.OriginalLines = turn.Contents
+                .Where(line => !string.IsNullOrWhiteSpace(line))
+                .Select(line => line.Trim())
+                .Take(8)
+                .ToList();
+            result.SpokenSummary = PlayerSpeechTextSanitizer.Clean(result.SpokenSummary, turn);
+            result.ShouldSpeak = PlayerSpeechPolicy.ShouldSpeak(result, _settings)
+                && !string.IsNullOrWhiteSpace(result.SpokenSummary);
             TranslationReady?.Invoke(result);
         }
         catch (OperationCanceledException)
@@ -439,32 +457,136 @@ public sealed class CaptureCoordinator : IAsyncDisposable
         }
     }
 
-    private TranslationResult CreateTacticalResult(ClassifiedGameMessage signal)
+    private TranslationResult CreateSystemResult(ClassifiedGameMessage message)
     {
-        var mentions = _heroes.FindMentions(
-            new[] { signal.RawText },
-            _settings.PreferChampionPersonalName,
-            _settings.Language);
-        var speaker = mentions.Count == 1
-            ? mentions[0].SpokenName
-            : _settings.Language == AppLanguage.English ? "Teammate" : "队友";
-        var spoken = SignalMessageTemplates.FormatSpokenSignal(
-            signal.TacticalSummary,
-            speaker,
-            _settings.Language);
+        if (message.Kind != GameMessageKind.TacticalSignal)
+        {
+            var systemSpoken = SystemMessageTemplates.Format(message, _settings.Language);
+            return new TranslationResult
+            {
+                SourceKind = TranslationSourceKind.SystemMessage,
+                Speaker = _settings.Language == AppLanguage.English ? "Game" : "系统",
+                Intent = message.Kind switch
+                {
+                    GameMessageKind.KillEvent => "kill_event",
+                    GameMessageKind.ObjectiveEvent => "objective_event",
+                    GameMessageKind.ClientReminder => "client_reminder",
+                    _ => "system_event"
+                },
+                Priority = message.Priority,
+                DisplayTranslation = systemSpoken,
+                DisplayLines = new List<string> { systemSpoken },
+                SpokenSummary = systemSpoken,
+                RawText = message.RawText,
+                OriginalLines = new List<string> { message.Content },
+                ShouldSpeak = true,
+                ExpiresAfterMs = 3500
+            };
+        }
+
+        var speakerMention = _heroes.FindById(
+                message.SpeakerHeroId,
+                _settings.PreferChampionPersonalName,
+                _settings.Language)
+            ?? _heroes.FindSpeakerMention(
+                message.SpeakerRaw,
+                _settings.PreferChampionPersonalName,
+                _settings.Language);
+        var speaker = speakerMention?.SpokenName
+            ?? (_settings.Language == AppLanguage.English ? "Teammate" : "队友");
+        var semanticEvent = message.SemanticEvent is null
+            ? null
+            : message.SemanticEvent with
+            {
+                Subject = ResolveSemanticSubject(message.SemanticEvent.Subject)
+            };
+        var spoken = semanticEvent is not null
+            ? GameSemanticEventParser.Format(semanticEvent, speaker, _settings.Language)
+            : SignalMessageTemplates.FormatSpokenSignal(
+                message.TacticalSummary,
+                speaker,
+                _settings.Language);
         return new TranslationResult
         {
             SourceKind = TranslationSourceKind.TacticalSignal,
             Speaker = speaker,
-            Intent = "tactical_signal",
-            Priority = signal.Priority,
+            Intent = semanticEvent is null
+                ? "tactical_signal"
+                : GameSemanticEventParser.Intent(semanticEvent),
+            SourceType = semanticEvent?.SourceType.ToString().ToLowerInvariant() ?? "tactical_signal",
+            SpeechAct = semanticEvent?.SpeechAct.ToString().ToLowerInvariant() ?? "marker",
+            Subject = semanticEvent?.Subject ?? string.Empty,
+            Target = semanticEvent?.Target ?? string.Empty,
+            Status = semanticEvent?.Status ?? string.Empty,
+            DurationSeconds = semanticEvent?.DurationSeconds,
+            Modality = semanticEvent?.Modality.ToString().ToLowerInvariant() ?? "marked",
+            SemanticConfidence = semanticEvent?.Confidence ?? 0.8,
+            Evidence = semanticEvent?.Evidence ?? message.Content,
+            SemanticValidationPassed = semanticEvent is not null,
+            Priority = message.Priority,
             DisplayTranslation = spoken,
+            DisplayLines = new List<string> { spoken },
             SpokenSummary = spoken,
-            RawText = signal.RawText,
+            RawText = message.RawText,
+            OriginalLines = new List<string> { message.Content },
             ShouldSpeak = true,
             ExpiresAfterMs = 3500
         };
     }
+
+    private string ResolveSemanticSubject(string subject)
+    {
+        if (string.IsNullOrWhiteSpace(subject))
+        {
+            return string.Empty;
+        }
+
+        var localized = GameTermGlossary.ReplaceTerms(subject, _settings.Language);
+        var mentions = _heroes.FindMentions(
+            new[] { subject },
+            _settings.PreferChampionPersonalName,
+            _settings.Language);
+        foreach (var mention in mentions)
+        {
+            foreach (var alias in new[]
+                     {
+                         mention.KoreanName,
+                         mention.ChineseOfficial,
+                         mention.ChinesePersonal,
+                         mention.Id
+                     })
+            {
+                if (string.IsNullOrWhiteSpace(alias))
+                {
+                    continue;
+                }
+                localized = System.Text.RegularExpressions.Regex.Replace(
+                    localized,
+                    System.Text.RegularExpressions.Regex.Escape(alias),
+                    mention.SpokenName,
+                    System.Text.RegularExpressions.RegexOptions.IgnoreCase
+                    | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+            }
+        }
+        return localized.Trim();
+    }
+
+    private static OcrColorEvidence? FindColorEvidence(
+        OcrDocument document,
+        string deduplicatedLine)
+    {
+        var normalizedTarget = NormalizeForEvidenceMatch(deduplicatedLine);
+        return document.Lines
+            .LastOrDefault(line =>
+                NormalizeForEvidenceMatch(line.Text)
+                    .Equals(normalizedTarget, StringComparison.OrdinalIgnoreCase))
+            ?.ColorEvidence;
+    }
+
+    private static string NormalizeForEvidenceMatch(string line) =>
+        MessageDeduplicator.StripGameTimestamp(line)
+            .Normalize(System.Text.NormalizationForm.FormKC)
+            .Trim();
 
     private void ClearPendingMessages()
     {

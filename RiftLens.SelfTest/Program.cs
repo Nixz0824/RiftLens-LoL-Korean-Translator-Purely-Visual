@@ -1,5 +1,6 @@
 using RiftLens.Models;
 using RiftLens.Services;
+using System.Diagnostics;
 using System.Net;
 using System.Text;
 using System.Text.Json;
@@ -32,8 +33,10 @@ if (args.Length >= 2 && string.Equals(args[0], "--render-floating", StringCompar
         "AnimateWidth",
         System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
         ?? throw new InvalidOperationException("找不到悬浮控制动画方法");
+    control.Location = new Point(-30000, -30000);
+    control.Show();
+    Application.DoEvents();
     expand.Invoke(control, new object[] { true });
-    control.CreateControl();
     Thread.Sleep(210);
     animate.Invoke(control, null);
     using var bitmap = new Bitmap(control.Width, control.Height);
@@ -42,6 +45,63 @@ if (args.Length >= 2 && string.Equals(args[0], "--render-floating", StringCompar
     Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
     bitmap.Save(outputPath, System.Drawing.Imaging.ImageFormat.Png);
     Console.WriteLine($"悬浮控制预览：{control.Width}x{control.Height} · {outputPath}");
+    return 0;
+}
+
+if (args.Length >= 2 && string.Equals(args[0], "--render-translation", StringComparison.OrdinalIgnoreCase))
+{
+    ApplicationConfiguration.Initialize();
+    using var overlay = new RiftLens.UI.TranslationOverlayForm();
+    var settings = new AppSettings
+    {
+        Language = AppLanguage.Chinese,
+        CaptureRegion = new ScreenRegion { X = 180, Y = 520, Width = 520, Height = 148 },
+        DisplayRegion = new ScreenRegion { X = 180, Y = 350, Width = 520, Height = 148 },
+        OverlayPlacement = OverlayPlacement.Custom,
+        OverlayFontSize = 16,
+        ShowOriginalText = true
+    };
+    var overlayType = typeof(RiftLens.UI.TranslationOverlayForm);
+    var result = new TranslationResult
+    {
+        Speaker = "嘉文四世",
+        DisplayTranslation = "嘉文四世：敌方打野正在靠近下路，先后退并保留闪现。",
+        DisplayLines = new List<string>
+        {
+            "敌方打野正在靠近下路。",
+            "先后退，闪现留着。"
+        },
+        OriginalLines = new List<string>
+        {
+            "적 정글 바텀 가는 중",
+            "일단 빼고 점멸 아껴"
+        },
+        RawText = "[12:34] Nixz#KR1 (자르반 4세): 적 정글 바텀 가는 중\n[12:35] Nixz#KR1 (자르반 4세): 일단 빼고 점멸 아껴"
+    };
+    overlayType.GetMethod("PrepareContent", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+        .Invoke(overlay, new object[] { result, settings });
+    overlayType.GetMethod("EnsureFonts", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+        .Invoke(overlay, new object[] { settings });
+    overlayType.GetMethod("LayoutContent", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+        .Invoke(overlay, new object[] { settings });
+    overlayType.GetField("_surfaceOpacity", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+        .SetValue(overlay, (byte)255);
+    overlay.Location = new Point(-30000, -30000);
+    overlay.Show();
+    Application.DoEvents();
+    overlayType.GetMethod("RenderLayeredSurface", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+        .Invoke(overlay, null);
+
+    using var bitmap = new Bitmap(overlay.Width, overlay.Height, System.Drawing.Imaging.PixelFormat.Format32bppPArgb);
+    using (var graphics = Graphics.FromImage(bitmap))
+    {
+        overlayType.GetMethod("DrawSurface", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+            .Invoke(overlay, new object[] { graphics });
+    }
+    var outputPath = Path.GetFullPath(args[1]);
+    Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
+    bitmap.Save(outputPath, System.Drawing.Imaging.ImageFormat.Png);
+    Console.WriteLine($"译文框预览：{overlay.Width}x{overlay.Height} · {outputPath}");
     return 0;
 }
 
@@ -87,6 +147,12 @@ await CheckAsync("英雄中韩映射", async () =>
     Require(mentions[0].ChinesePersonal == "蕾欧娜", "中文角色名不正确");
     Require(dictionary.FindSpeakerMention("아리", true)?.SpokenName == "阿狸", "短英雄名前缀未映射到中文名");
     Require(dictionary.FindSpeakerMention("아리", true, AppLanguage.English)?.SpokenName == "Ahri", "英雄英文名映射失败");
+    Require(dictionary.FindOfficialHeroId("자르반4세") == "JarvanIV", "嘉文韩文紧凑写法未归一化");
+    Require(dictionary.FindOfficialHeroId("자르반 4 세") == "JarvanIV", "嘉文韩文空格波动未归一化");
+    Require(dictionary.FindOfficialHeroId("자르반 IV") == "JarvanIV", "嘉文罗马数字写法未归一化");
+    Require(dictionary.FindOfficialHeroId("Jarvan IV") == "JarvanIV", "嘉文英文官方名未对齐");
+    Require(dictionary.FindOfficialHeroId("嘉文四世") == "JarvanIV", "嘉文中文角色名未对齐");
+    Require(dictionary.FindOfficialHeroId("贾尔班四世") is null, "非官方误译英雄名不应进入词典");
     var embedded = await HeroDictionary.LoadAsync();
     Require(embedded.Version == dictionary.Version, "发布版内嵌英雄词典缺失");
 });
@@ -120,32 +186,100 @@ await CheckAsync("聊天上滚去重", () =>
 await CheckAsync("玩家与系统消息分类", () =>
 {
     var classifier = new ChatMessageClassifier();
-    // ── 韩文 ──
-    Require(classifier.IsPlayerMessage("[팀] 레오나: 탑 합류 좀", SystemMessageFilterMode.Balanced), "玩家聊天被过滤");
-    Require(!classifier.IsPlayerMessage("적이 포탑을 파괴했습니다", SystemMessageFilterMode.Balanced), "防御塔消息未过滤");
-    Require(!classifier.IsPlayerMessage("[시스템] 플레이어가 게임에서 나갔습니다", SystemMessageFilterMode.Balanced), "离开消息未过滤");
-    Require(!classifier.IsPlayerMessage("레오나님이 위험 신호를 보냄", SystemMessageFilterMode.Balanced), "关闭战术播报后仍放行了信号");
-    Require(classifier.IsPlayerMessage("레오나님이 위험 신호를 보냄", SystemMessageFilterMode.Balanced, true), "开启战术播报后信号被过滤");
-    Require(!classifier.IsPlayerMessage("형 탑 조심", SystemMessageFilterMode.Strict), "严格模式接受了无玩家格式文本");
-    Require(classifier.IsPlayerMessage("형 탑 조심", SystemMessageFilterMode.Off), "关闭过滤后仍丢弃文本");
+    var playerPalette = new OcrColorEvidence(
+        120, 0.26f, 0.52f, 0.01f, 0.42f, 0.69f);
+    var systemPalette = new OcrColorEvidence(
+        120, 0.18f, 0.31f, 0.16f, 0.20f, 0.24f);
 
-    // ── 中文（汉化客户端） ──
-    Require(classifier.IsPlayerMessage("[队伍] 蕾欧娜：上路支援一下", SystemMessageFilterMode.Balanced), "中文玩家聊天被过滤");
-    Require(!classifier.IsPlayerMessage("敌方摧毁了一座防御塔", SystemMessageFilterMode.Balanced), "中文防御塔消息未过滤");
-    Require(!classifier.IsPlayerMessage("玩家离开了游戏", SystemMessageFilterMode.Balanced), "中文离开消息未过滤");
-    Require(classifier.IsPlayerMessage("蕾欧娜发出撤退信号", SystemMessageFilterMode.Balanced, true), "中文战术信号被过滤");
-    Require(classifier.IsPlayerMessage("[所有人] 阿狸：中路不见了", SystemMessageFilterMode.Balanced), "中文全频道聊天被过滤");
+    // In-game structure: optional timestamp/channel + player ID + (champion) + colon.
+    var timestamped = classifier.Classify(
+        "[12:34] [팀] Nixz#KR1 (아리): 미드 밀고 갈게",
+        playerPalette);
+    Require(timestamped.Kind == GameMessageKind.PlayerChat, "带时间戳的韩文玩家聊天被过滤");
+    Require(timestamped.SpeakerKey == "NIXZ#KR1", "玩家 ID 未从英雄名中独立提取");
+    Require(timestamped.SpeakerRaw.Contains("아리", StringComparison.Ordinal), "英雄名未保留给播报映射");
+    Require(timestamped.Content == "미드 밀고 갈게", "玩家聊天正文提取失败");
 
-    // ── 中韩混合 ──
-    Require(classifier.IsPlayerMessage("[队伍] 레오나：上路 조심", SystemMessageFilterMode.Balanced), "中韩混合玩家聊天被过滤");
-    Require(classifier.Classify("아리가 가렌을 처치했습니디", SystemMessageFilterMode.Balanced).Kind == GameMessageKind.KillEvent,
-        "OCR 轻微错字后的击杀消息未被识别");
-    Require(classifier.Classify("와드가 만료되었습니다", SystemMessageFilterMode.Balanced).Kind == GameMessageKind.Unknown,
-        "未知系统文字不应伪装成玩家聊天");
-    Require(classifier.Classify("알림: 서버 연결 상태가 불안정합니다", SystemMessageFilterMode.Strict).Kind == GameMessageKind.SystemEvent,
-        "带冒号的系统通知被误判为玩家聊天");
-    Require(classifier.Classify("아리: help top", SystemMessageFilterMode.Balanced).Kind == GameMessageKind.PlayerChat,
-        "包含战术关键词的玩家发言被降级成了系统 Ping");
+    Require(classifier.Classify("Player One (Ahri): help 上路 조심", playerPalette).Kind == GameMessageKind.PlayerChat,
+        "韩中英混排玩家聊天被过滤");
+    Require(classifier.Classify("[队伍] 玩家甲 (阿狸)：上路支援一下").Kind == GameMessageKind.PlayerChat,
+        "中文玩家聊天结构未识别");
+    Require(classifier.Classify("[All] PlayerTwo (Leona): careful bot").Kind == GameMessageKind.PlayerChat,
+        "英文玩家聊天结构未识别");
+    Require(classifier.Classify("[팀] PlayerThree: 챔피언 선택 중").Kind == GameMessageKind.PlayerChat,
+        "选人阶段明确频道聊天未识别");
+
+    // The same cyan prefix is not enough to turn a system line into player chat.
+    Require(classifier.Classify("Nixz#KR1: help top", playerPalette).Kind == GameMessageKind.PlayerChat,
+        "颜色辅助未恢复 OCR 丢失括号的玩家聊天");
+    Require(classifier.Classify("알림: 서버 연결 상태가 불안정합니다", playerPalette).Kind == GameMessageKind.OtherSystemEvent,
+        "带相同青色前缀的系统通知冒充了玩家聊天");
+    Require(classifier.Classify("unknown prefix: no colour evidence").Kind == GameMessageKind.Unknown,
+        "无频道、英雄名或颜色证据的冒号文本不应冒充玩家聊天");
+    Require(!systemPalette.SupportsPlayerChat && systemPalette.SupportsSystemEvent,
+        "系统强调色证据被错误解释为玩家聊天配色");
+
+    Require(classifier.Classify("레오나님이 위험 신호를 보냄").Kind == GameMessageKind.TacticalSignal,
+        "韩文战术信号分类失败");
+    Require(classifier.Classify("아리가 가렌을 처치했습니다").Kind == GameMessageKind.KillEvent,
+        "韩文击杀播报分类失败");
+    Require(classifier.Classify("내셔 남작이 30초 후 생성됩니다").Kind == GameMessageKind.ObjectiveEvent,
+        "中立资源刷新提醒分类失败");
+    Require(classifier.Classify("已连续游戏 2 小时，请注意休息").Kind == GameMessageKind.ClientReminder,
+        "防沉迷提醒分类失败");
+    Require(classifier.Classify("敌方摧毁了一座防御塔").Kind == GameMessageKind.OtherSystemEvent,
+        "其他系统事件分类失败");
+    Require(classifier.Classify("와드가 만료되었습니다").Kind == GameMessageKind.Unknown,
+        "未知文字不应伪装成玩家聊天或已知系统类别");
+    return Task.CompletedTask;
+});
+
+await CheckAsync("结构化 Ping 与 HUD 语义", () =>
+{
+    var classifier = new ChatMessageClassifier();
+
+    var cooldown = classifier.Classify("[팀] PlayerOne (아리): 점멸 - 20s");
+    Require(cooldown.Kind == GameMessageKind.TacticalSignal,
+        "带玩家前缀的 HUD 冷却分享仍被当作普通聊天");
+    Require(cooldown.SemanticEvent is
+        {
+            SpeechAct: SemanticSpeechAct.Countdown,
+            DurationSeconds: 20,
+            Status: "cooldown"
+        }, "技能倒计时没有形成可核验的结构化事件");
+    var cooldownSpeech = GameSemanticEventParser.Format(
+        cooldown.SemanticEvent!,
+        "阿狸",
+        AppLanguage.Chinese);
+    Require(cooldownSpeech == "闪现还有20秒"
+        && !cooldownSpeech.Contains("负20", StringComparison.Ordinal),
+        "HUD 分隔横杠仍被解释为负数");
+
+    var alive = classifier.Classify("[팀] PlayerOne (아리): Yasuo - Alive");
+    Require(alive.Kind == GameMessageKind.TacticalSignal
+        && alive.SemanticEvent?.SpeechAct == SemanticSpeechAct.Status
+        && alive.SemanticEvent.Status == "alive",
+        "敌方存活状态分享没有进入状态事件");
+    var aliveSpeech = GameSemanticEventParser.Format(
+        alive.SemanticEvent!,
+        "阿狸",
+        AppLanguage.Chinese);
+    Require(aliveSpeech.Contains("提醒", StringComparison.Ordinal)
+        && aliveSpeech.Contains("仍然存活", StringComparison.Ordinal)
+        && !aliveSpeech.Contains("正在", StringComparison.Ordinal),
+        "存活状态被误说成正在执行的行动");
+
+    var marker = classifier.Classify("[팀] PlayerOne (아리): 신호: 드래곤");
+    Require(marker.Kind == GameMessageKind.TacticalSignal
+        && marker.SemanticEvent?.SpeechAct == SemanticSpeechAct.Marker,
+        "带玩家前缀的目标标记未从自由聊天中提前分流");
+    Require(GameSemanticEventParser.Format(marker.SemanticEvent!, "阿狸", AppLanguage.Chinese)
+        == "阿狸标记了小龙", "目标标记被错误扩写为正在争夺目标");
+
+    Require(classifier.Classify("[팀] PlayerOne (아리): 小龙等我").Kind == GameMessageKind.PlayerChat,
+        "普通玩家战术聊天被宽泛规则误判为系统 Ping");
+    Require(classifier.Classify("[팀] PlayerOne (아리): 후퇴 후 드래곤 가자").Kind == GameMessageKind.PlayerChat,
+        "包含撤退词的完整玩家计划被宽泛规则误判为系统 Ping");
     return Task.CompletedTask;
 });
 
@@ -172,6 +306,49 @@ await CheckAsync("按发言人聚合播报轮次", () =>
     return Task.CompletedTask;
 });
 
+await CheckAsync("本局玩家英雄多数锁定", async () =>
+{
+    var dictionary = await HeroDictionary.LoadAsync();
+    var classifier = new ChatMessageClassifier();
+    var tracker = new PlayerHeroSessionTracker(dictionary);
+
+    var invalid = tracker.Observe(classifier.Classify(
+        "[팀] PlayerOne#KR1 (贾尔班四世): first"));
+    Require(string.IsNullOrEmpty(invalid.SpeakerHeroId), "非官方 OCR 英雄名获得了投票");
+
+    var firstValid = tracker.Observe(classifier.Classify(
+        "[팀] PlayerOne#KR1 (자르반4세): second"));
+    Require(firstValid.SpeakerHeroId == "JarvanIV", "当前有效英雄名没有立即使用");
+
+    var secondValid = tracker.Observe(classifier.Classify(
+        "[팀] Player0ne#KR1 (자르반 4 세): third"));
+    Require(secondValid.SpeakerKey == "PLAYERONE#KR1", "玩家 ID 单字符 OCR 波动未归并");
+
+    var thirdValid = tracker.Observe(classifier.Classify(
+        "[팀] PlayerOne#KR1 (자르반 IV): fourth"));
+    Require(thirdValid.SpeakerHeroId == "JarvanIV", "三次有效多数后没有锁定嘉文四世");
+
+    var conflictingOfficial = tracker.Observe(classifier.Classify(
+        "[팀] PlayerOne#KR1 (아리): fifth"));
+    Require(conflictingOfficial.SpeakerHeroId == "JarvanIV", "锁定后被偶发的其他官方英雄名覆盖");
+    Require(conflictingOfficial.SpeakerRaw.Contains("자르반 4세", StringComparison.Ordinal),
+        "锁定后没有恢复官方韩文英雄名");
+
+    var turns = new PlayerTurnAggregator();
+    tracker.Reset();
+    Require(turns.Add(tracker.Observe(classifier.Classify(
+        "[팀] PlayerOne#KR1 (贾尔班四世): one"))) is null, "首句不应结算");
+    Require(turns.Add(tracker.Observe(classifier.Classify(
+        "[팀] PlayerOne#KR1 (자르반 4세): two"))) is null, "同玩家第二句不应结算");
+    var updatedTurn = turns.Flush();
+    Require(updatedTurn?.SpeakerHeroId == "JarvanIV", "同一轮次后续正确英雄名未更新发言人");
+
+    tracker.Reset();
+    var afterReset = tracker.Observe(classifier.Classify(
+        "[팀] PlayerOne#KR1 (贾尔班四世): new game"));
+    Require(string.IsNullOrEmpty(afterReset.SpeakerHeroId), "重新监听后沿用了上一局英雄锁定");
+});
+
 await CheckAsync("信号与系统消息边界", () =>
 {
     var classifier = new ChatMessageClassifier();
@@ -187,13 +364,36 @@ await CheckAsync("信号与系统消息边界", () =>
     Require(!SignalMessageTemplates.IsSignalMessage(surrender), "投降消息不应被认定为固定信号");
     Require(!SignalMessageTemplates.IsSignalMessage("gg jg diff"), "普通玩家缩写不应被认定为固定信号");
     Require(SignalMessageTemplates.TryTranslateSignal(retreatSignal) == "\u64A4\u9000\u4FE1\u53F7", "固定信号本地翻译失败");
+    Require(classifier.Classify(restReminder).Kind == GameMessageKind.ClientReminder, "健康提醒未进入独立类别");
+    Require(classifier.Classify(surrender).Kind == GameMessageKind.OtherSystemEvent, "投降提醒未进入其他系统类别");
+    Require(SystemMessageTemplates.Format(
+        classifier.Classify("내셔 남작이 30초 후 생성됩니다"),
+        AppLanguage.Chinese).Contains("男爵", StringComparison.Ordinal), "中立资源本地播报模板失败");
     return Task.CompletedTask;
 });
 
 await CheckAsync("术语表长词优先", () =>
 {
     Require(GameTermGlossary.ReplaceTerms("\uC6A9 \uD55C\uD0C0") == "\u9F99\u56E2", "长词应先于短词替换");
-    Require(GameTermGlossary.ReplaceTerms("탑 합류, 바론 시야", AppLanguage.English) == "top 합류, Baron vision", "英文术语固定映射失败");
+    var englishTerms = GameTermGlossary.ReplaceTerms("탑 합류, 바론 시야", AppLanguage.English);
+    Require(englishTerms.Contains("top", StringComparison.OrdinalIgnoreCase)
+        && englishTerms.Contains("rotate", StringComparison.OrdinalIgnoreCase)
+        && englishTerms.Contains("Baron", StringComparison.OrdinalIgnoreCase)
+        && englishTerms.Contains("vision", StringComparison.OrdinalIgnoreCase), "英文术语固定映射失败");
+    Require(GameTermGlossary.ReplaceTerms("탑합류좀", AppLanguage.English)
+        .StartsWith("top rotate ", StringComparison.OrdinalIgnoreCase), "OCR 丢失韩文空格后英文术语粘连");
+    Require(GameTermGlossary.Version == "16.14.1", "内置术语表版本错误");
+    Require(GameTermGlossary.OfficialTermCount >= 1400, "官方术语表条目不足");
+    Require(GameTermGlossary.ReplaceTerms("자르반 대격변 조심") == "자르반 天崩地裂 조심",
+        "嘉文终极技能韩中官方映射失败");
+    Require(GameTermGlossary.ReplaceTerms("Cataclysm 조심") == "天崩地裂 조심",
+        "英雄技能英中官方映射失败");
+    Require(GameTermGlossary.ReplaceTerms("天崩地裂 조심", AppLanguage.English) == "Cataclysm 조심",
+        "英雄技能中英官方映射失败");
+    Require(GameTermGlossary.ReplaceTerms("점화, 무한의 대검, 정복자") == "引燃, 无尽之刃, 征服者",
+        "召唤师技能、装备或符文韩中映射失败");
+    Require(GameTermGlossary.ReplaceTerms("점화, 무한의 대검, 정복자", AppLanguage.English)
+        == "Ignite, Infinity Edge, Conqueror", "召唤师技能、装备或符文韩英映射失败");
     return Task.CompletedTask;
 });
 
@@ -224,6 +424,7 @@ await CheckAsync("设置持久化", async () =>
         CaptureRegion = new ScreenRegion { X = 10, Y = 20, Width = 300, Height = 120 },
         OutputMode = OutputMode.VoiceOnly,
         OverlayOpacity = 0.61,
+        OverlayDurationMs = 5200,
         SpeechVolume = 42,
         OcrScale = 2
     };
@@ -240,12 +441,157 @@ await CheckAsync("设置持久化", async () =>
     Require(loaded.OutputMode == OutputMode.VoiceOnly, "输出模式未保存");
     Require(loaded.SpeechVolume == 42, "语音音量未保存");
     Require(loaded.OcrScale == 3, "旧版 OCR 放大倍数未迁移到聊天优化值");
-    Require(loaded.SchemaVersion == 4 && loaded.SignalVoiceEnabled, "旧版设置未迁移到玩家优先播报逻辑");
+    Require(loaded.SchemaVersion == 7, "旧版设置未迁移到逐条直译展示版本");
+    Require(!loaded.TacticalSignalEnabled
+        && !loaded.KillEventEnabled
+        && !loaded.ObjectiveEventEnabled
+        && !loaded.ClientReminderEnabled
+        && !loaded.OtherSystemEventEnabled,
+        "旧版设置迁移后可选系统消息未采用安全关闭默认值");
+    Require(loaded.SystemMessageFilter == SystemMessageFilterMode.Strict,
+        "旧版宽松过滤设置未迁移为结构优先分类");
     Require(loaded.Language == AppLanguage.Chinese, "旧版设置未迁移到默认中文语言");
     Require(loaded.MaxSummaryChars == 64 && loaded.SummaryWindowMs == 900, "玩家轮次摘要默认参数迁移失败");
+    Require(loaded.OverlayDurationMs == 7000, "旧版译文展示时长未迁移到 7 秒");
+    Require(loaded.SpeakUrgentPlayerChat
+        && loaded.SpeakImportantPlayerChat
+        && !loaded.SpeakNeutralPlayerChat,
+        "旧版设置未迁移为紧急与重点默认播报");
     loaded.Language = AppLanguage.English;
+    loaded.ObjectiveEventEnabled = true;
+    loaded.SpeakImportantPlayerChat = false;
+    loaded.SpeakNeutralPlayerChat = true;
     await store.SaveAsync(loaded);
-    Require((await store.LoadAsync()).Language == AppLanguage.English, "英文语言设置未持久化");
+    var reloaded = await store.LoadAsync();
+    Require(reloaded.Language == AppLanguage.English, "英文语言设置未持久化");
+    Require(reloaded.ObjectiveEventEnabled
+        && reloaded.IsSystemMessageEnabled(GameMessageKind.ObjectiveEvent)
+        && !reloaded.IsSystemMessageEnabled(GameMessageKind.KillEvent),
+        "独立系统类别开关未持久化或路由错误");
+    Require(reloaded.SpeakUrgentPlayerChat
+        && !reloaded.SpeakImportantPlayerChat
+        && reloaded.SpeakNeutralPlayerChat,
+        "玩家三档播报开关未独立持久化");
+});
+
+await CheckAsync("玩家分级播报与隐私化语音", () =>
+{
+    var settings = new AppSettings
+    {
+        SpeakUrgentPlayerChat = true,
+        SpeakImportantPlayerChat = true,
+        SpeakNeutralPlayerChat = false
+    };
+    var urgent = new TranslationResult { ShouldSpeak = true, Intent = "warning", Priority = 3 };
+    var important = new TranslationResult { ShouldSpeak = true, Intent = "assist", Priority = 2 };
+    var neutral = new TranslationResult { ShouldSpeak = true, Intent = "message", Priority = 1 };
+    var hostile = new TranslationResult { ShouldSpeak = true, Intent = "hostility", Priority = 3 };
+    Require(PlayerSpeechPolicy.Classify(urgent) == PlayerSpeechCategory.Urgent
+        && PlayerSpeechPolicy.ShouldSpeak(urgent, settings), "紧急玩家消息未进入紧急播报");
+    Require(PlayerSpeechPolicy.Classify(important) == PlayerSpeechCategory.Important
+        && PlayerSpeechPolicy.ShouldSpeak(important, settings), "重点玩家消息未进入重点播报");
+    Require(PlayerSpeechPolicy.Classify(neutral) == PlayerSpeechCategory.Neutral
+        && !PlayerSpeechPolicy.ShouldSpeak(neutral, settings), "关闭中性闲聊后仍被播报");
+    Require(!PlayerSpeechPolicy.ShouldSpeak(hostile, settings), "纯辱骂不应进入语音");
+    Require(PlayerSpeechPolicy.IsLikelyUrgent("bot careful, 정글 온다"),
+        "韩英混排危险提醒未跳过普通汇总等待");
+
+    var turn = new PlayerSpeechTurn(
+        "NIXZ#KR1",
+        "Nixz#KR1 (자르반 4세)",
+        Array.Empty<string>(),
+        Array.Empty<string>(),
+        DateTimeOffset.UtcNow,
+        "JarvanIV");
+    var cleaned = PlayerSpeechTextSanitizer.Clean(
+        "[12:34] Nixz#KR1：嘉文四世提醒下路先后退",
+        turn);
+    Require(cleaned == "嘉文四世提醒下路先后退", "语音未删除时间戳或玩家 ID");
+    return Task.CompletedTask;
+});
+
+await CheckAsync("AI 语义证据本地校验", () =>
+{
+    var unsupportedAction = new TranslationResult
+    {
+        ShouldSpeak = true,
+        SourceType = "player_chat",
+        SpeechAct = "action",
+        Modality = "asserted",
+        SemanticConfidence = 0.96,
+        Evidence = "小龙",
+        SpokenSummary = "队友正在打小龙",
+        DisplayLines = new List<string> { "小龙" }
+    };
+    TranslationSemanticGuard.Apply(
+        unsupportedAction,
+        new TranslationRequest(
+            new[] { "小龙" },
+            Array.Empty<HeroMention>(),
+            SpeechFilterLevel.Standard,
+            64));
+    Require(!unsupportedAction.ShouldSpeak && !unsupportedAction.SemanticValidationPassed,
+        "没有动作证据时，AI 仍能把目标标记说成正在执行的行动");
+
+    var validWarning = new TranslationResult
+    {
+        ShouldSpeak = true,
+        SourceType = "player_chat",
+        SpeechAct = "warning",
+        Subject = "敌方打野",
+        Status = "danger",
+        Modality = "asserted",
+        SemanticConfidence = 0.94,
+        Evidence = "小心敌方打野",
+        SpokenSummary = "小心敌方打野"
+    };
+    TranslationSemanticGuard.Apply(
+        validWarning,
+        new TranslationRequest(
+            new[] { "小心敌方打野" },
+            Array.Empty<HeroMention>(),
+            SpeechFilterLevel.Standard,
+            64));
+    Require(validWarning.ShouldSpeak && validWarning.SemanticValidationPassed,
+        "证据完整的玩家警告被过度静音");
+
+    var negativeCountdown = new TranslationResult
+    {
+        ShouldSpeak = true,
+        SourceType = "player_chat",
+        SpeechAct = "countdown",
+        Subject = "闪现",
+        Status = "cooldown",
+        DurationSeconds = 20,
+        Modality = "asserted",
+        SemanticConfidence = 0.99,
+        Evidence = "闪现 - 20s",
+        SpokenSummary = "闪现负20秒"
+    };
+    TranslationSemanticGuard.Apply(
+        negativeCountdown,
+        new TranslationRequest(
+            new[] { "闪现 - 20s" },
+            Array.Empty<HeroMention>(),
+            SpeechFilterLevel.Standard,
+            64));
+    Require(!negativeCountdown.ShouldSpeak,
+        "AI 把 HUD 分隔符解释成负数后仍通过本地语音校验");
+    return Task.CompletedTask;
+});
+
+await CheckAsync("自定义译文框固定尺寸", () =>
+{
+    var settings = new AppSettings
+    {
+        OverlayPlacement = OverlayPlacement.Custom,
+        CaptureRegion = new ScreenRegion { X = 100, Y = 300, Width = 640, Height = 120 },
+        DisplayRegion = new ScreenRegion { X = 140, Y = 160, Width = 520, Height = 108 }
+    };
+    var bounds = RiftLens.UI.OverlayPlacementService.Calculate(settings, new Size(380, 72));
+    Require(bounds == new Rectangle(140, 160, 520, 108),
+        "自定义译文框没有严格使用用户框选的位置与尺寸");
+    return Task.CompletedTask;
 });
 
 await CheckAsync("AI 结构化翻译协议", async () =>
@@ -258,7 +604,17 @@ await CheckAsync("AI 结构化翻译协议", async () =>
         emotion = "urgent",
         emotionIntensity = 2,
         priority = 3,
+        sourceType = "player_chat",
+        speechAct = "warning",
+        subject = "상대 정글",
+        target = "탑",
+        status = "danger",
+        durationSeconds = (int?)null,
+        modality = "asserted",
+        semanticConfidence = 0.96,
+        evidence = "상대 정글 조심해",
         displayTranslation = "蕾欧娜焦急地提醒上单支援，并小心敌方打野。",
+        displayLines = new[] { "请上路支援。", "小心敌方打野。" },
         spokenSummary = "蕾欧娜提醒上单及时支援，小心敌方打野。",
         toxicityFiltered = true,
         expiresAfterMs = 6000
@@ -275,7 +631,7 @@ await CheckAsync("AI 结构化翻译协议", async () =>
         handler);
     var hero = new HeroMention("Leona", "89", "레오나", "曙光女神", "蕾欧娜", "蕾欧娜");
     var result = await translator.TranslateAsync(new TranslationRequest(
-        new[] { "<英雄 id=\"Leona\">蕾欧娜</英雄>: 탑 합류 좀" },
+        new[] { "<英雄 id=\"Leona\">蕾欧娜</英雄>: 탑 합류 좀", "상대 정글 조심해" },
         new[] { hero },
         SpeechFilterLevel.Standard,
         42,
@@ -283,11 +639,24 @@ await CheckAsync("AI 结构化翻译协议", async () =>
         true), CancellationToken.None);
     Require(result.ShouldSpeak, "播报标志解析失败");
     Require(result.Speaker == "蕾欧娜", "发言英雄校验失败");
+    Require(result.DisplayLines.SequenceEqual(new[] { "请上路支援。", "小心敌方打野。" }),
+        "多条玩家发言没有按原顺序保留独立译文");
+    Require(result.DisplayTranslation == $"蕾欧娜：请上路支援。{Environment.NewLine}小心敌方打野。",
+        "屏显仍在使用理解总结，而不是逐条直译内容");
     Require(handler.RequestBody.Contains("thinking", StringComparison.Ordinal), "DeepSeek 非思考模式参数缺失");
     using var sent = JsonDocument.Parse(handler.RequestBody);
     var systemPrompt = sent.RootElement.GetProperty("messages")[0].GetProperty("content").GetString() ?? string.Empty;
     Require(systemPrompt.Contains("不可信", StringComparison.Ordinal), "提示注入防护规则缺失");
     Require(systemPrompt.Contains("禁止把正常内容降级", StringComparison.Ordinal), "忠实摘要规则缺失");
+    Require(systemPrompt.Contains("本地官方三语词典", StringComparison.Ordinal), "AI 提示未保护本地官方术语");
+    Require(systemPrompt.Contains("displayLines", StringComparison.Ordinal), "AI 提示未要求逐条换行翻译");
+    Require(systemPrompt.Contains("逐条直译展示", StringComparison.Ordinal)
+        && systemPrompt.Contains("只有 spokenSummary", StringComparison.Ordinal),
+        "屏显直译与语音摘要没有严格分离");
+    Require(systemPrompt.Contains("semanticConfidence", StringComparison.Ordinal)
+        && systemPrompt.Contains("HUD 分隔符", StringComparison.Ordinal)
+        && systemPrompt.Contains("只有 evidence 明确", StringComparison.Ordinal),
+        "AI 提示没有要求可核验语义证据或禁止动作臆测");
 
     var genericResult = JsonSerializer.Serialize(new
     {
@@ -297,6 +666,15 @@ await CheckAsync("AI 结构化翻译协议", async () =>
         emotion = "neutral",
         emotionIntensity = 0,
         priority = 2,
+        sourceType = "player_chat",
+        speechAct = "warning",
+        subject = "상대 정글",
+        target = "탑",
+        status = "danger",
+        durationSeconds = (int?)null,
+        modality = "asserted",
+        semanticConfidence = 0.94,
+        evidence = "상대 정글 조심해",
         displayTranslation = "请上路支援，并小心对面打野。",
         spokenSummary = "蕾欧娜在请求支援",
         toxicityFiltered = false,
@@ -328,6 +706,15 @@ await CheckAsync("AI 结构化翻译协议", async () =>
         emotion = "angry",
         emotionIntensity = 3,
         priority = 1,
+        sourceType = "player_chat",
+        speechAct = "hostility",
+        subject = "",
+        target = "",
+        status = "",
+        durationSeconds = (int?)null,
+        modality = "asserted",
+        semanticConfidence = 0.92,
+        evidence = "심한 욕설",
         displayTranslation = "队友持续进行人身攻击。",
         spokenSummary = "队友有些不满",
         toxicityFiltered = true,
@@ -348,7 +735,9 @@ await CheckAsync("AI 结构化翻译协议", async () =>
         64,
         "队友",
         true), CancellationToken.None);
-    Require(protective.ShouldSpeak && protective.SpokenSummary == "队友有些不满", "纯不友善沟通未采用保护性概括");
+    Require(!protective.ShouldSpeak
+        && protective.DisplayTranslation.Contains("持续进行人身攻击", StringComparison.Ordinal),
+        "纯不友善沟通应保留文明化字幕但关闭语音");
 
     var englishResult = JsonSerializer.Serialize(new
     {
@@ -358,6 +747,15 @@ await CheckAsync("AI 结构化翻译协议", async () =>
         emotion = "urgent",
         emotionIntensity = 2,
         priority = 3,
+        sourceType = "player_chat",
+        speechAct = "warning",
+        subject = "상대 정글",
+        target = "탑",
+        status = "danger",
+        durationSeconds = (int?)null,
+        modality = "asserted",
+        semanticConfidence = 0.95,
+        evidence = "상대 정글 조심해",
         displayTranslation = "Rotate top now and watch for the enemy jungler.",
         spokenSummary = "Vayne is asking for help",
         toxicityFiltered = false,
@@ -385,7 +783,31 @@ await CheckAsync("AI 结构化翻译协议", async () =>
     Require(englishUserPayload.Contains("English (en-US)", StringComparison.Ordinal), "AI 请求缺少英文目标语言");
 });
 
-await CheckAsync("内置韩英 OCR", async () =>
+await CheckAsync("韩中英脚本感知融合", () =>
+{
+    var korean = TrilingualOcrFusion.Select(
+        new OcrTextCandidate("탑 조심", 0.95f, OcrRecognitionModel.KoreanEnglish),
+        new OcrTextCandidate("皆召", 0.76f, OcrRecognitionModel.ChineseEnglish));
+    Require(korean.Text == "탑 조심", "韩文片段被中文模型的高相似字形替换");
+
+    var chinese = TrilingualOcrFusion.Select(
+        new OcrTextCandidate("ㅁ", 0.63f, OcrRecognitionModel.KoreanEnglish),
+        new OcrTextCandidate("先看视野", 0.87f, OcrRecognitionModel.ChineseEnglish));
+    Require(chinese.Text == "先看视野", "中文片段被韩文模型的兼容字母幻觉替换");
+
+    var english = TrilingualOcrFusion.Select(
+        new OcrTextCandidate("dragon", 0.94f, OcrRecognitionModel.KoreanEnglish),
+        new OcrTextCandidate("dragon", 0.92f, OcrRecognitionModel.ChineseEnglish));
+    Require(english.Text == "dragon", "两个模型一致的英文没有保留");
+
+    var mixed = TrilingualOcrFusion.JoinSegments(new[] { korean, english, chinese });
+    Require(mixed.Contains("탑", StringComparison.Ordinal)
+        && mixed.Contains("dragon", StringComparison.Ordinal)
+        && mixed.Contains("视野", StringComparison.Ordinal), "三语片段拼接丢失脚本");
+    return Task.CompletedTask;
+});
+
+await CheckAsync("内置韩中英 OCR", async () =>
 {
     var modelPath = Path.Combine(Path.GetTempPath(), "RiftLens-OcrSelfTest-" + Guid.NewGuid().ToString("N"));
     using var ocr = new BundledOcrService(modelPath);
@@ -399,6 +821,77 @@ await CheckAsync("内置韩英 OCR", async () =>
     var recognized = await ocr.RecognizeAsync(bitmap, CancellationToken.None);
     Console.WriteLine("  合成图片 OCR：" + (string.IsNullOrWhiteSpace(recognized) ? "未识别文字" : recognized));
     Require(recognized.Contains("레오나", StringComparison.Ordinal), "没有识别到内置韩语模型文本");
+});
+
+await CheckAsync("OCR 行颜色辅助证据", async () =>
+{
+    var modelPath = Path.Combine(Path.GetTempPath(), "RiftLens-OcrColorTest-" + Guid.NewGuid().ToString("N"));
+    using var ocr = new BundledOcrService(modelPath);
+    using var source = new Bitmap(900, 96);
+    using (var graphics = Graphics.FromImage(source))
+    {
+        graphics.Clear(Color.FromArgb(28, 36, 45));
+        graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
+        using var font = new Font("Malgun Gothic", 27, FontStyle.Regular, GraphicsUnit.Pixel);
+        using var cyanBrush = new SolidBrush(Color.FromArgb(82, 205, 232));
+        const string prefix = "[팀] Nixz#KR1 (아리): ";
+        graphics.DrawString(prefix, font, cyanBrush, 16, 24);
+        var prefixWidth = graphics.MeasureString(prefix, font).Width;
+        graphics.DrawString("mid 来一下 조심", font, Brushes.WhiteSmoke, 16 + prefixWidth - 5, 24);
+    }
+
+    var document = await ocr.RecognizeDetailedAsync(source, CancellationToken.None);
+    var evidence = document.Lines
+        .Select(line => line.ColorEvidence)
+        .FirstOrDefault(item => item?.IsAvailable == true);
+    Require(evidence is not null, "详细 OCR 结果没有保留行级颜色证据");
+    Require(evidence!.PrefixCyanRatio >= 0.10f && evidence.ContentNeutralRatio >= 0.20f,
+        "青色玩家前缀与白色聊天正文未形成辅助证据");
+});
+
+await CheckAsync("同图韩中英混排 OCR", async () =>
+{
+    var modelPath = Path.Combine(Path.GetTempPath(), "RiftLens-OcrMixedTest-" + Guid.NewGuid().ToString("N"));
+    using var ocr = new BundledOcrService(modelPath);
+    using var source = new Bitmap(920, 190);
+    using (var graphics = Graphics.FromImage(source))
+    {
+        graphics.Clear(Color.FromArgb(35, 43, 54));
+        graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
+        using var font = new Font("Malgun Gothic", 25, FontStyle.Regular, GraphicsUnit.Pixel);
+        var lines = new[]
+        {
+            "아리: mid 来一下",
+            "레오나: 탑 조심, dragon 先看视野",
+            "Jinx: 용 앞 vision 先做"
+        };
+        for (var index = 0; index < lines.Length; index++)
+        {
+            var point = new PointF(18, 18 + index * 52);
+            graphics.DrawString(lines[index], font, Brushes.Black, point.X + 1, point.Y + 1);
+            graphics.DrawString(lines[index], font, Brushes.WhiteSmoke, point);
+        }
+    }
+
+    _ = await ocr.RecognizeAsync(source, CancellationToken.None);
+    var timer = Stopwatch.StartNew();
+    var recognized = await ocr.RecognizeAsync(source, CancellationToken.None);
+    timer.Stop();
+    Console.WriteLine("  三语混排 OCR：" + recognized.Replace("\r\n", " / ").Replace("\n", " / "));
+    Console.WriteLine($"  热态 OCR 延迟：{timer.ElapsedMilliseconds} ms");
+
+    Require(TrilingualOcrFusion.ContainsHangul(recognized), "三语截图中的韩文被其他模型覆盖");
+    Require(TrilingualOcrFusion.ContainsHan(recognized), "三语截图中的中文被其他模型覆盖");
+    Require(new[] { "mid", "dragon", "vision", "Jinx" }
+        .Count(token => recognized.Contains(token, StringComparison.OrdinalIgnoreCase)) >= 3,
+        "三语截图中的英文识别不足");
+    Require(new[] { "아리", "레오나", "탑", "용" }
+        .Count(token => recognized.Contains(token, StringComparison.Ordinal)) >= 3,
+        "三语截图中的韩文关键词识别不足");
+    Require(new[] { "一下", "先看", "视野", "先做" }
+        .Count(token => recognized.Contains(token, StringComparison.Ordinal)) >= 2,
+        "三语截图中的中文关键词识别不足");
+    Require(timer.Elapsed < TimeSpan.FromSeconds(1.2), "热态三语 OCR 延迟超过 1.2 秒");
 });
 
 await CheckAsync("小字号韩服聊天 OCR", async () =>
@@ -431,8 +924,7 @@ await CheckAsync("小字号韩服聊天 OCR", async () =>
             graphics.DrawString(lines[index], font, brush, point);
         }
     }
-    using var prepared = new BitmapPreprocessor().Prepare(source, 3);
-    var recognized = await ocr.RecognizeAsync(prepared, CancellationToken.None);
+    var recognized = await ocr.RecognizeAsync(source, CancellationToken.None);
     Console.WriteLine("  小字号聊天 OCR：" + (string.IsNullOrWhiteSpace(recognized) ? "未识别文字" : recognized.Replace("\r\n", " / ").Replace("\n", " / ")));
     var keyHits = new[] { "레오나", "정글", "아리", "미드", "징크스", "시야", "쓰레쉬", "점멸" }
         .Count(token => recognized.Contains(token, StringComparison.Ordinal));
@@ -464,8 +956,7 @@ await CheckAsync("聊天滚动顶部残行过滤", async () =>
         }
     }
 
-    using var prepared = new BitmapPreprocessor().Prepare(source, 3);
-    var recognized = await ocr.RecognizeAsync(prepared, CancellationToken.None);
+    var recognized = await ocr.RecognizeAsync(source, CancellationToken.None);
     Console.WriteLine("  顶部残行过滤：" + recognized.Replace("\r\n", " / ").Replace("\n", " / "));
     Require(!recognized.Contains("잘린첫줄", StringComparison.Ordinal), "被裁断的顶部旧消息仍进入 OCR 结果");
     Require(recognized.Contains("아리", StringComparison.Ordinal), "过滤顶部残行时误删了第二行完整消息");

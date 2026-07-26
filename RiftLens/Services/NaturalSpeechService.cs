@@ -24,6 +24,7 @@ public sealed class NaturalSpeechService : IDisposable
     private bool _fallbackReported;
     private bool _neuralReported;
     private bool _currentIsTactical;
+    private int _currentPriority;
 
     public event Action<string>? StatusChanged;
 
@@ -46,7 +47,8 @@ public sealed class NaturalSpeechService : IDisposable
         int expiresAfterMs,
         bool preferNeural = true,
         bool isTactical = false,
-        AppLanguage language = AppLanguage.Chinese)
+        AppLanguage language = AppLanguage.Chinese,
+        int priority = 1)
     {
         if (_disposed || string.IsNullOrWhiteSpace(text))
         {
@@ -54,7 +56,12 @@ public sealed class NaturalSpeechService : IDisposable
         }
 
         SetVolume(volume);
-        if (!isTactical)
+        priority = Math.Clamp(priority, 0, 3);
+        if (!isTactical && priority >= 3)
+        {
+            MakeRoomForUrgentPlayerSpeech(priority);
+        }
+        else if (!isTactical)
         {
             MakeRoomForPlayerSpeech();
         }
@@ -65,6 +72,7 @@ public sealed class NaturalSpeechService : IDisposable
             preferNeural,
             isTactical,
             language,
+            priority,
             DateTimeOffset.UtcNow.AddMilliseconds(Math.Clamp(expiresAfterMs, 1500, 10000)));
         if (_queue.TryAdd(item))
         {
@@ -148,6 +156,7 @@ public sealed class NaturalSpeechService : IDisposable
                 lock (_activeGate)
                 {
                     _currentIsTactical = item.IsTactical;
+                    _currentPriority = item.Priority;
                 }
                 try
                 {
@@ -168,6 +177,7 @@ public sealed class NaturalSpeechService : IDisposable
                     lock (_activeGate)
                     {
                         _currentIsTactical = false;
+                        _currentPriority = 0;
                     }
                 }
             }
@@ -340,6 +350,43 @@ public sealed class NaturalSpeechService : IDisposable
         }
     }
 
+    private void MakeRoomForUrgentPlayerSpeech(int priority)
+    {
+        lock (_queueMutationGate)
+        {
+            var retained = new List<SpeechItem>();
+            while (_queue.TryTake(out var queued))
+            {
+                if (!queued.IsTactical && queued.Priority >= priority)
+                {
+                    retained.Add(queued);
+                }
+            }
+            foreach (var queued in retained.TakeLast(2))
+            {
+                _queue.TryAdd(queued);
+            }
+        }
+
+        lock (_activeGate)
+        {
+            if (!_currentIsTactical && _currentPriority >= priority)
+            {
+                return;
+            }
+
+            Interlocked.Exchange(ref _purgeRequested, 1);
+            try
+            {
+                _currentSynthesis?.Cancel();
+                _currentPlayer?.Stop();
+            }
+            catch
+            {
+            }
+        }
+    }
+
     private static dynamic CreateSapiVoice(out object voiceObject, AppLanguage language)
     {
         var voiceType = Type.GetTypeFromProgID("SAPI.SpVoice")
@@ -405,5 +452,6 @@ public sealed class NaturalSpeechService : IDisposable
         bool PreferNeural,
         bool IsTactical,
         AppLanguage Language,
+        int Priority,
         DateTimeOffset ExpiresAt);
 }

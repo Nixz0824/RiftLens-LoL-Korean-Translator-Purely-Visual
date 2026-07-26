@@ -14,11 +14,7 @@ public static class OverlayPlacementService
         if (settings.OverlayPlacement == OverlayPlacement.Custom && settings.DisplayRegion.IsValid)
         {
             var custom = settings.DisplayRegion.ToRectangle();
-            return new Rectangle(
-                custom.X,
-                custom.Y,
-                Math.Min(desiredSize.Width, custom.Width),
-                Math.Min(desiredSize.Height, custom.Height));
+            return custom;
         }
 
         var capture = settings.CaptureRegion.ToRectangle();

@@ -44,12 +44,17 @@ internal sealed class WebWorkspace : UserControl
     public int Volume { get; set; } = 65;
     public int SpeechRate { get; set; } = 1;
     public int OutputModeIndex { get; set; } = 2;
-    public int SystemFilterIndex { get; set; } = 1;
     public bool AutoSpeech { get; set; } = true;
     public bool ChangeOnly { get; set; } = true;
-    public bool SignalVoice { get; set; }
+    public bool TacticalSignals { get; set; }
+    public bool KillEvents { get; set; }
+    public bool ObjectiveEvents { get; set; }
+    public bool ClientReminders { get; set; }
+    public bool OtherSystemEvents { get; set; }
+    public bool SpeakUrgentPlayerChat { get; set; } = true;
+    public bool SpeakImportantPlayerChat { get; set; } = true;
     public bool KeepEmotion { get; set; } = true;
-    public bool LowPrioritySpeech { get; set; }
+    public bool SpeakNeutralPlayerChat { get; set; }
     public bool FloatingButton { get; set; } = true;
     public bool LowUsage { get; set; } = true;
     public bool MinimizeAfterStart { get; set; } = true;
@@ -88,17 +93,17 @@ internal sealed class WebWorkspace : UserControl
         Volume = settings.SpeechVolume;
         SpeechRate = settings.SpeechRate;
         OutputModeIndex = (int)settings.OutputMode;
-        SystemFilterIndex = settings.SystemMessageFilter switch
-        {
-            SystemMessageFilterMode.Off => 0,
-            SystemMessageFilterMode.Strict => 2,
-            _ => 1
-        };
         AutoSpeech = settings.OutputMode != OutputMode.OverlayOnly;
         ChangeOnly = settings.ChangeThreshold > 0;
-        SignalVoice = settings.SignalVoiceEnabled;
+        TacticalSignals = settings.TacticalSignalEnabled;
+        KillEvents = settings.KillEventEnabled;
+        ObjectiveEvents = settings.ObjectiveEventEnabled;
+        ClientReminders = settings.ClientReminderEnabled;
+        OtherSystemEvents = settings.OtherSystemEventEnabled;
+        SpeakUrgentPlayerChat = settings.SpeakUrgentPlayerChat;
+        SpeakImportantPlayerChat = settings.SpeakImportantPlayerChat;
         KeepEmotion = settings.KeepEmotionSummary;
-        LowPrioritySpeech = settings.SpeechFilter == SpeechFilterLevel.Full;
+        SpeakNeutralPlayerChat = settings.SpeakNeutralPlayerChat;
         FloatingButton = settings.ShowFloatingControl;
         LowUsage = settings.PollIntervalMs >= 500;
         MinimizeAfterStart = minimizeAfterStart;
@@ -247,11 +252,19 @@ internal sealed class WebWorkspace : UserControl
             "volumeChanged" => SpatialAction.VolumeChanged,
             "speechRateChanged" => SpatialAction.SpeechRateChanged,
             "speechFilterChanged" => SpatialAction.SpeechFilterChanged,
+            "urgentPlayerSpeechChanged" => SpatialAction.UrgentPlayerSpeechChanged,
+            "importantPlayerSpeechChanged" => SpatialAction.ImportantPlayerSpeechChanged,
+            "neutralPlayerSpeechChanged" => SpatialAction.NeutralPlayerSpeechChanged,
             "toggleAutoSpeech" => SpatialAction.ToggleAutoSpeech,
             "outputModeChanged" => SpatialAction.OutputModeChanged,
             "systemFilterChanged" => SpatialAction.SystemFilterChanged,
             "changeOnlyChanged" => SpatialAction.ChangeOnlyChanged,
             "signalVoiceChanged" => SpatialAction.SignalVoiceChanged,
+            "tacticalSignalsChanged" => SpatialAction.TacticalSignalsChanged,
+            "killEventsChanged" => SpatialAction.KillEventsChanged,
+            "objectiveEventsChanged" => SpatialAction.ObjectiveEventsChanged,
+            "clientRemindersChanged" => SpatialAction.ClientRemindersChanged,
+            "otherSystemEventsChanged" => SpatialAction.OtherSystemEventsChanged,
             "keepEmotionChanged" => SpatialAction.KeepEmotionChanged,
             "floatingButtonChanged" => SpatialAction.FloatingButtonChanged,
             "lowUsageChanged" => SpatialAction.LowUsageChanged,
@@ -272,7 +285,10 @@ internal sealed class WebWorkspace : UserControl
             "navigate" => ReadPage(message.Payload),
             "volumeChanged" or "speechRateChanged" or "speechFilterChanged" or "outputModeChanged"
                 or "systemFilterChanged" or "overlayOpacityChanged" or "overlayPlacementChanged" => ReadInt(message.Payload),
-            "toggleAutoSpeech" or "changeOnlyChanged" or "signalVoiceChanged" or "keepEmotionChanged"
+            "toggleAutoSpeech" or "changeOnlyChanged" or "signalVoiceChanged"
+                or "urgentPlayerSpeechChanged" or "importantPlayerSpeechChanged" or "neutralPlayerSpeechChanged"
+                or "tacticalSignalsChanged" or "killEventsChanged" or "objectiveEventsChanged"
+                or "clientRemindersChanged" or "otherSystemEventsChanged" or "keepEmotionChanged"
                 or "floatingButtonChanged" or "lowUsageChanged" or "minimizeAfterStartChanged"
                 or "closeToTrayChanged" => ReadBool(message.Payload),
             "languageChanged" => ReadString(message.Payload),
@@ -316,12 +332,17 @@ internal sealed class WebWorkspace : UserControl
                 volume = Volume,
                 speechRate = SpeechRate,
                 outputModeIndex = OutputModeIndex,
-                systemFilterIndex = SystemFilterIndex,
                 autoSpeech = AutoSpeech,
                 changeOnly = ChangeOnly,
-                signalVoice = SignalVoice,
+                tacticalSignals = TacticalSignals,
+                killEvents = KillEvents,
+                objectiveEvents = ObjectiveEvents,
+                clientReminders = ClientReminders,
+                otherSystemEvents = OtherSystemEvents,
+                speakUrgentPlayerChat = SpeakUrgentPlayerChat,
+                speakImportantPlayerChat = SpeakImportantPlayerChat,
                 keepEmotion = KeepEmotion,
-                lowPrioritySpeech = LowPrioritySpeech,
+                speakNeutralPlayerChat = SpeakNeutralPlayerChat,
                 floatingButton = FloatingButton,
                 lowUsage = LowUsage,
                 minimizeAfterStart = MinimizeAfterStart,

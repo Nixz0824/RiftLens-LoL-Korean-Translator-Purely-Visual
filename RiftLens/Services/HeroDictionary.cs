@@ -7,6 +7,8 @@ namespace RiftLens.Services;
 public sealed class HeroDictionary
 {
     private readonly IReadOnlyList<HeroEntry> _entries;
+    private readonly IReadOnlyDictionary<string, HeroEntry> _entriesById;
+    private readonly IReadOnlyDictionary<string, HeroEntry> _speakerAliases;
 
     public string Version { get; }
 
@@ -17,6 +19,33 @@ public sealed class HeroDictionary
             .Where(entry => !string.IsNullOrWhiteSpace(entry.KoreanName))
             .OrderByDescending(entry => entry.KoreanName.Length)
             .ToArray();
+        _entriesById = _entries.ToDictionary(entry => entry.Id, StringComparer.OrdinalIgnoreCase);
+
+        var aliases = new Dictionary<string, HeroEntry>(StringComparer.Ordinal);
+        foreach (var entry in _entries)
+        {
+            AddSpeakerAlias(aliases, entry, entry.KoreanName);
+            AddSpeakerAlias(aliases, entry, entry.ChineseOfficial);
+            AddSpeakerAlias(aliases, entry, entry.ChinesePersonal);
+            AddSpeakerAlias(aliases, entry, entry.EnglishName);
+            foreach (var alias in entry.ChineseAliases)
+            {
+                AddSpeakerAlias(aliases, entry, alias);
+            }
+
+            // Jarvan's numeral is especially vulnerable to spacing, Arabic/Roman
+            // numeral and Korean suffix fluctuations in small chat text.
+            if (entry.KoreanName.Contains("4세", StringComparison.Ordinal))
+            {
+                AddSpeakerAlias(aliases, entry, entry.KoreanName.Replace("4세", "IV", StringComparison.Ordinal));
+                AddSpeakerAlias(aliases, entry, entry.KoreanName.Replace("4세", "4", StringComparison.Ordinal));
+            }
+            if (entry.EnglishName.Contains(" IV", StringComparison.OrdinalIgnoreCase))
+            {
+                AddSpeakerAlias(aliases, entry, entry.EnglishName.Replace(" IV", " 4", StringComparison.OrdinalIgnoreCase));
+            }
+        }
+        _speakerAliases = aliases;
     }
 
     public static async Task<HeroDictionary> LoadAsync(string? path = null)
@@ -69,16 +98,38 @@ public sealed class HeroDictionary
                 // 中文别名（至少 2 个字符）
                 || entry.ChineseAliases.Any(alias =>
                     alias is { Length: >= 2 }
-                    && text.Contains(alias, StringComparison.OrdinalIgnoreCase)))
-            .Select(entry => new HeroMention(
-                entry.Id,
-                entry.Key,
-                entry.KoreanName,
-                entry.ChineseOfficial,
-                entry.ChinesePersonal,
-                GetSpokenName(entry, preferPersonalName, language)))
+                    && text.Contains(alias, StringComparison.OrdinalIgnoreCase))
+                // 英文名过短时很容易命中普通单词，正文只接受至少 3 个字符；
+                // 括号内的说话英雄仍通过完整 token 精确识别。
+                || (entry.EnglishName is { Length: >= 3 } english
+                    && text.Contains(english, StringComparison.OrdinalIgnoreCase)))
+            .Select(entry => CreateMention(entry, preferPersonalName, language))
             .DistinctBy(mention => mention.Id)
             .ToArray();
+    }
+
+    public string? FindOfficialHeroId(string? heroToken)
+    {
+        if (string.IsNullOrWhiteSpace(heroToken))
+        {
+            return null;
+        }
+
+        var normalized = NormalizeHeroToken(heroToken);
+        return _speakerAliases.TryGetValue(normalized, out var entry)
+            ? entry.Id
+            : null;
+    }
+
+    public HeroMention? FindById(
+        string? heroId,
+        bool preferPersonalName,
+        AppLanguage language = AppLanguage.Chinese)
+    {
+        return !string.IsNullOrWhiteSpace(heroId)
+            && _entriesById.TryGetValue(heroId, out var entry)
+                ? CreateMention(entry, preferPersonalName, language)
+                : null;
     }
 
     public HeroMention? FindSpeakerMention(
@@ -92,20 +143,32 @@ public sealed class HeroDictionary
         }
 
         var normalized = speakerText.Trim();
+        var exactId = FindOfficialHeroId(normalized);
+        if (exactId is not null)
+        {
+            return FindById(exactId, preferPersonalName, language);
+        }
+
+        var bracketTokens = Regex.Matches(normalized, @"[\(\[（]\s*(?<hero>[^\)\]）]+)\s*[\)\]）]")
+            .Select(match => match.Groups["hero"].Value);
+        foreach (var token in bracketTokens)
+        {
+            var bracketId = FindOfficialHeroId(token);
+            if (bracketId is not null)
+            {
+                return FindById(bracketId, preferPersonalName, language);
+            }
+        }
+
         var entry = _entries.FirstOrDefault(candidate =>
             IsSpeakerToken(normalized, candidate.KoreanName)
             || IsSpeakerToken(normalized, candidate.ChineseOfficial)
             || IsSpeakerToken(normalized, candidate.ChinesePersonal)
+            || IsSpeakerToken(normalized, candidate.EnglishName)
             || candidate.ChineseAliases.Any(alias => IsSpeakerToken(normalized, alias)));
         return entry is null
             ? null
-            : new HeroMention(
-                entry.Id,
-                entry.Key,
-                entry.KoreanName,
-                entry.ChineseOfficial,
-                entry.ChinesePersonal,
-                GetSpokenName(entry, preferPersonalName, language));
+            : CreateMention(entry, preferPersonalName, language);
     }
 
     public IReadOnlyList<string> CanonicalizeLines(
@@ -141,6 +204,49 @@ public sealed class HeroDictionary
                 RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
     }
 
+    private static void AddSpeakerAlias(
+        IDictionary<string, HeroEntry> aliases,
+        HeroEntry entry,
+        string? alias)
+    {
+        if (string.IsNullOrWhiteSpace(alias))
+        {
+            return;
+        }
+
+        aliases.TryAdd(NormalizeHeroToken(alias), entry);
+    }
+
+    private static string NormalizeHeroToken(string value)
+    {
+        var normalized = value
+            .Normalize(System.Text.NormalizationForm.FormKC)
+            .Replace("Ⅳ", "IV", StringComparison.Ordinal)
+            .ToUpperInvariant();
+        var builder = new System.Text.StringBuilder(normalized.Length);
+        foreach (var character in normalized)
+        {
+            if (char.IsLetterOrDigit(character))
+            {
+                builder.Append(character);
+            }
+        }
+
+        return builder.ToString();
+    }
+
+    private static HeroMention CreateMention(
+        HeroEntry entry,
+        bool preferPersonalName,
+        AppLanguage language) =>
+        new(
+            entry.Id,
+            entry.Key,
+            entry.KoreanName,
+            entry.ChineseOfficial,
+            entry.ChinesePersonal,
+            GetSpokenName(entry, preferPersonalName, language));
+
     private static string GetSpokenName(
         HeroEntry entry,
         bool preferPersonalName,
@@ -148,7 +254,9 @@ public sealed class HeroDictionary
     {
         if (language == AppLanguage.English)
         {
-            return entry.Id switch
+            return !string.IsNullOrWhiteSpace(entry.EnglishName)
+                ? entry.EnglishName
+                : entry.Id switch
             {
                 "AurelionSol" => "Aurelion Sol",
                 "Belveth" => "Bel'Veth",
@@ -188,12 +296,13 @@ public sealed class HeroDictionary
             new HeroEntry
             {
                 Id = "Leona", Key = "89", KoreanName = "레오나", KoreanTitle = "여명의 빛",
-                ChineseOfficial = "曙光女神", ChinesePersonal = "蕾欧娜", ChineseAliases = { "日女" }
+                ChineseOfficial = "曙光女神", ChinesePersonal = "蕾欧娜", EnglishName = "Leona",
+                ChineseAliases = { "日女" }
             },
             new HeroEntry
             {
                 Id = "Ahri", Key = "103", KoreanName = "아리", KoreanTitle = "구미호",
-                ChineseOfficial = "九尾妖狐", ChinesePersonal = "阿狸"
+                ChineseOfficial = "九尾妖狐", ChinesePersonal = "阿狸", EnglishName = "Ahri"
             }
         }
     };

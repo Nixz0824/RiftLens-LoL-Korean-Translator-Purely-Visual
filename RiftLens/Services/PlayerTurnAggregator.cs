@@ -10,6 +10,7 @@ public sealed class PlayerTurnAggregator
 {
     private string _speakerKey = string.Empty;
     private string _speakerRaw = string.Empty;
+    private string _speakerHeroId = string.Empty;
     private readonly List<string> _rawLines = new();
     private readonly List<string> _contents = new();
     private DateTimeOffset _lastUpdatedAt;
@@ -33,6 +34,14 @@ public sealed class PlayerTurnAggregator
         {
             _speakerKey = message.SpeakerKey;
             _speakerRaw = message.SpeakerRaw;
+            _speakerHeroId = message.SpeakerHeroId;
+        }
+        else if (!string.IsNullOrWhiteSpace(message.SpeakerHeroId))
+        {
+            // A later line in the same turn may provide the first clean champion
+            // header, or may carry the session lock learned after earlier lines.
+            _speakerRaw = message.SpeakerRaw;
+            _speakerHeroId = message.SpeakerHeroId;
         }
 
         if (!_rawLines.Contains(message.RawText, StringComparer.Ordinal))
@@ -63,9 +72,11 @@ public sealed class PlayerTurnAggregator
             _speakerRaw,
             _rawLines.ToArray(),
             _contents.ToArray(),
-            _lastUpdatedAt);
+            _lastUpdatedAt,
+            _speakerHeroId);
         _speakerKey = string.Empty;
         _speakerRaw = string.Empty;
+        _speakerHeroId = string.Empty;
         _rawLines.Clear();
         _contents.Clear();
         _lastUpdatedAt = default;

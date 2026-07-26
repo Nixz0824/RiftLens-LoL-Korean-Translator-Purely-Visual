@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 using RiftLens.Models;
 
@@ -12,18 +13,16 @@ namespace RiftLens.UI;
 /// </summary>
 public sealed class OverlayControlForm : Form
 {
-    private const int CollapsedWidth = 44;
-    private const int ExpandedWidth = 248;
-    private const int ControlHeight = 44;
+    private const int CollapsedWidth = 48;
+    private const int ExpandedWidth = 260;
+    private const int ControlHeight = 48;
     private const int ExpandDurationMs = 170;
-    private const double CollapsedOpacity = 0.82;
-    private const double ExpandedOpacity = 0.69;
     private const int WsExNoActivate = 0x08000000;
     private const int WsExToolWindow = 0x00000080;
+    private const int WsExLayered = 0x00080000;
     private const int WmMouseActivate = 0x0021;
     private const int MaNoActivate = 3;
     private const uint WdaExcludeFromCapture = 0x00000011;
-    private const int SwShowNoActivate = 4;
 
     private readonly ToolStripMenuItem _pauseItem;
     private readonly ToolStripMenuItem _volumeMenu;
@@ -40,12 +39,17 @@ public sealed class OverlayControlForm : Form
     private bool _paused;
     private bool _hovered;
     private bool _draggingVolume;
+    private bool _draggingWindow;
+    private bool _manuallyPositioned;
+    private Point _dragCursorOrigin;
+    private Point _dragWindowOrigin;
     private int _animationStartWidth = CollapsedWidth;
     private int _targetWidth = CollapsedWidth;
     private int _volume = 65;
     private int _waveFrame;
     private Rectangle _anchor;
     private bool _hasAnchor;
+    private byte _surfaceOpacity = 235;
     private AppLanguage _language = AppLanguage.Chinese;
 
     public event Action? TogglePauseRequested;
@@ -53,6 +57,7 @@ public sealed class OverlayControlForm : Form
     public event Action? MuteRequested;
     public event Action? ShowMainWindowRequested;
     public event Action? StopRequested;
+    public event Action<Point>? PositionChanged;
 
     public OverlayControlForm()
     {
@@ -63,8 +68,7 @@ public sealed class OverlayControlForm : Form
         Size = new Size(CollapsedWidth, ControlHeight);
         MinimumSize = new Size(CollapsedWidth, ControlHeight);
         MaximumSize = new Size(ExpandedWidth, ControlHeight);
-        BackColor = UiTheme.Canvas;
-        Opacity = CollapsedOpacity;
+        BackColor = Color.Black;
         DoubleBuffered = true;
         Cursor = Cursors.Hand;
         AccessibleName = "RiftLens 翻译控制：正在运行，音量 65%";
@@ -106,29 +110,56 @@ public sealed class OverlayControlForm : Form
             _hovered = true;
             SetExpanded(true);
             UpdateWaveAnimation();
-            Invalidate();
+            RefreshSurface();
         };
         MouseLeave += (_, _) =>
         {
+            if (_draggingWindow)
+            {
+                return;
+            }
             _hovered = false;
             _draggingVolume = false;
             _collapseTimer.Stop();
             _collapseTimer.Start();
             UpdateWaveAnimation();
-            Invalidate();
+            RefreshSurface();
         };
         MouseMove += (_, args) =>
         {
+            if (_draggingWindow)
+            {
+                var cursor = Cursor.Position;
+                Location = ClampToWorkingArea(new Point(
+                    _dragWindowOrigin.X + cursor.X - _dragCursorOrigin.X,
+                    _dragWindowOrigin.Y + cursor.Y - _dragCursorOrigin.Y));
+                _manuallyPositioned = true;
+                RefreshSurface();
+                return;
+            }
+
             if (_draggingVolume)
                 SetVolumeFromX(args.X);
 
-            Cursor = IsPrimaryBounds(args.Location)
+            Cursor = IsDragHandleBounds(args.Location)
+                ? Cursors.SizeAll
+                : IsPrimaryBounds(args.Location)
                 ? Cursors.Hand
                 : (IsSliderBounds(args.Location) ? Cursors.SizeWE : Cursors.Default);
         };
         MouseDown += (_, args) =>
         {
             if (args.Button != MouseButtons.Left) return;
+            if (IsDragHandleBounds(args.Location))
+            {
+                _collapseTimer.Stop();
+                _draggingWindow = true;
+                _dragCursorOrigin = Cursor.Position;
+                _dragWindowOrigin = Location;
+                Capture = true;
+                Cursor = Cursors.SizeAll;
+                return;
+            }
             if (IsSliderBounds(args.Location))
             {
                 _draggingVolume = true;
@@ -139,7 +170,16 @@ public sealed class OverlayControlForm : Form
             if (IsPrimaryBounds(args.Location))
                 TogglePauseRequested?.Invoke();
         };
-        MouseUp += (_, _) => _draggingVolume = false;
+        MouseUp += (_, _) =>
+        {
+            _draggingVolume = false;
+            if (_draggingWindow)
+            {
+                _draggingWindow = false;
+                Capture = false;
+                PositionChanged?.Invoke(Location);
+            }
+        };
         MouseWheel += (_, args) => RequestVolume(_volume + (args.Delta > 0 ? 5 : -5));
         _collapseTimer.Tick += (_, _) =>
         {
@@ -150,7 +190,7 @@ public sealed class OverlayControlForm : Form
         _waveTimer.Tick += (_, _) =>
         {
             _waveFrame = (_waveFrame + 1) % 120;
-            Invalidate(new Rectangle(5, 5, CollapsedWidth - 10, ControlHeight - 10));
+            RefreshSurface();
         };
         _sizeTimer.Tick += (_, _) => AnimateWidth();
         VisibleChanged += (_, _) => UpdateWaveAnimation();
@@ -166,7 +206,7 @@ public sealed class OverlayControlForm : Form
         get
         {
             var parameters = base.CreateParams;
-            parameters.ExStyle |= WsExNoActivate | WsExToolWindow;
+            parameters.ExStyle |= WsExNoActivate | WsExToolWindow | WsExLayered;
             return parameters;
         }
     }
@@ -189,16 +229,25 @@ public sealed class OverlayControlForm : Form
 
     protected override void OnPaint(PaintEventArgs e)
     {
-        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-        e.Graphics.CompositingQuality = CompositingQuality.HighQuality;
-        e.Graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
-        e.Graphics.Clear(BackColor);
+        DrawSurface(e.Graphics);
+    }
 
-        DrawContainer(e.Graphics);
-        DrawPrimaryControl(e.Graphics);
+    private void DrawSurface(Graphics graphics)
+    {
+        graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        graphics.CompositingMode = CompositingMode.SourceOver;
+        graphics.CompositingQuality = CompositingQuality.HighQuality;
+        graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
+        graphics.Clear(Color.Transparent);
+
+        DrawContainer(graphics);
+        DrawPrimaryControl(graphics);
 
         if (Width > CollapsedWidth + 2)
-            DrawVolumeControl(e.Graphics);
+        {
+            DrawVolumeControl(graphics);
+            DrawDragHandle(graphics);
+        }
     }
 
     public void SetPaused(bool paused)
@@ -208,7 +257,7 @@ public sealed class OverlayControlForm : Form
         UpdateAccessibleText();
         UpdateToolTip();
         UpdateWaveAnimation();
-        Invalidate();
+        RefreshSurface();
     }
 
     public void SetVolume(int volume)
@@ -222,7 +271,7 @@ public sealed class OverlayControlForm : Form
         }
         UpdateAccessibleText();
         UpdateToolTip();
-        Invalidate();
+        RefreshSurface();
     }
 
     public void SetLanguage(AppLanguage language)
@@ -245,8 +294,26 @@ public sealed class OverlayControlForm : Form
         _hasAnchor = true;
         Reposition();
         if (!Visible)
-            ShowWindow(Handle, SwShowNoActivate);
+            Show();
+        RenderLayeredSurface();
         UpdateWaveAnimation();
+    }
+
+    public void SetPreferredPosition(int? x, int? y)
+    {
+        if (x is null || y is null)
+        {
+            _manuallyPositioned = false;
+            return;
+        }
+
+        var preferred = new Point(x.Value, y.Value);
+        if (Screen.AllScreens.Any(screen =>
+                Rectangle.Inflate(screen.WorkingArea, 24, 24).Contains(preferred)))
+        {
+            Location = preferred;
+            _manuallyPositioned = true;
+        }
     }
 
     protected override void Dispose(bool disposing)
@@ -263,25 +330,31 @@ public sealed class OverlayControlForm : Form
 
     private void DrawContainer(Graphics graphics)
     {
-        var bounds = new Rectangle(1, 1, Math.Max(1, Width - 3), Math.Max(1, Height - 3));
+        var bounds = new Rectangle(3, 2, Math.Max(1, Width - 7), Math.Max(1, Height - 7));
+        using var shadowPath = UiTheme.RoundedPath(
+            new Rectangle(bounds.X, bounds.Y + 2, bounds.Width, bounds.Height),
+            UiTheme.RadiusXl + 2);
+        using var shadow = new SolidBrush(Color.FromArgb(38, 23, 48, 61));
+        graphics.FillPath(shadow, shadowPath);
+
         using var outerPath = UiTheme.RoundedPath(bounds, UiTheme.RadiusXl + 2);
         using var fill = new SolidBrush(_hovered
-            ? Color.FromArgb(252, UiTheme.GlassBright)
-            : Color.FromArgb(246, UiTheme.Glass));
-        using var border = new Pen(UiTheme.FloatBorder, 1f);
+            ? Color.FromArgb(252, 249, 252, 251)
+            : Color.FromArgb(249, 243, 248, 247));
+        using var border = new Pen(Color.FromArgb(118, UiTheme.FloatBorder), 1f);
         graphics.FillPath(fill, outerPath);
         graphics.DrawPath(border, outerPath);
 
         using var highlightPath = UiTheme.RoundedPath(
-            new Rectangle(3, 2, Math.Max(1, Width - 7), Math.Max(1, Height - 5)),
+            new Rectangle(5, 3, Math.Max(1, Width - 11), Math.Max(1, Height - 9)),
             UiTheme.RadiusXl + 1);
-        using var highlight = new Pen(Color.FromArgb(150, Color.White), 1f);
+        using var highlight = new Pen(Color.FromArgb(178, Color.White), 1f);
         graphics.DrawPath(highlight, highlightPath);
     }
 
     private void DrawPrimaryControl(Graphics graphics)
     {
-        var primaryBounds = new Rectangle(3, 3, CollapsedWidth - 6, ControlHeight - 6);
+        var primaryBounds = new Rectangle(4, 4, CollapsedWidth - 8, ControlHeight - 9);
         if (_hovered)
         {
             using var hoverPath = UiTheme.RoundedPath(primaryBounds, UiTheme.RadiusLg);
@@ -419,12 +492,46 @@ public sealed class OverlayControlForm : Form
         graphics.DrawArc(pen, origin.X + 8, origin.Y, 15, 18, -55, 110);
     }
 
-    private Rectangle SliderTrackBounds => new(CollapsedWidth + 51, 15, 103, 14);
+    private void DrawDragHandle(Graphics graphics)
+    {
+        var expansion = Math.Clamp((Width - CollapsedWidth) / (float)(ExpandedWidth - CollapsedWidth), 0f, 1f);
+        if (expansion < 0.88f)
+        {
+            return;
+        }
+
+        var alpha = (int)Math.Round((expansion - 0.88f) / 0.12f * 255);
+        var bounds = DragHandleBounds;
+        using var backgroundPath = UiTheme.RoundedPath(bounds, 6);
+        using var background = new SolidBrush(Color.FromArgb((int)(alpha * 0.16f), Color.White));
+        graphics.FillPath(background, backgroundPath);
+        using var outline = new Pen(Color.FromArgb((int)(alpha * 0.28f), UiTheme.Mint), 1f);
+        graphics.DrawPath(outline, backgroundPath);
+        using var dot = new SolidBrush(Color.FromArgb((int)(alpha * 0.72f), UiTheme.MintDeep));
+        for (var row = 0; row < 3; row++)
+        {
+            for (var column = 0; column < 2; column++)
+            {
+                graphics.FillEllipse(
+                    dot,
+                    bounds.Left + 4 + column * 4,
+                    bounds.Top + 3 + row * 3,
+                    2.4f,
+                    2.4f);
+            }
+        }
+    }
+
+    private Rectangle SliderTrackBounds => new(CollapsedWidth + 51, 17, 105, 14);
+    private Rectangle DragHandleBounds => new(10, ControlHeight - 17, 15, 13);
 
     private bool IsPrimaryBounds(Point point) => point.X < CollapsedWidth;
 
     private bool IsSliderBounds(Point point) =>
         Width > CollapsedWidth + 20 && Rectangle.Inflate(SliderTrackBounds, 4, 10).Contains(point);
+
+    private bool IsDragHandleBounds(Point point) =>
+        Width >= ExpandedWidth - 2 && Rectangle.Inflate(DragHandleBounds, 2, 2).Contains(point);
 
     private void SetVolumeFromX(int x)
     {
@@ -451,7 +558,7 @@ public sealed class OverlayControlForm : Form
             UpdateOpacityForWidth();
             UpdateRegion();
             Reposition();
-            Invalidate();
+            RefreshSurface();
             return;
         }
         if (Width == _targetWidth)
@@ -479,7 +586,7 @@ public sealed class OverlayControlForm : Form
             UpdateOpacityForWidth();
             UpdateRegion();
             Reposition();
-            Invalidate();
+            RefreshSurface();
         }
 
         if (progress < 1d) return;
@@ -488,12 +595,18 @@ public sealed class OverlayControlForm : Form
         UpdateOpacityForWidth();
         UpdateRegion();
         Reposition();
-        Invalidate();
+        RefreshSurface();
     }
 
     private void Reposition()
     {
         if (!_hasAnchor) return;
+        if (_manuallyPositioned)
+        {
+            Location = ClampToWorkingArea(Location);
+            return;
+        }
+
         var screen = Screen.FromRectangle(_anchor).WorkingArea;
         const int gap = 7;
         var x = _anchor.Right + gap;
@@ -505,6 +618,16 @@ public sealed class OverlayControlForm : Form
             screen.Top + 6,
             screen.Bottom - Height - 6);
         Location = new Point(x, y);
+    }
+
+    private Point ClampToWorkingArea(Point location)
+    {
+        var screen = Screen.FromPoint(new Point(
+            location.X + Math.Max(1, Width / 2),
+            location.Y + Math.Max(1, Height / 2))).WorkingArea;
+        return new Point(
+            Math.Clamp(location.X, screen.Left + 6, Math.Max(screen.Left + 6, screen.Right - Width - 6)),
+            Math.Clamp(location.Y, screen.Top + 6, Math.Max(screen.Top + 6, screen.Bottom - Height - 6)));
     }
 
     private void UpdateWaveAnimation()
@@ -534,20 +657,41 @@ public sealed class OverlayControlForm : Form
 
     private void UpdateRegion()
     {
-        using var path = UiTheme.RoundedPath(new Rectangle(0, 0, Width, Height), ControlHeight / 2);
         Region?.Dispose();
-        Region = new Region(path);
+        Region = null;
     }
 
     private void UpdateOpacityForWidth()
     {
         var expansion = Math.Clamp((Width - CollapsedWidth) / (double)(ExpandedWidth - CollapsedWidth), 0d, 1d);
-        Opacity = CollapsedOpacity + (ExpandedOpacity - CollapsedOpacity) * expansion;
+        _surfaceOpacity = (byte)Math.Round(235 + 11 * expansion);
+    }
+
+    private void RefreshSurface()
+    {
+        Invalidate();
+        if (Visible && IsHandleCreated)
+        {
+            RenderLayeredSurface();
+        }
+    }
+
+    private void RenderLayeredSurface()
+    {
+        if (Width <= 0 || Height <= 0 || !IsHandleCreated)
+        {
+            return;
+        }
+
+        using var bitmap = new Bitmap(Width, Height, PixelFormat.Format32bppPArgb);
+        using (var graphics = Graphics.FromImage(bitmap))
+        {
+            DrawSurface(graphics);
+        }
+        LayeredWindowSurface.Update(this, bitmap, _surfaceOpacity);
     }
 
     [DllImport("user32.dll")]
     private static extern bool SetWindowDisplayAffinity(IntPtr window, uint affinity);
 
-    [DllImport("user32.dll")]
-    private static extern bool ShowWindow(IntPtr window, int command);
 }

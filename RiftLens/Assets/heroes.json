@@ -1,1908 +1,1735 @@
 {
-    "version":  "16.14.1",
-    "heroes":  [
-                   {
-                       "id":  "Samira",
-                       "key":  "360",
-                       "koreanName":  "사미라",
-                       "koreanTitle":  "사막의 장미",
-                       "chineseOfficial":  "沙漠玫瑰",
-                       "chinesePersonal":  "莎弥拉",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Ryze",
-                       "key":  "13",
-                       "koreanName":  "라이즈",
-                       "koreanTitle":  "룬 마법사",
-                       "chineseOfficial":  "符文法师",
-                       "chinesePersonal":  "瑞兹",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Sejuani",
-                       "key":  "113",
-                       "koreanName":  "세주아니",
-                       "koreanTitle":  "혹한의 분노",
-                       "chineseOfficial":  "北地之怒",
-                       "chinesePersonal":  "瑟庄妮",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Seraphine",
-                       "key":  "147",
-                       "koreanName":  "세라핀",
-                       "koreanTitle":  "노래하는 별",
-                       "chineseOfficial":  "星籁歌姬",
-                       "chinesePersonal":  "萨勒芬妮",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Senna",
-                       "key":  "235",
-                       "koreanName":  "세나",
-                       "koreanTitle":  "구원자",
-                       "chineseOfficial":  "涤魂圣枪",
-                       "chinesePersonal":  "赛娜",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Renekton",
-                       "key":  "58",
-                       "koreanName":  "레넥톤",
-                       "koreanTitle":  "사막의 도살자",
-                       "chineseOfficial":  "荒漠屠夫",
-                       "chinesePersonal":  "雷克顿",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Renata",
-                       "key":  "888",
-                       "koreanName":  "레나타 글라스크",
-                       "koreanTitle":  "화공 남작",
-                       "chineseOfficial":  "炼金男爵",
-                       "chinesePersonal":  "烈娜塔 · 戈拉斯克",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Rengar",
-                       "key":  "107",
-                       "koreanName":  "렝가",
-                       "koreanTitle":  "추적하는 사자",
-                       "chineseOfficial":  "傲之追猎者",
-                       "chinesePersonal":  "雷恩加尔",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Rumble",
-                       "key":  "68",
-                       "koreanName":  "럼블",
-                       "koreanTitle":  "기계 악동",
-                       "chineseOfficial":  "机械公敌",
-                       "chinesePersonal":  "兰博",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Riven",
-                       "key":  "92",
-                       "koreanName":  "리븐",
-                       "koreanTitle":  "추방자",
-                       "chineseOfficial":  "放逐之刃",
-                       "chinesePersonal":  "锐雯",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Sett",
-                       "key":  "875",
-                       "koreanName":  "세트",
-                       "koreanTitle":  "우두머리",
-                       "chineseOfficial":  "腕豪",
-                       "chinesePersonal":  "瑟提",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Skarner",
-                       "key":  "72",
-                       "koreanName":  "스카너",
-                       "koreanTitle":  "태고의 군주",
-                       "chineseOfficial":  "上古领主",
-                       "chinesePersonal":  "斯卡纳",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Sivir",
-                       "key":  "15",
-                       "koreanName":  "시비르",
-                       "koreanTitle":  "전장의 여제",
-                       "chineseOfficial":  "战争女神",
-                       "chinesePersonal":  "希维尔",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Smolder",
-                       "key":  "901",
-                       "koreanName":  "스몰더",
-                       "koreanTitle":  "꼬마 불꽃용",
-                       "chineseOfficial":  "炽炎雏龙",
-                       "chinesePersonal":  "斯莫德",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Soraka",
-                       "key":  "16",
-                       "koreanName":  "소라카",
-                       "koreanTitle":  "별의 아이",
-                       "chineseOfficial":  "众星之子",
-                       "chinesePersonal":  "索拉卡",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Sona",
-                       "key":  "37",
-                       "koreanName":  "소나",
-                       "koreanTitle":  "현의 명인",
-                       "chineseOfficial":  "琴瑟仙女",
-                       "chinesePersonal":  "娑娜",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Shen",
-                       "key":  "98",
-                       "koreanName":  "쉔",
-                       "koreanTitle":  "황혼의 눈",
-                       "chineseOfficial":  "暮光之眼",
-                       "chinesePersonal":  "慎",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Shaco",
-                       "key":  "35",
-                       "koreanName":  "샤코",
-                       "koreanTitle":  "악마 어릿광대",
-                       "chineseOfficial":  "恶魔小丑",
-                       "chinesePersonal":  "萨科",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Shyvana",
-                       "key":  "102",
-                       "koreanName":  "쉬바나",
-                       "koreanTitle":  "하프 드래곤",
-                       "chineseOfficial":  "龙血武姬",
-                       "chinesePersonal":  "希瓦娜",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Sion",
-                       "key":  "14",
-                       "koreanName":  "사이온",
-                       "koreanTitle":  "언데드 학살병기",
-                       "chineseOfficial":  "亡灵战神",
-                       "chinesePersonal":  "赛恩",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Singed",
-                       "key":  "27",
-                       "koreanName":  "신지드",
-                       "koreanTitle":  "미친 화학자",
-                       "chineseOfficial":  "炼金术士",
-                       "chinesePersonal":  "辛吉德",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Rell",
-                       "key":  "526",
-                       "koreanName":  "렐",
-                       "koreanTitle":  "철의 여인",
-                       "chineseOfficial":  "镕铁少女",
-                       "chinesePersonal":  "芮尔",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Nidalee",
-                       "key":  "76",
-                       "koreanName":  "니달리",
-                       "koreanTitle":  "야성의 사냥꾼",
-                       "chineseOfficial":  "狂野女猎手",
-                       "chinesePersonal":  "奈德丽",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Neeko",
-                       "key":  "518",
-                       "koreanName":  "니코",
-                       "koreanTitle":  "알쏭달쏭 카멜레온",
-                       "chineseOfficial":  "万花通灵",
-                       "chinesePersonal":  "妮蔻",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Nilah",
-                       "key":  "895",
-                       "koreanName":  "닐라",
-                       "koreanTitle":  "해방된 기쁨",
-                       "chineseOfficial":  "不羁之悦",
-                       "chinesePersonal":  "尼菈",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Nunu",
-                       "key":  "20",
-                       "koreanName":  "누누와 윌럼프",
-                       "koreanTitle":  "소년과 설인",
-                       "chineseOfficial":  "雪原双子",
-                       "chinesePersonal":  "努努和威朗普",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Nocturne",
-                       "key":  "56",
-                       "koreanName":  "녹턴",
-                       "koreanTitle":  "영원한 악몽",
-                       "chineseOfficial":  "永恒梦魇",
-                       "chinesePersonal":  "魔腾",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Naafiri",
-                       "key":  "950",
-                       "koreanName":  "나피리",
-                       "koreanTitle":  "백 번 무는 사냥개",
-                       "chineseOfficial":  "百裂冥犬",
-                       "chinesePersonal":  "纳亚菲利",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Morgana",
-                       "key":  "25",
-                       "koreanName":  "모르가나",
-                       "koreanTitle":  "타락한 자",
-                       "chineseOfficial":  "堕落天使",
-                       "chinesePersonal":  "莫甘娜",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Nami",
-                       "key":  "267",
-                       "koreanName":  "나미",
-                       "koreanTitle":  "파도 소환사",
-                       "chineseOfficial":  "唤潮鲛姬",
-                       "chinesePersonal":  "娜美",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Nautilus",
-                       "key":  "111",
-                       "koreanName":  "노틸러스",
-                       "koreanTitle":  "심해의 타이탄",
-                       "chineseOfficial":  "深海泰坦",
-                       "chinesePersonal":  "诺提勒斯",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Nasus",
-                       "key":  "75",
-                       "koreanName":  "나서스",
-                       "koreanTitle":  "사막의 관리자",
-                       "chineseOfficial":  "沙漠死神",
-                       "chinesePersonal":  "内瑟斯",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Olaf",
-                       "key":  "2",
-                       "koreanName":  "올라프",
-                       "koreanTitle":  "광전사",
-                       "chineseOfficial":  "狂战士",
-                       "chinesePersonal":  "奥拉夫",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Quinn",
-                       "key":  "133",
-                       "koreanName":  "퀸",
-                       "koreanTitle":  "데마시아의 날개",
-                       "chineseOfficial":  "德玛西亚之翼",
-                       "chinesePersonal":  "奎因",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Qiyana",
-                       "key":  "246",
-                       "koreanName":  "키아나",
-                       "koreanTitle":  "원소의 여왕",
-                       "chineseOfficial":  "元素女皇",
-                       "chinesePersonal":  "奇亚娜",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Rakan",
-                       "key":  "497",
-                       "koreanName":  "라칸",
-                       "koreanTitle":  "매혹하는 자",
-                       "chineseOfficial":  "幻翎",
-                       "chinesePersonal":  "洛",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "RekSai",
-                       "key":  "421",
-                       "koreanName":  "렉사이",
-                       "koreanTitle":  "공허의 복병",
-                       "chineseOfficial":  "虚空遁地兽",
-                       "chinesePersonal":  "雷克塞",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Rammus",
-                       "key":  "33",
-                       "koreanName":  "람머스",
-                       "koreanTitle":  "중무장 아르마딜로",
-                       "chineseOfficial":  "披甲龙龟",
-                       "chinesePersonal":  "拉莫斯",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Ornn",
-                       "key":  "516",
-                       "koreanName":  "오른",
-                       "koreanTitle":  "거산의 화염",
-                       "chineseOfficial":  "山隐之焰",
-                       "chinesePersonal":  "奥恩",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Orianna",
-                       "key":  "61",
-                       "koreanName":  "오리아나",
-                       "koreanTitle":  "시계태엽 소녀",
-                       "chineseOfficial":  "发条魔灵",
-                       "chinesePersonal":  "奥莉安娜",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Pantheon",
-                       "key":  "80",
-                       "koreanName":  "판테온",
-                       "koreanTitle":  "불굴의 창",
-                       "chineseOfficial":  "不屈之枪",
-                       "chinesePersonal":  "潘森",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Pyke",
-                       "key":  "555",
-                       "koreanName":  "파이크",
-                       "koreanTitle":  "핏빛 항구의 학살자",
-                       "chineseOfficial":  "血港鬼影",
-                       "chinesePersonal":  "派克",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Poppy",
-                       "key":  "78",
-                       "koreanName":  "뽀삐",
-                       "koreanTitle":  "망치의 수호자",
-                       "chineseOfficial":  "圣锤之毅",
-                       "chinesePersonal":  "波比",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Xerath",
-                       "key":  "101",
-                       "koreanName":  "제라스",
-                       "koreanTitle":  "초월한 마법사",
-                       "chineseOfficial":  "远古巫灵",
-                       "chinesePersonal":  "泽拉斯",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Xayah",
-                       "key":  "498",
-                       "koreanName":  "자야",
-                       "koreanTitle":  "저항하는 자",
-                       "chineseOfficial":  "逆羽",
-                       "chinesePersonal":  "霞",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "XinZhao",
-                       "key":  "5",
-                       "koreanName":  "신 짜오",
-                       "koreanTitle":  "데마시아의 호위무사",
-                       "chineseOfficial":  "德邦总管",
-                       "chinesePersonal":  "赵信",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Yone",
-                       "key":  "777",
-                       "koreanName":  "요네",
-                       "koreanTitle":  "잊히지 못한 자",
-                       "chineseOfficial":  "封魔剑魂",
-                       "chinesePersonal":  "永恩",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Yasuo",
-                       "key":  "157",
-                       "koreanName":  "야스오",
-                       "koreanTitle":  "용서받지 못한 자",
-                       "chineseOfficial":  "疾风剑豪",
-                       "chinesePersonal":  "亚索",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Viktor",
-                       "key":  "112",
-                       "koreanName":  "빅토르",
-                       "koreanTitle":  "아케인의 전령관",
-                       "chineseOfficial":  "奥术先驱",
-                       "chinesePersonal":  "维克托",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Viego",
-                       "key":  "234",
-                       "koreanName":  "비에고",
-                       "koreanTitle":  "몰락한 왕",
-                       "chineseOfficial":  "破败之王",
-                       "chinesePersonal":  "佛耶戈",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Vladimir",
-                       "key":  "8",
-                       "koreanName":  "블라디미르",
-                       "koreanTitle":  "진홍빛 사신",
-                       "chineseOfficial":  "猩红收割者",
-                       "chinesePersonal":  "弗拉基米尔",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Warwick",
-                       "key":  "19",
-                       "koreanName":  "워윅",
-                       "koreanTitle":  "자운의 고삐 풀린 분노",
-                       "chineseOfficial":  "祖安怒兽",
-                       "chinesePersonal":  "沃里克",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Volibear",
-                       "key":  "106",
-                       "koreanName":  "볼리베어",
-                       "koreanTitle":  "무자비한 폭풍",
-                       "chineseOfficial":  "不灭狂雷",
-                       "chinesePersonal":  "沃利贝尔",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Yorick",
-                       "key":  "83",
-                       "koreanName":  "요릭",
-                       "koreanTitle":  "영혼의 길잡이",
-                       "chineseOfficial":  "牧魂人",
-                       "chinesePersonal":  "约里克",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Ziggs",
-                       "key":  "115",
-                       "koreanName":  "직스",
-                       "koreanTitle":  "마법공학 폭파병",
-                       "chineseOfficial":  "爆破鬼才",
-                       "chinesePersonal":  "吉格斯",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Zeri",
-                       "key":  "221",
-                       "koreanName":  "제리",
-                       "koreanTitle":  "자운의 불꽃",
-                       "chineseOfficial":  "祖安花火",
-                       "chinesePersonal":  "泽丽",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Zilean",
-                       "key":  "26",
-                       "koreanName":  "질리언",
-                       "koreanTitle":  "시간의 수호자",
-                       "chineseOfficial":  "时光守护者",
-                       "chinesePersonal":  "基兰",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Zyra",
-                       "key":  "143",
-                       "koreanName":  "자이라",
-                       "koreanTitle":  "가시 덩굴의 복수",
-                       "chineseOfficial":  "荆棘之兴",
-                       "chinesePersonal":  "婕拉",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Zoe",
-                       "key":  "142",
-                       "koreanName":  "조이",
-                       "koreanTitle":  "여명의 성위",
-                       "chineseOfficial":  "暮光星灵",
-                       "chinesePersonal":  "佐伊",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Yuumi",
-                       "key":  "350",
-                       "koreanName":  "유미",
-                       "koreanTitle":  "마법 고양이",
-                       "chineseOfficial":  "魔法猫咪",
-                       "chinesePersonal":  "悠米",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Yunara",
-                       "key":  "804",
-                       "koreanName":  "유나라",
-                       "koreanTitle":  "꺾이지 않는 신념",
-                       "chineseOfficial":  "不破之誓",
-                       "chinesePersonal":  "芸阿娜",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Zaahen",
-                       "key":  "904",
-                       "koreanName":  "자헨",
-                       "koreanTitle":  "저물지 않는 자",
-                       "chineseOfficial":  "不落魔锋",
-                       "chinesePersonal":  "亚恒",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Zed",
-                       "key":  "238",
-                       "koreanName":  "제드",
-                       "koreanTitle":  "그림자의 주인",
-                       "chineseOfficial":  "影流之主",
-                       "chinesePersonal":  "劫",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Zac",
-                       "key":  "154",
-                       "koreanName":  "자크",
-                       "koreanTitle":  "비밀 병기",
-                       "chineseOfficial":  "生化魔人",
-                       "chinesePersonal":  "扎克",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Vi",
-                       "key":  "254",
-                       "koreanName":  "바이",
-                       "koreanTitle":  "필트오버의 집행자",
-                       "chineseOfficial":  "皮城执法官",
-                       "chinesePersonal":  "蔚",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Taric",
-                       "key":  "44",
-                       "koreanName":  "타릭",
-                       "koreanTitle":  "발로란의 방패",
-                       "chineseOfficial":  "瓦洛兰之盾",
-                       "chinesePersonal":  "塔里克",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Talon",
-                       "key":  "91",
-                       "koreanName":  "탈론",
-                       "koreanTitle":  "검의 그림자",
-                       "chineseOfficial":  "刀锋之影",
-                       "chinesePersonal":  "泰隆",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Teemo",
-                       "key":  "17",
-                       "koreanName":  "티모",
-                       "koreanTitle":  "날쌘 정찰병",
-                       "chineseOfficial":  "迅捷斥候",
-                       "chinesePersonal":  "提莫",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Tristana",
-                       "key":  "18",
-                       "koreanName":  "트리스타나",
-                       "koreanTitle":  "요들 사수",
-                       "chineseOfficial":  "麦林炮手",
-                       "chinesePersonal":  "崔丝塔娜",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Thresh",
-                       "key":  "412",
-                       "koreanName":  "쓰레쉬",
-                       "koreanTitle":  "지옥의 간수",
-                       "chineseOfficial":  "魂锁典狱长",
-                       "chinesePersonal":  "锤石",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Sylas",
-                       "key":  "517",
-                       "koreanName":  "사일러스",
-                       "koreanTitle":  "해방된 자",
-                       "chineseOfficial":  "解脱者",
-                       "chinesePersonal":  "塞拉斯",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Swain",
-                       "key":  "50",
-                       "koreanName":  "스웨인",
-                       "koreanTitle":  "녹서스 대장군",
-                       "chineseOfficial":  "诺克萨斯统领",
-                       "chinesePersonal":  "斯维因",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Syndra",
-                       "key":  "134",
-                       "koreanName":  "신드라",
-                       "koreanTitle":  "어둠의 여제",
-                       "chineseOfficial":  "暗黑元首",
-                       "chinesePersonal":  "辛德拉",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Taliyah",
-                       "key":  "163",
-                       "koreanName":  "탈리야",
-                       "koreanTitle":  "바위술사",
-                       "chineseOfficial":  "岩雀",
-                       "chinesePersonal":  "塔莉垭",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "TahmKench",
-                       "key":  "223",
-                       "koreanName":  "탐 켄치",
-                       "koreanTitle":  "강의 폭군",
-                       "chineseOfficial":  "河流之王",
-                       "chinesePersonal":  "塔姆",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Trundle",
-                       "key":  "48",
-                       "koreanName":  "트런들",
-                       "koreanTitle":  "트롤 왕",
-                       "chineseOfficial":  "巨魔之王",
-                       "chinesePersonal":  "特朗德尔",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Vayne",
-                       "key":  "67",
-                       "koreanName":  "베인",
-                       "koreanTitle":  "어둠 사냥꾼",
-                       "chineseOfficial":  "暗夜猎手",
-                       "chinesePersonal":  "薇恩",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Varus",
-                       "key":  "110",
-                       "koreanName":  "바루스",
-                       "koreanTitle":  "응징의 화살",
-                       "chineseOfficial":  "惩戒之箭",
-                       "chinesePersonal":  "韦鲁斯",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Veigar",
-                       "key":  "45",
-                       "koreanName":  "베이가",
-                       "koreanTitle":  "악의 작은 지배자",
-                       "chineseOfficial":  "邪恶小法师",
-                       "chinesePersonal":  "维迦",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Vex",
-                       "key":  "711",
-                       "koreanName":  "벡스",
-                       "koreanTitle":  "우울주의자",
-                       "chineseOfficial":  "愁云使者",
-                       "chinesePersonal":  "薇古丝",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Velkoz",
-                       "key":  "161",
-                       "koreanName":  "벨코즈",
-                       "koreanTitle":  "공허의 눈",
-                       "chineseOfficial":  "虚空之眼",
-                       "chinesePersonal":  "维克兹",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "TwistedFate",
-                       "key":  "4",
-                       "koreanName":  "트위스티드 페이트",
-                       "koreanTitle":  "카드의 달인",
-                       "chineseOfficial":  "卡牌大师",
-                       "chinesePersonal":  "崔斯特",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Tryndamere",
-                       "key":  "23",
-                       "koreanName":  "트린다미어",
-                       "koreanTitle":  "야만전사 왕",
-                       "chineseOfficial":  "蛮族之王",
-                       "chinesePersonal":  "泰达米尔",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Twitch",
-                       "key":  "29",
-                       "koreanName":  "트위치",
-                       "koreanTitle":  "역병 쥐",
-                       "chineseOfficial":  "瘟疫之源",
-                       "chinesePersonal":  "图奇",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Urgot",
-                       "key":  "6",
-                       "koreanName":  "우르곳",
-                       "koreanTitle":  "살상 병기",
-                       "chineseOfficial":  "无畏战车",
-                       "chinesePersonal":  "厄加特",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Udyr",
-                       "key":  "77",
-                       "koreanName":  "우디르",
-                       "koreanTitle":  "정령 주술사",
-                       "chineseOfficial":  "兽灵行者",
-                       "chinesePersonal":  "乌迪尔",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Mordekaiser",
-                       "key":  "82",
-                       "koreanName":  "모데카이저",
-                       "koreanTitle":  "강철의 망령",
-                       "chineseOfficial":  "铁铠冥魂",
-                       "chinesePersonal":  "莫德凯撒",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "DrMundo",
-                       "key":  "36",
-                       "koreanName":  "문도 박사",
-                       "koreanTitle":  "자운의 광인",
-                       "chineseOfficial":  "祖安狂人",
-                       "chinesePersonal":  "蒙多医生",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Draven",
-                       "key":  "119",
-                       "koreanName":  "드레이븐",
-                       "koreanTitle":  "화려한 처형자",
-                       "chineseOfficial":  "荣耀行刑官",
-                       "chinesePersonal":  "德莱文",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Ekko",
-                       "key":  "245",
-                       "koreanName":  "에코",
-                       "koreanTitle":  "시간을 달리는 소년",
-                       "chineseOfficial":  "时间刺客",
-                       "chinesePersonal":  "艾克",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Evelynn",
-                       "key":  "28",
-                       "koreanName":  "이블린",
-                       "koreanTitle":  "고통스런 포옹",
-                       "chineseOfficial":  "痛苦之拥",
-                       "chinesePersonal":  "伊芙琳",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Elise",
-                       "key":  "60",
-                       "koreanName":  "엘리스",
-                       "koreanTitle":  "거미 여왕",
-                       "chineseOfficial":  "蜘蛛女皇",
-                       "chinesePersonal":  "伊莉丝",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Chogath",
-                       "key":  "31",
-                       "koreanName":  "초가스",
-                       "koreanTitle":  "공허의 공포",
-                       "chineseOfficial":  "虚空恐惧",
-                       "chinesePersonal":  "科加斯",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Cassiopeia",
-                       "key":  "69",
-                       "koreanName":  "카시오페아",
-                       "koreanTitle":  "독사의 포옹",
-                       "chineseOfficial":  "魔蛇之拥",
-                       "chinesePersonal":  "卡西奥佩娅",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Corki",
-                       "key":  "42",
-                       "koreanName":  "코르키",
-                       "koreanTitle":  "대담한 폭격수",
-                       "chineseOfficial":  "英勇投弹手",
-                       "chinesePersonal":  "库奇",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Diana",
-                       "key":  "131",
-                       "koreanName":  "다이애나",
-                       "koreanTitle":  "차가운 달의 분노",
-                       "chineseOfficial":  "皎月女神",
-                       "chinesePersonal":  "黛安娜",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Darius",
-                       "key":  "122",
-                       "koreanName":  "다리우스",
-                       "koreanTitle":  "녹서스의 실력자",
-                       "chineseOfficial":  "诺克萨斯之手",
-                       "chinesePersonal":  "德莱厄斯",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Ezreal",
-                       "key":  "81",
-                       "koreanName":  "이즈리얼",
-                       "koreanTitle":  "무모한 탐험가",
-                       "chineseOfficial":  "探险家",
-                       "chinesePersonal":  "伊泽瑞尔",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Gnar",
-                       "key":  "150",
-                       "koreanName":  "나르",
-                       "koreanTitle":  "잃어버린 고리",
-                       "chineseOfficial":  "迷失之牙",
-                       "chinesePersonal":  "纳尔",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Garen",
-                       "key":  "86",
-                       "koreanName":  "가렌",
-                       "koreanTitle":  "데마시아의 힘",
-                       "chineseOfficial":  "德玛西亚之力",
-                       "chinesePersonal":  "盖伦",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Gragas",
-                       "key":  "79",
-                       "koreanName":  "그라가스",
-                       "koreanTitle":  "술취한 난동꾼",
-                       "chineseOfficial":  "酒桶",
-                       "chinesePersonal":  "古拉加斯",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Gwen",
-                       "key":  "887",
-                       "koreanName":  "그웬",
-                       "koreanTitle":  "신성한 재봉사",
-                       "chineseOfficial":  "灵罗娃娃",
-                       "chinesePersonal":  "格温",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Graves",
-                       "key":  "104",
-                       "koreanName":  "그레이브즈",
-                       "koreanTitle":  "무법자",
-                       "chineseOfficial":  "法外狂徒",
-                       "chinesePersonal":  "格雷福斯",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Fiora",
-                       "key":  "114",
-                       "koreanName":  "피오라",
-                       "koreanTitle":  "결투의 대가",
-                       "chineseOfficial":  "无双剑姬",
-                       "chinesePersonal":  "菲奥娜",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Fiddlesticks",
-                       "key":  "9",
-                       "koreanName":  "피들스틱",
-                       "koreanTitle":  "오래된 공포",
-                       "chineseOfficial":  "远古恐惧",
-                       "chinesePersonal":  "费德提克",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Fizz",
-                       "key":  "105",
-                       "koreanName":  "피즈",
-                       "koreanTitle":  "대양의 말썽꾸러기",
-                       "chineseOfficial":  "潮汐海灵",
-                       "chinesePersonal":  "菲兹",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Gangplank",
-                       "key":  "41",
-                       "koreanName":  "갱플랭크",
-                       "koreanTitle":  "바다의 무법자",
-                       "chineseOfficial":  "海洋之灾",
-                       "chinesePersonal":  "普朗克",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Galio",
-                       "key":  "3",
-                       "koreanName":  "갈리오",
-                       "koreanTitle":  "위대한 석상",
-                       "chineseOfficial":  "正义巨像",
-                       "chinesePersonal":  "加里奥",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Camille",
-                       "key":  "164",
-                       "koreanName":  "카밀",
-                       "koreanTitle":  "강철의 그림자",
-                       "chineseOfficial":  "青钢影",
-                       "chinesePersonal":  "卡蜜尔",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Amumu",
-                       "key":  "32",
-                       "koreanName":  "아무무",
-                       "koreanTitle":  "슬픈 미라",
-                       "chineseOfficial":  "殇之木乃伊",
-                       "chinesePersonal":  "阿木木",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Ambessa",
-                       "key":  "799",
-                       "koreanName":  "암베사",
-                       "koreanTitle":  "전장의 우두머리",
-                       "chineseOfficial":  "铁血狼母",
-                       "chinesePersonal":  "安蓓萨",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Anivia",
-                       "key":  "34",
-                       "koreanName":  "애니비아",
-                       "koreanTitle":  "얼음불사조",
-                       "chineseOfficial":  "冰晶凤凰",
-                       "chinesePersonal":  "艾尼维亚",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Aphelios",
-                       "key":  "523",
-                       "koreanName":  "아펠리오스",
-                       "koreanTitle":  "신념의 무기",
-                       "chineseOfficial":  "残月之肃",
-                       "chinesePersonal":  "厄斐琉斯",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Annie",
-                       "key":  "1",
-                       "koreanName":  "애니",
-                       "koreanTitle":  "어둠의 아이",
-                       "chineseOfficial":  "黑暗之女",
-                       "chinesePersonal":  "安妮",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Ahri",
-                       "key":  "103",
-                       "koreanName":  "아리",
-                       "koreanTitle":  "구미호",
-                       "chineseOfficial":  "九尾妖狐",
-                       "chinesePersonal":  "阿狸",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Aatrox",
-                       "key":  "266",
-                       "koreanName":  "아트록스",
-                       "koreanTitle":  "다르킨의 검",
-                       "chineseOfficial":  "暗裔剑魔",
-                       "chinesePersonal":  "亚托克斯",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Akali",
-                       "key":  "84",
-                       "koreanName":  "아칼리",
-                       "koreanTitle":  "섬기는 이 없는 암살자",
-                       "chineseOfficial":  "离群之刺",
-                       "chinesePersonal":  "阿卡丽",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Alistar",
-                       "key":  "12",
-                       "koreanName":  "알리스타",
-                       "koreanTitle":  "미노타우로스",
-                       "chineseOfficial":  "牛头酋长",
-                       "chinesePersonal":  "阿利斯塔",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Akshan",
-                       "key":  "166",
-                       "koreanName":  "아크샨",
-                       "koreanTitle":  "떠도는 감시자",
-                       "chineseOfficial":  "影哨",
-                       "chinesePersonal":  "阿克尚",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Ashe",
-                       "key":  "22",
-                       "koreanName":  "애쉬",
-                       "koreanTitle":  "서리 궁수",
-                       "chineseOfficial":  "寒冰射手",
-                       "chinesePersonal":  "艾希",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Brand",
-                       "key":  "63",
-                       "koreanName":  "브랜드",
-                       "koreanTitle":  "타오르는 복수",
-                       "chineseOfficial":  "复仇焰魂",
-                       "chinesePersonal":  "布兰德",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Blitzcrank",
-                       "key":  "53",
-                       "koreanName":  "블리츠크랭크",
-                       "koreanTitle":  "거대 증기 골렘",
-                       "chineseOfficial":  "蒸汽机器人",
-                       "chinesePersonal":  "布里茨",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Braum",
-                       "key":  "201",
-                       "koreanName":  "브라움",
-                       "koreanTitle":  "프렐요드의 심장",
-                       "chineseOfficial":  "弗雷尔卓德之心",
-                       "chinesePersonal":  "布隆",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Caitlyn",
-                       "key":  "51",
-                       "koreanName":  "케이틀린",
-                       "koreanTitle":  "필트오버의 보안관",
-                       "chineseOfficial":  "皮城女警",
-                       "chinesePersonal":  "凯特琳",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Briar",
-                       "key":  "233",
-                       "koreanName":  "브라이어",
-                       "koreanTitle":  "억눌린 허기",
-                       "chineseOfficial":  "狂厄蔷薇",
-                       "chinesePersonal":  "贝蕾亚",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Aurora",
-                       "key":  "893",
-                       "koreanName":  "오로라",
-                       "koreanTitle":  "세계의 경계에 선 마녀",
-                       "chineseOfficial":  "双界灵兔",
-                       "chinesePersonal":  "阿萝拉",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "AurelionSol",
-                       "key":  "136",
-                       "koreanName":  "아우렐리온 솔",
-                       "koreanTitle":  "별의 창조자",
-                       "chineseOfficial":  "铸星龙王",
-                       "chinesePersonal":  "奥瑞利安·索尔",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Azir",
-                       "key":  "268",
-                       "koreanName":  "아지르",
-                       "koreanTitle":  "사막의 황제",
-                       "chineseOfficial":  "沙漠皇帝",
-                       "chinesePersonal":  "阿兹尔",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Belveth",
-                       "key":  "200",
-                       "koreanName":  "벨베스",
-                       "koreanTitle":  "공허의 여제",
-                       "chineseOfficial":  "虚空女皇",
-                       "chinesePersonal":  "卑尔维斯",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Bard",
-                       "key":  "432",
-                       "koreanName":  "바드",
-                       "koreanTitle":  "영겁의 수호자",
-                       "chineseOfficial":  "星界游神",
-                       "chinesePersonal":  "巴德",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Leona",
-                       "key":  "89",
-                       "koreanName":  "레오나",
-                       "koreanTitle":  "여명의 빛",
-                       "chineseOfficial":  "曙光女神",
-                       "chinesePersonal":  "蕾欧娜",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "LeeSin",
-                       "key":  "64",
-                       "koreanName":  "리 신",
-                       "koreanTitle":  "눈먼 수도승",
-                       "chineseOfficial":  "盲僧",
-                       "chinesePersonal":  "李青",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Lillia",
-                       "key":  "876",
-                       "koreanName":  "릴리아",
-                       "koreanTitle":  "수줍은 꽃",
-                       "chineseOfficial":  "含羞蓓蕾",
-                       "chinesePersonal":  "莉莉娅",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Locke",
-                       "key":  "805",
-                       "koreanName":  "로크",
-                       "koreanTitle":  "잿빛 퇴마사",
-                       "chineseOfficial":  "灰烬驱魔人",
-                       "chinesePersonal":  "洛克",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Lissandra",
-                       "key":  "127",
-                       "koreanName":  "리산드라",
-                       "koreanTitle":  "얼음 마녀",
-                       "chineseOfficial":  "冰霜女巫",
-                       "chinesePersonal":  "丽桑卓",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Kled",
-                       "key":  "240",
-                       "koreanName":  "클레드",
-                       "koreanTitle":  "망나니 기사",
-                       "chineseOfficial":  "暴怒骑士",
-                       "chinesePersonal":  "克烈",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Kindred",
-                       "key":  "203",
-                       "koreanName":  "킨드레드",
-                       "koreanTitle":  "영겁의 사냥꾼",
-                       "chineseOfficial":  "永猎双子",
-                       "chinesePersonal":  "千珏",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "KogMaw",
-                       "key":  "96",
-                       "koreanName":  "코그모",
-                       "koreanTitle":  "심연의 아귀",
-                       "chineseOfficial":  "深渊巨口",
-                       "chinesePersonal":  "克格莫",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Leblanc",
-                       "key":  "7",
-                       "koreanName":  "르블랑",
-                       "koreanTitle":  "환술사",
-                       "chineseOfficial":  "诡术妖姬",
-                       "chinesePersonal":  "乐芙兰",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "KSante",
-                       "key":  "897",
-                       "koreanName":  "크산테",
-                       "koreanTitle":  "나주마의 긍지",
-                       "chineseOfficial":  "纳祖芒荣耀",
-                       "chinesePersonal":  "奎桑提",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Lucian",
-                       "key":  "236",
-                       "koreanName":  "루시안",
-                       "koreanTitle":  "정화의 사도",
-                       "chineseOfficial":  "圣枪游侠",
-                       "chinesePersonal":  "卢锡安",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Mel",
-                       "key":  "800",
-                       "koreanName":  "멜",
-                       "koreanTitle":  "영혼의 반향",
-                       "chineseOfficial":  "流光镜影",
-                       "chinesePersonal":  "梅尔",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "MasterYi",
-                       "key":  "11",
-                       "koreanName":  "마스터 이",
-                       "koreanTitle":  "우주 검사",
-                       "chineseOfficial":  "无极剑圣",
-                       "chinesePersonal":  "易",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Milio",
-                       "key":  "902",
-                       "koreanName":  "밀리오",
-                       "koreanTitle":  "온화한 불꽃",
-                       "chineseOfficial":  "明烛",
-                       "chinesePersonal":  "米利欧",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "MonkeyKing",
-                       "key":  "62",
-                       "koreanName":  "오공",
-                       "koreanTitle":  "원숭이 왕",
-                       "chineseOfficial":  "齐天大圣",
-                       "chinesePersonal":  "孙悟空",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "MissFortune",
-                       "key":  "21",
-                       "koreanName":  "미스 포츈",
-                       "koreanTitle":  "현상금 사냥꾼",
-                       "chineseOfficial":  "赏金猎人",
-                       "chinesePersonal":  "厄运小姐",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Lux",
-                       "key":  "99",
-                       "koreanName":  "럭스",
-                       "koreanTitle":  "광명의 소녀",
-                       "chineseOfficial":  "光辉女郎",
-                       "chinesePersonal":  "拉克丝",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Lulu",
-                       "key":  "117",
-                       "koreanName":  "룰루",
-                       "koreanTitle":  "요정 마법사",
-                       "chineseOfficial":  "仙灵女巫",
-                       "chinesePersonal":  "璐璐",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Malphite",
-                       "key":  "54",
-                       "koreanName":  "말파이트",
-                       "koreanTitle":  "거석의 파편",
-                       "chineseOfficial":  "熔岩巨兽",
-                       "chinesePersonal":  "墨菲特",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Maokai",
-                       "key":  "57",
-                       "koreanName":  "마오카이",
-                       "koreanTitle":  "뒤틀린 나무 정령",
-                       "chineseOfficial":  "扭曲树精",
-                       "chinesePersonal":  "茂凯",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Malzahar",
-                       "key":  "90",
-                       "koreanName":  "말자하",
-                       "koreanTitle":  "공허의 예언자",
-                       "chineseOfficial":  "虚空先知",
-                       "chinesePersonal":  "玛尔扎哈",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Khazix",
-                       "key":  "121",
-                       "koreanName":  "카직스",
-                       "koreanTitle":  "공허의 약탈자",
-                       "chineseOfficial":  "虚空掠夺者",
-                       "chinesePersonal":  "卡兹克",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Janna",
-                       "key":  "40",
-                       "koreanName":  "잔나",
-                       "koreanTitle":  "폭풍의 분노",
-                       "chineseOfficial":  "风暴之怒",
-                       "chinesePersonal":  "迦娜",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Ivern",
-                       "key":  "427",
-                       "koreanName":  "아이번",
-                       "koreanTitle":  "자연의 아버지",
-                       "chineseOfficial":  "翠神",
-                       "chinesePersonal":  "艾翁",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "JarvanIV",
-                       "key":  "59",
-                       "koreanName":  "자르반 4세",
-                       "koreanTitle":  "데마시아의 귀감",
-                       "chineseOfficial":  "德玛西亚皇子",
-                       "chinesePersonal":  "嘉文四世",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Jayce",
-                       "key":  "126",
-                       "koreanName":  "제이스",
-                       "koreanTitle":  "미래의 수호자",
-                       "chineseOfficial":  "未来守护者",
-                       "chinesePersonal":  "杰斯",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Jax",
-                       "key":  "24",
-                       "koreanName":  "잭스",
-                       "koreanTitle":  "무기의 달인",
-                       "chineseOfficial":  "武器大师",
-                       "chinesePersonal":  "贾克斯",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Heimerdinger",
-                       "key":  "74",
-                       "koreanName":  "하이머딩거",
-                       "koreanTitle":  "위대한 발명가",
-                       "chineseOfficial":  "大发明家",
-                       "chinesePersonal":  "黑默丁格",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Hecarim",
-                       "key":  "120",
-                       "koreanName":  "헤카림",
-                       "koreanTitle":  "전쟁의 전조",
-                       "chineseOfficial":  "战争之影",
-                       "chinesePersonal":  "赫卡里姆",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Hwei",
-                       "key":  "910",
-                       "koreanName":  "흐웨이",
-                       "koreanTitle":  "몽상가",
-                       "chineseOfficial":  "异画师",
-                       "chinesePersonal":  "彗",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Irelia",
-                       "key":  "39",
-                       "koreanName":  "이렐리아",
-                       "koreanTitle":  "칼날 무희",
-                       "chineseOfficial":  "刀锋舞者",
-                       "chinesePersonal":  "艾瑞莉娅",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Illaoi",
-                       "key":  "420",
-                       "koreanName":  "일라오이",
-                       "koreanTitle":  "크라켄의 여사제",
-                       "chineseOfficial":  "海兽祭司",
-                       "chinesePersonal":  "俄洛伊",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Jhin",
-                       "key":  "202",
-                       "koreanName":  "진",
-                       "koreanTitle":  "잔혹극의 거장",
-                       "chineseOfficial":  "戏命师",
-                       "chinesePersonal":  "烬",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Katarina",
-                       "key":  "55",
-                       "koreanName":  "카타리나",
-                       "koreanTitle":  "사악한 칼날",
-                       "chineseOfficial":  "不祥之刃",
-                       "chinesePersonal":  "卡特琳娜",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Kassadin",
-                       "key":  "38",
-                       "koreanName":  "카사딘",
-                       "koreanTitle":  "공허의 방랑자",
-                       "chineseOfficial":  "虚空行者",
-                       "chinesePersonal":  "卡萨丁",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Kayle",
-                       "key":  "10",
-                       "koreanName":  "케일",
-                       "koreanTitle":  "정의로운 자",
-                       "chineseOfficial":  "正义天使",
-                       "chinesePersonal":  "凯尔",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Kennen",
-                       "key":  "85",
-                       "koreanName":  "케넨",
-                       "koreanTitle":  "폭풍의 심장",
-                       "chineseOfficial":  "狂暴之心",
-                       "chinesePersonal":  "凯南",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Kayn",
-                       "key":  "141",
-                       "koreanName":  "케인",
-                       "koreanTitle":  "그림자 사신",
-                       "chineseOfficial":  "影流之镰",
-                       "chinesePersonal":  "凯隐",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Kaisa",
-                       "key":  "145",
-                       "koreanName":  "카이사",
-                       "koreanTitle":  "공허의 딸",
-                       "chineseOfficial":  "虚空之女",
-                       "chinesePersonal":  "卡莎",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Jinx",
-                       "key":  "222",
-                       "koreanName":  "징크스",
-                       "koreanTitle":  "난폭한 말괄량이",
-                       "chineseOfficial":  "暴走萝莉",
-                       "chinesePersonal":  "金克丝",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Kalista",
-                       "key":  "429",
-                       "koreanName":  "칼리스타",
-                       "koreanTitle":  "복수의 화신",
-                       "chineseOfficial":  "复仇之矛",
-                       "chinesePersonal":  "卡莉丝塔",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Karthus",
-                       "key":  "30",
-                       "koreanName":  "카서스",
-                       "koreanTitle":  "죽음을 노래하는 자",
-                       "chineseOfficial":  "死亡颂唱者",
-                       "chinesePersonal":  "卡尔萨斯",
-                       "chineseAliases":  [
-
-                                          ]
-                   },
-                   {
-                       "id":  "Karma",
-                       "key":  "43",
-                       "koreanName":  "카르마",
-                       "koreanTitle":  "깨우친 자",
-                       "chineseOfficial":  "天启者",
-                       "chinesePersonal":  "卡尔玛",
-                       "chineseAliases":  [
-
-                                          ]
-                   }
-               ]
+  "version": "16.14.1",
+  "heroes": [
+    {
+      "id": "Aatrox",
+      "key": "266",
+      "koreanName": "아트록스",
+      "koreanTitle": "다르킨의 검",
+      "chineseOfficial": "暗裔剑魔",
+      "chinesePersonal": "亚托克斯",
+      "englishName": "Aatrox",
+      "chineseAliases": []
+    },
+    {
+      "id": "Ahri",
+      "key": "103",
+      "koreanName": "아리",
+      "koreanTitle": "구미호",
+      "chineseOfficial": "九尾妖狐",
+      "chinesePersonal": "阿狸",
+      "englishName": "Ahri",
+      "chineseAliases": []
+    },
+    {
+      "id": "Akali",
+      "key": "84",
+      "koreanName": "아칼리",
+      "koreanTitle": "섬기는 이 없는 암살자",
+      "chineseOfficial": "离群之刺",
+      "chinesePersonal": "阿卡丽",
+      "englishName": "Akali",
+      "chineseAliases": []
+    },
+    {
+      "id": "Akshan",
+      "key": "166",
+      "koreanName": "아크샨",
+      "koreanTitle": "떠도는 감시자",
+      "chineseOfficial": "影哨",
+      "chinesePersonal": "阿克尚",
+      "englishName": "Akshan",
+      "chineseAliases": []
+    },
+    {
+      "id": "Alistar",
+      "key": "12",
+      "koreanName": "알리스타",
+      "koreanTitle": "미노타우로스",
+      "chineseOfficial": "牛头酋长",
+      "chinesePersonal": "阿利斯塔",
+      "englishName": "Alistar",
+      "chineseAliases": []
+    },
+    {
+      "id": "Ambessa",
+      "key": "799",
+      "koreanName": "암베사",
+      "koreanTitle": "전장의 우두머리",
+      "chineseOfficial": "铁血狼母",
+      "chinesePersonal": "安蓓萨",
+      "englishName": "Ambessa",
+      "chineseAliases": []
+    },
+    {
+      "id": "Amumu",
+      "key": "32",
+      "koreanName": "아무무",
+      "koreanTitle": "슬픈 미라",
+      "chineseOfficial": "殇之木乃伊",
+      "chinesePersonal": "阿木木",
+      "englishName": "Amumu",
+      "chineseAliases": []
+    },
+    {
+      "id": "Anivia",
+      "key": "34",
+      "koreanName": "애니비아",
+      "koreanTitle": "얼음불사조",
+      "chineseOfficial": "冰晶凤凰",
+      "chinesePersonal": "艾尼维亚",
+      "englishName": "Anivia",
+      "chineseAliases": []
+    },
+    {
+      "id": "Annie",
+      "key": "1",
+      "koreanName": "애니",
+      "koreanTitle": "어둠의 아이",
+      "chineseOfficial": "黑暗之女",
+      "chinesePersonal": "安妮",
+      "englishName": "Annie",
+      "chineseAliases": []
+    },
+    {
+      "id": "Aphelios",
+      "key": "523",
+      "koreanName": "아펠리오스",
+      "koreanTitle": "신념의 무기",
+      "chineseOfficial": "残月之肃",
+      "chinesePersonal": "厄斐琉斯",
+      "englishName": "Aphelios",
+      "chineseAliases": []
+    },
+    {
+      "id": "Ashe",
+      "key": "22",
+      "koreanName": "애쉬",
+      "koreanTitle": "서리 궁수",
+      "chineseOfficial": "寒冰射手",
+      "chinesePersonal": "艾希",
+      "englishName": "Ashe",
+      "chineseAliases": []
+    },
+    {
+      "id": "AurelionSol",
+      "key": "136",
+      "koreanName": "아우렐리온 솔",
+      "koreanTitle": "별의 창조자",
+      "chineseOfficial": "铸星龙王",
+      "chinesePersonal": "奥瑞利安·索尔",
+      "englishName": "Aurelion Sol",
+      "chineseAliases": []
+    },
+    {
+      "id": "Aurora",
+      "key": "893",
+      "koreanName": "오로라",
+      "koreanTitle": "세계의 경계에 선 마녀",
+      "chineseOfficial": "双界灵兔",
+      "chinesePersonal": "阿萝拉",
+      "englishName": "Aurora",
+      "chineseAliases": []
+    },
+    {
+      "id": "Azir",
+      "key": "268",
+      "koreanName": "아지르",
+      "koreanTitle": "사막의 황제",
+      "chineseOfficial": "沙漠皇帝",
+      "chinesePersonal": "阿兹尔",
+      "englishName": "Azir",
+      "chineseAliases": []
+    },
+    {
+      "id": "Bard",
+      "key": "432",
+      "koreanName": "바드",
+      "koreanTitle": "영겁의 수호자",
+      "chineseOfficial": "星界游神",
+      "chinesePersonal": "巴德",
+      "englishName": "Bard",
+      "chineseAliases": []
+    },
+    {
+      "id": "Belveth",
+      "key": "200",
+      "koreanName": "벨베스",
+      "koreanTitle": "공허의 여제",
+      "chineseOfficial": "虚空女皇",
+      "chinesePersonal": "卑尔维斯",
+      "englishName": "Bel'Veth",
+      "chineseAliases": []
+    },
+    {
+      "id": "Blitzcrank",
+      "key": "53",
+      "koreanName": "블리츠크랭크",
+      "koreanTitle": "거대 증기 골렘",
+      "chineseOfficial": "蒸汽机器人",
+      "chinesePersonal": "布里茨",
+      "englishName": "Blitzcrank",
+      "chineseAliases": []
+    },
+    {
+      "id": "Brand",
+      "key": "63",
+      "koreanName": "브랜드",
+      "koreanTitle": "타오르는 복수",
+      "chineseOfficial": "复仇焰魂",
+      "chinesePersonal": "布兰德",
+      "englishName": "Brand",
+      "chineseAliases": []
+    },
+    {
+      "id": "Braum",
+      "key": "201",
+      "koreanName": "브라움",
+      "koreanTitle": "프렐요드의 심장",
+      "chineseOfficial": "弗雷尔卓德之心",
+      "chinesePersonal": "布隆",
+      "englishName": "Braum",
+      "chineseAliases": []
+    },
+    {
+      "id": "Briar",
+      "key": "233",
+      "koreanName": "브라이어",
+      "koreanTitle": "억눌린 허기",
+      "chineseOfficial": "狂厄蔷薇",
+      "chinesePersonal": "贝蕾亚",
+      "englishName": "Briar",
+      "chineseAliases": []
+    },
+    {
+      "id": "Caitlyn",
+      "key": "51",
+      "koreanName": "케이틀린",
+      "koreanTitle": "필트오버의 보안관",
+      "chineseOfficial": "皮城女警",
+      "chinesePersonal": "凯特琳",
+      "englishName": "Caitlyn",
+      "chineseAliases": []
+    },
+    {
+      "id": "Camille",
+      "key": "164",
+      "koreanName": "카밀",
+      "koreanTitle": "강철의 그림자",
+      "chineseOfficial": "青钢影",
+      "chinesePersonal": "卡蜜尔",
+      "englishName": "Camille",
+      "chineseAliases": []
+    },
+    {
+      "id": "Cassiopeia",
+      "key": "69",
+      "koreanName": "카시오페아",
+      "koreanTitle": "독사의 포옹",
+      "chineseOfficial": "魔蛇之拥",
+      "chinesePersonal": "卡西奥佩娅",
+      "englishName": "Cassiopeia",
+      "chineseAliases": []
+    },
+    {
+      "id": "Chogath",
+      "key": "31",
+      "koreanName": "초가스",
+      "koreanTitle": "공허의 공포",
+      "chineseOfficial": "虚空恐惧",
+      "chinesePersonal": "科加斯",
+      "englishName": "Cho'Gath",
+      "chineseAliases": []
+    },
+    {
+      "id": "Corki",
+      "key": "42",
+      "koreanName": "코르키",
+      "koreanTitle": "대담한 폭격수",
+      "chineseOfficial": "英勇投弹手",
+      "chinesePersonal": "库奇",
+      "englishName": "Corki",
+      "chineseAliases": []
+    },
+    {
+      "id": "Darius",
+      "key": "122",
+      "koreanName": "다리우스",
+      "koreanTitle": "녹서스의 실력자",
+      "chineseOfficial": "诺克萨斯之手",
+      "chinesePersonal": "德莱厄斯",
+      "englishName": "Darius",
+      "chineseAliases": []
+    },
+    {
+      "id": "Diana",
+      "key": "131",
+      "koreanName": "다이애나",
+      "koreanTitle": "차가운 달의 분노",
+      "chineseOfficial": "皎月女神",
+      "chinesePersonal": "黛安娜",
+      "englishName": "Diana",
+      "chineseAliases": []
+    },
+    {
+      "id": "Draven",
+      "key": "119",
+      "koreanName": "드레이븐",
+      "koreanTitle": "화려한 처형자",
+      "chineseOfficial": "荣耀行刑官",
+      "chinesePersonal": "德莱文",
+      "englishName": "Draven",
+      "chineseAliases": []
+    },
+    {
+      "id": "DrMundo",
+      "key": "36",
+      "koreanName": "문도 박사",
+      "koreanTitle": "자운의 광인",
+      "chineseOfficial": "祖安狂人",
+      "chinesePersonal": "蒙多医生",
+      "englishName": "Dr. Mundo",
+      "chineseAliases": []
+    },
+    {
+      "id": "Ekko",
+      "key": "245",
+      "koreanName": "에코",
+      "koreanTitle": "시간을 달리는 소년",
+      "chineseOfficial": "时间刺客",
+      "chinesePersonal": "艾克",
+      "englishName": "Ekko",
+      "chineseAliases": []
+    },
+    {
+      "id": "Elise",
+      "key": "60",
+      "koreanName": "엘리스",
+      "koreanTitle": "거미 여왕",
+      "chineseOfficial": "蜘蛛女皇",
+      "chinesePersonal": "伊莉丝",
+      "englishName": "Elise",
+      "chineseAliases": []
+    },
+    {
+      "id": "Evelynn",
+      "key": "28",
+      "koreanName": "이블린",
+      "koreanTitle": "고통스런 포옹",
+      "chineseOfficial": "痛苦之拥",
+      "chinesePersonal": "伊芙琳",
+      "englishName": "Evelynn",
+      "chineseAliases": []
+    },
+    {
+      "id": "Ezreal",
+      "key": "81",
+      "koreanName": "이즈리얼",
+      "koreanTitle": "무모한 탐험가",
+      "chineseOfficial": "探险家",
+      "chinesePersonal": "伊泽瑞尔",
+      "englishName": "Ezreal",
+      "chineseAliases": []
+    },
+    {
+      "id": "Fiddlesticks",
+      "key": "9",
+      "koreanName": "피들스틱",
+      "koreanTitle": "오래된 공포",
+      "chineseOfficial": "远古恐惧",
+      "chinesePersonal": "费德提克",
+      "englishName": "Fiddlesticks",
+      "chineseAliases": []
+    },
+    {
+      "id": "Fiora",
+      "key": "114",
+      "koreanName": "피오라",
+      "koreanTitle": "결투의 대가",
+      "chineseOfficial": "无双剑姬",
+      "chinesePersonal": "菲奥娜",
+      "englishName": "Fiora",
+      "chineseAliases": []
+    },
+    {
+      "id": "Fizz",
+      "key": "105",
+      "koreanName": "피즈",
+      "koreanTitle": "대양의 말썽꾸러기",
+      "chineseOfficial": "潮汐海灵",
+      "chinesePersonal": "菲兹",
+      "englishName": "Fizz",
+      "chineseAliases": []
+    },
+    {
+      "id": "Galio",
+      "key": "3",
+      "koreanName": "갈리오",
+      "koreanTitle": "위대한 석상",
+      "chineseOfficial": "正义巨像",
+      "chinesePersonal": "加里奥",
+      "englishName": "Galio",
+      "chineseAliases": []
+    },
+    {
+      "id": "Gangplank",
+      "key": "41",
+      "koreanName": "갱플랭크",
+      "koreanTitle": "바다의 무법자",
+      "chineseOfficial": "海洋之灾",
+      "chinesePersonal": "普朗克",
+      "englishName": "Gangplank",
+      "chineseAliases": []
+    },
+    {
+      "id": "Garen",
+      "key": "86",
+      "koreanName": "가렌",
+      "koreanTitle": "데마시아의 힘",
+      "chineseOfficial": "德玛西亚之力",
+      "chinesePersonal": "盖伦",
+      "englishName": "Garen",
+      "chineseAliases": []
+    },
+    {
+      "id": "Gnar",
+      "key": "150",
+      "koreanName": "나르",
+      "koreanTitle": "잃어버린 고리",
+      "chineseOfficial": "迷失之牙",
+      "chinesePersonal": "纳尔",
+      "englishName": "Gnar",
+      "chineseAliases": []
+    },
+    {
+      "id": "Gragas",
+      "key": "79",
+      "koreanName": "그라가스",
+      "koreanTitle": "술취한 난동꾼",
+      "chineseOfficial": "酒桶",
+      "chinesePersonal": "古拉加斯",
+      "englishName": "Gragas",
+      "chineseAliases": []
+    },
+    {
+      "id": "Graves",
+      "key": "104",
+      "koreanName": "그레이브즈",
+      "koreanTitle": "무법자",
+      "chineseOfficial": "法外狂徒",
+      "chinesePersonal": "格雷福斯",
+      "englishName": "Graves",
+      "chineseAliases": []
+    },
+    {
+      "id": "Gwen",
+      "key": "887",
+      "koreanName": "그웬",
+      "koreanTitle": "신성한 재봉사",
+      "chineseOfficial": "灵罗娃娃",
+      "chinesePersonal": "格温",
+      "englishName": "Gwen",
+      "chineseAliases": []
+    },
+    {
+      "id": "Hecarim",
+      "key": "120",
+      "koreanName": "헤카림",
+      "koreanTitle": "전쟁의 전조",
+      "chineseOfficial": "战争之影",
+      "chinesePersonal": "赫卡里姆",
+      "englishName": "Hecarim",
+      "chineseAliases": []
+    },
+    {
+      "id": "Heimerdinger",
+      "key": "74",
+      "koreanName": "하이머딩거",
+      "koreanTitle": "위대한 발명가",
+      "chineseOfficial": "大发明家",
+      "chinesePersonal": "黑默丁格",
+      "englishName": "Heimerdinger",
+      "chineseAliases": []
+    },
+    {
+      "id": "Hwei",
+      "key": "910",
+      "koreanName": "흐웨이",
+      "koreanTitle": "몽상가",
+      "chineseOfficial": "异画师",
+      "chinesePersonal": "彗",
+      "englishName": "Hwei",
+      "chineseAliases": []
+    },
+    {
+      "id": "Illaoi",
+      "key": "420",
+      "koreanName": "일라오이",
+      "koreanTitle": "크라켄의 여사제",
+      "chineseOfficial": "海兽祭司",
+      "chinesePersonal": "俄洛伊",
+      "englishName": "Illaoi",
+      "chineseAliases": []
+    },
+    {
+      "id": "Irelia",
+      "key": "39",
+      "koreanName": "이렐리아",
+      "koreanTitle": "칼날 무희",
+      "chineseOfficial": "刀锋舞者",
+      "chinesePersonal": "艾瑞莉娅",
+      "englishName": "Irelia",
+      "chineseAliases": []
+    },
+    {
+      "id": "Ivern",
+      "key": "427",
+      "koreanName": "아이번",
+      "koreanTitle": "자연의 아버지",
+      "chineseOfficial": "翠神",
+      "chinesePersonal": "艾翁",
+      "englishName": "Ivern",
+      "chineseAliases": []
+    },
+    {
+      "id": "Janna",
+      "key": "40",
+      "koreanName": "잔나",
+      "koreanTitle": "폭풍의 분노",
+      "chineseOfficial": "风暴之怒",
+      "chinesePersonal": "迦娜",
+      "englishName": "Janna",
+      "chineseAliases": []
+    },
+    {
+      "id": "JarvanIV",
+      "key": "59",
+      "koreanName": "자르반 4세",
+      "koreanTitle": "데마시아의 귀감",
+      "chineseOfficial": "德玛西亚皇子",
+      "chinesePersonal": "嘉文四世",
+      "englishName": "Jarvan IV",
+      "chineseAliases": []
+    },
+    {
+      "id": "Jax",
+      "key": "24",
+      "koreanName": "잭스",
+      "koreanTitle": "무기의 달인",
+      "chineseOfficial": "武器大师",
+      "chinesePersonal": "贾克斯",
+      "englishName": "Jax",
+      "chineseAliases": []
+    },
+    {
+      "id": "Jayce",
+      "key": "126",
+      "koreanName": "제이스",
+      "koreanTitle": "미래의 수호자",
+      "chineseOfficial": "未来守护者",
+      "chinesePersonal": "杰斯",
+      "englishName": "Jayce",
+      "chineseAliases": []
+    },
+    {
+      "id": "Jhin",
+      "key": "202",
+      "koreanName": "진",
+      "koreanTitle": "잔혹극의 거장",
+      "chineseOfficial": "戏命师",
+      "chinesePersonal": "烬",
+      "englishName": "Jhin",
+      "chineseAliases": []
+    },
+    {
+      "id": "Jinx",
+      "key": "222",
+      "koreanName": "징크스",
+      "koreanTitle": "난폭한 말괄량이",
+      "chineseOfficial": "暴走萝莉",
+      "chinesePersonal": "金克丝",
+      "englishName": "Jinx",
+      "chineseAliases": []
+    },
+    {
+      "id": "Kaisa",
+      "key": "145",
+      "koreanName": "카이사",
+      "koreanTitle": "공허의 딸",
+      "chineseOfficial": "虚空之女",
+      "chinesePersonal": "卡莎",
+      "englishName": "Kai'Sa",
+      "chineseAliases": []
+    },
+    {
+      "id": "Kalista",
+      "key": "429",
+      "koreanName": "칼리스타",
+      "koreanTitle": "복수의 화신",
+      "chineseOfficial": "复仇之矛",
+      "chinesePersonal": "卡莉丝塔",
+      "englishName": "Kalista",
+      "chineseAliases": []
+    },
+    {
+      "id": "Karma",
+      "key": "43",
+      "koreanName": "카르마",
+      "koreanTitle": "깨우친 자",
+      "chineseOfficial": "天启者",
+      "chinesePersonal": "卡尔玛",
+      "englishName": "Karma",
+      "chineseAliases": []
+    },
+    {
+      "id": "Karthus",
+      "key": "30",
+      "koreanName": "카서스",
+      "koreanTitle": "죽음을 노래하는 자",
+      "chineseOfficial": "死亡颂唱者",
+      "chinesePersonal": "卡尔萨斯",
+      "englishName": "Karthus",
+      "chineseAliases": []
+    },
+    {
+      "id": "Kassadin",
+      "key": "38",
+      "koreanName": "카사딘",
+      "koreanTitle": "공허의 방랑자",
+      "chineseOfficial": "虚空行者",
+      "chinesePersonal": "卡萨丁",
+      "englishName": "Kassadin",
+      "chineseAliases": []
+    },
+    {
+      "id": "Katarina",
+      "key": "55",
+      "koreanName": "카타리나",
+      "koreanTitle": "사악한 칼날",
+      "chineseOfficial": "不祥之刃",
+      "chinesePersonal": "卡特琳娜",
+      "englishName": "Katarina",
+      "chineseAliases": []
+    },
+    {
+      "id": "Kayle",
+      "key": "10",
+      "koreanName": "케일",
+      "koreanTitle": "정의로운 자",
+      "chineseOfficial": "正义天使",
+      "chinesePersonal": "凯尔",
+      "englishName": "Kayle",
+      "chineseAliases": []
+    },
+    {
+      "id": "Kayn",
+      "key": "141",
+      "koreanName": "케인",
+      "koreanTitle": "그림자 사신",
+      "chineseOfficial": "影流之镰",
+      "chinesePersonal": "凯隐",
+      "englishName": "Kayn",
+      "chineseAliases": []
+    },
+    {
+      "id": "Kennen",
+      "key": "85",
+      "koreanName": "케넨",
+      "koreanTitle": "폭풍의 심장",
+      "chineseOfficial": "狂暴之心",
+      "chinesePersonal": "凯南",
+      "englishName": "Kennen",
+      "chineseAliases": []
+    },
+    {
+      "id": "Khazix",
+      "key": "121",
+      "koreanName": "카직스",
+      "koreanTitle": "공허의 약탈자",
+      "chineseOfficial": "虚空掠夺者",
+      "chinesePersonal": "卡兹克",
+      "englishName": "Kha'Zix",
+      "chineseAliases": []
+    },
+    {
+      "id": "Kindred",
+      "key": "203",
+      "koreanName": "킨드레드",
+      "koreanTitle": "영겁의 사냥꾼",
+      "chineseOfficial": "永猎双子",
+      "chinesePersonal": "千珏",
+      "englishName": "Kindred",
+      "chineseAliases": []
+    },
+    {
+      "id": "Kled",
+      "key": "240",
+      "koreanName": "클레드",
+      "koreanTitle": "망나니 기사",
+      "chineseOfficial": "暴怒骑士",
+      "chinesePersonal": "克烈",
+      "englishName": "Kled",
+      "chineseAliases": []
+    },
+    {
+      "id": "KogMaw",
+      "key": "96",
+      "koreanName": "코그모",
+      "koreanTitle": "심연의 아귀",
+      "chineseOfficial": "深渊巨口",
+      "chinesePersonal": "克格莫",
+      "englishName": "Kog'Maw",
+      "chineseAliases": []
+    },
+    {
+      "id": "KSante",
+      "key": "897",
+      "koreanName": "크산테",
+      "koreanTitle": "나주마의 긍지",
+      "chineseOfficial": "纳祖芒荣耀",
+      "chinesePersonal": "奎桑提",
+      "englishName": "K'Sante",
+      "chineseAliases": []
+    },
+    {
+      "id": "Leblanc",
+      "key": "7",
+      "koreanName": "르블랑",
+      "koreanTitle": "환술사",
+      "chineseOfficial": "诡术妖姬",
+      "chinesePersonal": "乐芙兰",
+      "englishName": "LeBlanc",
+      "chineseAliases": []
+    },
+    {
+      "id": "LeeSin",
+      "key": "64",
+      "koreanName": "리 신",
+      "koreanTitle": "눈먼 수도승",
+      "chineseOfficial": "盲僧",
+      "chinesePersonal": "李青",
+      "englishName": "Lee Sin",
+      "chineseAliases": []
+    },
+    {
+      "id": "Leona",
+      "key": "89",
+      "koreanName": "레오나",
+      "koreanTitle": "여명의 빛",
+      "chineseOfficial": "曙光女神",
+      "chinesePersonal": "蕾欧娜",
+      "englishName": "Leona",
+      "chineseAliases": []
+    },
+    {
+      "id": "Lillia",
+      "key": "876",
+      "koreanName": "릴리아",
+      "koreanTitle": "수줍은 꽃",
+      "chineseOfficial": "含羞蓓蕾",
+      "chinesePersonal": "莉莉娅",
+      "englishName": "Lillia",
+      "chineseAliases": []
+    },
+    {
+      "id": "Lissandra",
+      "key": "127",
+      "koreanName": "리산드라",
+      "koreanTitle": "얼음 마녀",
+      "chineseOfficial": "冰霜女巫",
+      "chinesePersonal": "丽桑卓",
+      "englishName": "Lissandra",
+      "chineseAliases": []
+    },
+    {
+      "id": "Locke",
+      "key": "805",
+      "koreanName": "로크",
+      "koreanTitle": "잿빛 퇴마사",
+      "chineseOfficial": "灰烬驱魔人",
+      "chinesePersonal": "洛克",
+      "englishName": "Locke",
+      "chineseAliases": []
+    },
+    {
+      "id": "Lucian",
+      "key": "236",
+      "koreanName": "루시안",
+      "koreanTitle": "정화의 사도",
+      "chineseOfficial": "圣枪游侠",
+      "chinesePersonal": "卢锡安",
+      "englishName": "Lucian",
+      "chineseAliases": []
+    },
+    {
+      "id": "Lulu",
+      "key": "117",
+      "koreanName": "룰루",
+      "koreanTitle": "요정 마법사",
+      "chineseOfficial": "仙灵女巫",
+      "chinesePersonal": "璐璐",
+      "englishName": "Lulu",
+      "chineseAliases": []
+    },
+    {
+      "id": "Lux",
+      "key": "99",
+      "koreanName": "럭스",
+      "koreanTitle": "광명의 소녀",
+      "chineseOfficial": "光辉女郎",
+      "chinesePersonal": "拉克丝",
+      "englishName": "Lux",
+      "chineseAliases": []
+    },
+    {
+      "id": "Malphite",
+      "key": "54",
+      "koreanName": "말파이트",
+      "koreanTitle": "거석의 파편",
+      "chineseOfficial": "熔岩巨兽",
+      "chinesePersonal": "墨菲特",
+      "englishName": "Malphite",
+      "chineseAliases": []
+    },
+    {
+      "id": "Malzahar",
+      "key": "90",
+      "koreanName": "말자하",
+      "koreanTitle": "공허의 예언자",
+      "chineseOfficial": "虚空先知",
+      "chinesePersonal": "玛尔扎哈",
+      "englishName": "Malzahar",
+      "chineseAliases": []
+    },
+    {
+      "id": "Maokai",
+      "key": "57",
+      "koreanName": "마오카이",
+      "koreanTitle": "뒤틀린 나무 정령",
+      "chineseOfficial": "扭曲树精",
+      "chinesePersonal": "茂凯",
+      "englishName": "Maokai",
+      "chineseAliases": []
+    },
+    {
+      "id": "MasterYi",
+      "key": "11",
+      "koreanName": "마스터 이",
+      "koreanTitle": "우주 검사",
+      "chineseOfficial": "无极剑圣",
+      "chinesePersonal": "易",
+      "englishName": "Master Yi",
+      "chineseAliases": []
+    },
+    {
+      "id": "Mel",
+      "key": "800",
+      "koreanName": "멜",
+      "koreanTitle": "영혼의 반향",
+      "chineseOfficial": "流光镜影",
+      "chinesePersonal": "梅尔",
+      "englishName": "Mel",
+      "chineseAliases": []
+    },
+    {
+      "id": "Milio",
+      "key": "902",
+      "koreanName": "밀리오",
+      "koreanTitle": "온화한 불꽃",
+      "chineseOfficial": "明烛",
+      "chinesePersonal": "米利欧",
+      "englishName": "Milio",
+      "chineseAliases": []
+    },
+    {
+      "id": "MissFortune",
+      "key": "21",
+      "koreanName": "미스 포츈",
+      "koreanTitle": "현상금 사냥꾼",
+      "chineseOfficial": "赏金猎人",
+      "chinesePersonal": "厄运小姐",
+      "englishName": "Miss Fortune",
+      "chineseAliases": []
+    },
+    {
+      "id": "MonkeyKing",
+      "key": "62",
+      "koreanName": "오공",
+      "koreanTitle": "원숭이 왕",
+      "chineseOfficial": "齐天大圣",
+      "chinesePersonal": "孙悟空",
+      "englishName": "Wukong",
+      "chineseAliases": []
+    },
+    {
+      "id": "Mordekaiser",
+      "key": "82",
+      "koreanName": "모데카이저",
+      "koreanTitle": "강철의 망령",
+      "chineseOfficial": "铁铠冥魂",
+      "chinesePersonal": "莫德凯撒",
+      "englishName": "Mordekaiser",
+      "chineseAliases": []
+    },
+    {
+      "id": "Morgana",
+      "key": "25",
+      "koreanName": "모르가나",
+      "koreanTitle": "타락한 자",
+      "chineseOfficial": "堕落天使",
+      "chinesePersonal": "莫甘娜",
+      "englishName": "Morgana",
+      "chineseAliases": []
+    },
+    {
+      "id": "Naafiri",
+      "key": "950",
+      "koreanName": "나피리",
+      "koreanTitle": "백 번 무는 사냥개",
+      "chineseOfficial": "百裂冥犬",
+      "chinesePersonal": "纳亚菲利",
+      "englishName": "Naafiri",
+      "chineseAliases": []
+    },
+    {
+      "id": "Nami",
+      "key": "267",
+      "koreanName": "나미",
+      "koreanTitle": "파도 소환사",
+      "chineseOfficial": "唤潮鲛姬",
+      "chinesePersonal": "娜美",
+      "englishName": "Nami",
+      "chineseAliases": []
+    },
+    {
+      "id": "Nasus",
+      "key": "75",
+      "koreanName": "나서스",
+      "koreanTitle": "사막의 관리자",
+      "chineseOfficial": "沙漠死神",
+      "chinesePersonal": "内瑟斯",
+      "englishName": "Nasus",
+      "chineseAliases": []
+    },
+    {
+      "id": "Nautilus",
+      "key": "111",
+      "koreanName": "노틸러스",
+      "koreanTitle": "심해의 타이탄",
+      "chineseOfficial": "深海泰坦",
+      "chinesePersonal": "诺提勒斯",
+      "englishName": "Nautilus",
+      "chineseAliases": []
+    },
+    {
+      "id": "Neeko",
+      "key": "518",
+      "koreanName": "니코",
+      "koreanTitle": "알쏭달쏭 카멜레온",
+      "chineseOfficial": "万花通灵",
+      "chinesePersonal": "妮蔻",
+      "englishName": "Neeko",
+      "chineseAliases": []
+    },
+    {
+      "id": "Nidalee",
+      "key": "76",
+      "koreanName": "니달리",
+      "koreanTitle": "야성의 사냥꾼",
+      "chineseOfficial": "狂野女猎手",
+      "chinesePersonal": "奈德丽",
+      "englishName": "Nidalee",
+      "chineseAliases": []
+    },
+    {
+      "id": "Nilah",
+      "key": "895",
+      "koreanName": "닐라",
+      "koreanTitle": "해방된 기쁨",
+      "chineseOfficial": "不羁之悦",
+      "chinesePersonal": "尼菈",
+      "englishName": "Nilah",
+      "chineseAliases": []
+    },
+    {
+      "id": "Nocturne",
+      "key": "56",
+      "koreanName": "녹턴",
+      "koreanTitle": "영원한 악몽",
+      "chineseOfficial": "永恒梦魇",
+      "chinesePersonal": "魔腾",
+      "englishName": "Nocturne",
+      "chineseAliases": []
+    },
+    {
+      "id": "Nunu",
+      "key": "20",
+      "koreanName": "누누와 윌럼프",
+      "koreanTitle": "소년과 설인",
+      "chineseOfficial": "雪原双子",
+      "chinesePersonal": "努努和威朗普",
+      "englishName": "Nunu & Willump",
+      "chineseAliases": []
+    },
+    {
+      "id": "Olaf",
+      "key": "2",
+      "koreanName": "올라프",
+      "koreanTitle": "광전사",
+      "chineseOfficial": "狂战士",
+      "chinesePersonal": "奥拉夫",
+      "englishName": "Olaf",
+      "chineseAliases": []
+    },
+    {
+      "id": "Orianna",
+      "key": "61",
+      "koreanName": "오리아나",
+      "koreanTitle": "시계태엽 소녀",
+      "chineseOfficial": "发条魔灵",
+      "chinesePersonal": "奥莉安娜",
+      "englishName": "Orianna",
+      "chineseAliases": []
+    },
+    {
+      "id": "Ornn",
+      "key": "516",
+      "koreanName": "오른",
+      "koreanTitle": "거산의 화염",
+      "chineseOfficial": "山隐之焰",
+      "chinesePersonal": "奥恩",
+      "englishName": "Ornn",
+      "chineseAliases": []
+    },
+    {
+      "id": "Pantheon",
+      "key": "80",
+      "koreanName": "판테온",
+      "koreanTitle": "불굴의 창",
+      "chineseOfficial": "不屈之枪",
+      "chinesePersonal": "潘森",
+      "englishName": "Pantheon",
+      "chineseAliases": []
+    },
+    {
+      "id": "Poppy",
+      "key": "78",
+      "koreanName": "뽀삐",
+      "koreanTitle": "망치의 수호자",
+      "chineseOfficial": "圣锤之毅",
+      "chinesePersonal": "波比",
+      "englishName": "Poppy",
+      "chineseAliases": []
+    },
+    {
+      "id": "Pyke",
+      "key": "555",
+      "koreanName": "파이크",
+      "koreanTitle": "핏빛 항구의 학살자",
+      "chineseOfficial": "血港鬼影",
+      "chinesePersonal": "派克",
+      "englishName": "Pyke",
+      "chineseAliases": []
+    },
+    {
+      "id": "Qiyana",
+      "key": "246",
+      "koreanName": "키아나",
+      "koreanTitle": "원소의 여왕",
+      "chineseOfficial": "元素女皇",
+      "chinesePersonal": "奇亚娜",
+      "englishName": "Qiyana",
+      "chineseAliases": []
+    },
+    {
+      "id": "Quinn",
+      "key": "133",
+      "koreanName": "퀸",
+      "koreanTitle": "데마시아의 날개",
+      "chineseOfficial": "德玛西亚之翼",
+      "chinesePersonal": "奎因",
+      "englishName": "Quinn",
+      "chineseAliases": []
+    },
+    {
+      "id": "Rakan",
+      "key": "497",
+      "koreanName": "라칸",
+      "koreanTitle": "매혹하는 자",
+      "chineseOfficial": "幻翎",
+      "chinesePersonal": "洛",
+      "englishName": "Rakan",
+      "chineseAliases": []
+    },
+    {
+      "id": "Rammus",
+      "key": "33",
+      "koreanName": "람머스",
+      "koreanTitle": "중무장 아르마딜로",
+      "chineseOfficial": "披甲龙龟",
+      "chinesePersonal": "拉莫斯",
+      "englishName": "Rammus",
+      "chineseAliases": []
+    },
+    {
+      "id": "RekSai",
+      "key": "421",
+      "koreanName": "렉사이",
+      "koreanTitle": "공허의 복병",
+      "chineseOfficial": "虚空遁地兽",
+      "chinesePersonal": "雷克塞",
+      "englishName": "Rek'Sai",
+      "chineseAliases": []
+    },
+    {
+      "id": "Rell",
+      "key": "526",
+      "koreanName": "렐",
+      "koreanTitle": "철의 여인",
+      "chineseOfficial": "镕铁少女",
+      "chinesePersonal": "芮尔",
+      "englishName": "Rell",
+      "chineseAliases": []
+    },
+    {
+      "id": "Renata",
+      "key": "888",
+      "koreanName": "레나타 글라스크",
+      "koreanTitle": "화공 남작",
+      "chineseOfficial": "炼金男爵",
+      "chinesePersonal": "烈娜塔 · 戈拉斯克",
+      "englishName": "Renata Glasc",
+      "chineseAliases": []
+    },
+    {
+      "id": "Renekton",
+      "key": "58",
+      "koreanName": "레넥톤",
+      "koreanTitle": "사막의 도살자",
+      "chineseOfficial": "荒漠屠夫",
+      "chinesePersonal": "雷克顿",
+      "englishName": "Renekton",
+      "chineseAliases": []
+    },
+    {
+      "id": "Rengar",
+      "key": "107",
+      "koreanName": "렝가",
+      "koreanTitle": "추적하는 사자",
+      "chineseOfficial": "傲之追猎者",
+      "chinesePersonal": "雷恩加尔",
+      "englishName": "Rengar",
+      "chineseAliases": []
+    },
+    {
+      "id": "Riven",
+      "key": "92",
+      "koreanName": "리븐",
+      "koreanTitle": "추방자",
+      "chineseOfficial": "放逐之刃",
+      "chinesePersonal": "锐雯",
+      "englishName": "Riven",
+      "chineseAliases": []
+    },
+    {
+      "id": "Rumble",
+      "key": "68",
+      "koreanName": "럼블",
+      "koreanTitle": "기계 악동",
+      "chineseOfficial": "机械公敌",
+      "chinesePersonal": "兰博",
+      "englishName": "Rumble",
+      "chineseAliases": []
+    },
+    {
+      "id": "Ryze",
+      "key": "13",
+      "koreanName": "라이즈",
+      "koreanTitle": "룬 마법사",
+      "chineseOfficial": "符文法师",
+      "chinesePersonal": "瑞兹",
+      "englishName": "Ryze",
+      "chineseAliases": []
+    },
+    {
+      "id": "Samira",
+      "key": "360",
+      "koreanName": "사미라",
+      "koreanTitle": "사막의 장미",
+      "chineseOfficial": "沙漠玫瑰",
+      "chinesePersonal": "莎弥拉",
+      "englishName": "Samira",
+      "chineseAliases": []
+    },
+    {
+      "id": "Sejuani",
+      "key": "113",
+      "koreanName": "세주아니",
+      "koreanTitle": "혹한의 분노",
+      "chineseOfficial": "北地之怒",
+      "chinesePersonal": "瑟庄妮",
+      "englishName": "Sejuani",
+      "chineseAliases": []
+    },
+    {
+      "id": "Senna",
+      "key": "235",
+      "koreanName": "세나",
+      "koreanTitle": "구원자",
+      "chineseOfficial": "涤魂圣枪",
+      "chinesePersonal": "赛娜",
+      "englishName": "Senna",
+      "chineseAliases": []
+    },
+    {
+      "id": "Seraphine",
+      "key": "147",
+      "koreanName": "세라핀",
+      "koreanTitle": "노래하는 별",
+      "chineseOfficial": "星籁歌姬",
+      "chinesePersonal": "萨勒芬妮",
+      "englishName": "Seraphine",
+      "chineseAliases": []
+    },
+    {
+      "id": "Sett",
+      "key": "875",
+      "koreanName": "세트",
+      "koreanTitle": "우두머리",
+      "chineseOfficial": "腕豪",
+      "chinesePersonal": "瑟提",
+      "englishName": "Sett",
+      "chineseAliases": []
+    },
+    {
+      "id": "Shaco",
+      "key": "35",
+      "koreanName": "샤코",
+      "koreanTitle": "악마 어릿광대",
+      "chineseOfficial": "恶魔小丑",
+      "chinesePersonal": "萨科",
+      "englishName": "Shaco",
+      "chineseAliases": []
+    },
+    {
+      "id": "Shen",
+      "key": "98",
+      "koreanName": "쉔",
+      "koreanTitle": "황혼의 눈",
+      "chineseOfficial": "暮光之眼",
+      "chinesePersonal": "慎",
+      "englishName": "Shen",
+      "chineseAliases": []
+    },
+    {
+      "id": "Shyvana",
+      "key": "102",
+      "koreanName": "쉬바나",
+      "koreanTitle": "하프 드래곤",
+      "chineseOfficial": "龙血武姬",
+      "chinesePersonal": "希瓦娜",
+      "englishName": "Shyvana",
+      "chineseAliases": []
+    },
+    {
+      "id": "Singed",
+      "key": "27",
+      "koreanName": "신지드",
+      "koreanTitle": "미친 화학자",
+      "chineseOfficial": "炼金术士",
+      "chinesePersonal": "辛吉德",
+      "englishName": "Singed",
+      "chineseAliases": []
+    },
+    {
+      "id": "Sion",
+      "key": "14",
+      "koreanName": "사이온",
+      "koreanTitle": "언데드 학살병기",
+      "chineseOfficial": "亡灵战神",
+      "chinesePersonal": "赛恩",
+      "englishName": "Sion",
+      "chineseAliases": []
+    },
+    {
+      "id": "Sivir",
+      "key": "15",
+      "koreanName": "시비르",
+      "koreanTitle": "전장의 여제",
+      "chineseOfficial": "战争女神",
+      "chinesePersonal": "希维尔",
+      "englishName": "Sivir",
+      "chineseAliases": []
+    },
+    {
+      "id": "Skarner",
+      "key": "72",
+      "koreanName": "스카너",
+      "koreanTitle": "태고의 군주",
+      "chineseOfficial": "上古领主",
+      "chinesePersonal": "斯卡纳",
+      "englishName": "Skarner",
+      "chineseAliases": []
+    },
+    {
+      "id": "Smolder",
+      "key": "901",
+      "koreanName": "스몰더",
+      "koreanTitle": "꼬마 불꽃용",
+      "chineseOfficial": "炽炎雏龙",
+      "chinesePersonal": "斯莫德",
+      "englishName": "Smolder",
+      "chineseAliases": []
+    },
+    {
+      "id": "Sona",
+      "key": "37",
+      "koreanName": "소나",
+      "koreanTitle": "현의 명인",
+      "chineseOfficial": "琴瑟仙女",
+      "chinesePersonal": "娑娜",
+      "englishName": "Sona",
+      "chineseAliases": []
+    },
+    {
+      "id": "Soraka",
+      "key": "16",
+      "koreanName": "소라카",
+      "koreanTitle": "별의 아이",
+      "chineseOfficial": "众星之子",
+      "chinesePersonal": "索拉卡",
+      "englishName": "Soraka",
+      "chineseAliases": []
+    },
+    {
+      "id": "Swain",
+      "key": "50",
+      "koreanName": "스웨인",
+      "koreanTitle": "녹서스 대장군",
+      "chineseOfficial": "诺克萨斯统领",
+      "chinesePersonal": "斯维因",
+      "englishName": "Swain",
+      "chineseAliases": []
+    },
+    {
+      "id": "Sylas",
+      "key": "517",
+      "koreanName": "사일러스",
+      "koreanTitle": "해방된 자",
+      "chineseOfficial": "解脱者",
+      "chinesePersonal": "塞拉斯",
+      "englishName": "Sylas",
+      "chineseAliases": []
+    },
+    {
+      "id": "Syndra",
+      "key": "134",
+      "koreanName": "신드라",
+      "koreanTitle": "어둠의 여제",
+      "chineseOfficial": "暗黑元首",
+      "chinesePersonal": "辛德拉",
+      "englishName": "Syndra",
+      "chineseAliases": []
+    },
+    {
+      "id": "TahmKench",
+      "key": "223",
+      "koreanName": "탐 켄치",
+      "koreanTitle": "강의 폭군",
+      "chineseOfficial": "河流之王",
+      "chinesePersonal": "塔姆",
+      "englishName": "Tahm Kench",
+      "chineseAliases": []
+    },
+    {
+      "id": "Taliyah",
+      "key": "163",
+      "koreanName": "탈리야",
+      "koreanTitle": "바위술사",
+      "chineseOfficial": "岩雀",
+      "chinesePersonal": "塔莉垭",
+      "englishName": "Taliyah",
+      "chineseAliases": []
+    },
+    {
+      "id": "Talon",
+      "key": "91",
+      "koreanName": "탈론",
+      "koreanTitle": "검의 그림자",
+      "chineseOfficial": "刀锋之影",
+      "chinesePersonal": "泰隆",
+      "englishName": "Talon",
+      "chineseAliases": []
+    },
+    {
+      "id": "Taric",
+      "key": "44",
+      "koreanName": "타릭",
+      "koreanTitle": "발로란의 방패",
+      "chineseOfficial": "瓦洛兰之盾",
+      "chinesePersonal": "塔里克",
+      "englishName": "Taric",
+      "chineseAliases": []
+    },
+    {
+      "id": "Teemo",
+      "key": "17",
+      "koreanName": "티모",
+      "koreanTitle": "날쌘 정찰병",
+      "chineseOfficial": "迅捷斥候",
+      "chinesePersonal": "提莫",
+      "englishName": "Teemo",
+      "chineseAliases": []
+    },
+    {
+      "id": "Thresh",
+      "key": "412",
+      "koreanName": "쓰레쉬",
+      "koreanTitle": "지옥의 간수",
+      "chineseOfficial": "魂锁典狱长",
+      "chinesePersonal": "锤石",
+      "englishName": "Thresh",
+      "chineseAliases": []
+    },
+    {
+      "id": "Tristana",
+      "key": "18",
+      "koreanName": "트리스타나",
+      "koreanTitle": "요들 사수",
+      "chineseOfficial": "麦林炮手",
+      "chinesePersonal": "崔丝塔娜",
+      "englishName": "Tristana",
+      "chineseAliases": []
+    },
+    {
+      "id": "Trundle",
+      "key": "48",
+      "koreanName": "트런들",
+      "koreanTitle": "트롤 왕",
+      "chineseOfficial": "巨魔之王",
+      "chinesePersonal": "特朗德尔",
+      "englishName": "Trundle",
+      "chineseAliases": []
+    },
+    {
+      "id": "Tryndamere",
+      "key": "23",
+      "koreanName": "트린다미어",
+      "koreanTitle": "야만전사 왕",
+      "chineseOfficial": "蛮族之王",
+      "chinesePersonal": "泰达米尔",
+      "englishName": "Tryndamere",
+      "chineseAliases": []
+    },
+    {
+      "id": "TwistedFate",
+      "key": "4",
+      "koreanName": "트위스티드 페이트",
+      "koreanTitle": "카드의 달인",
+      "chineseOfficial": "卡牌大师",
+      "chinesePersonal": "崔斯特",
+      "englishName": "Twisted Fate",
+      "chineseAliases": []
+    },
+    {
+      "id": "Twitch",
+      "key": "29",
+      "koreanName": "트위치",
+      "koreanTitle": "역병 쥐",
+      "chineseOfficial": "瘟疫之源",
+      "chinesePersonal": "图奇",
+      "englishName": "Twitch",
+      "chineseAliases": []
+    },
+    {
+      "id": "Udyr",
+      "key": "77",
+      "koreanName": "우디르",
+      "koreanTitle": "정령 주술사",
+      "chineseOfficial": "兽灵行者",
+      "chinesePersonal": "乌迪尔",
+      "englishName": "Udyr",
+      "chineseAliases": []
+    },
+    {
+      "id": "Urgot",
+      "key": "6",
+      "koreanName": "우르곳",
+      "koreanTitle": "살상 병기",
+      "chineseOfficial": "无畏战车",
+      "chinesePersonal": "厄加特",
+      "englishName": "Urgot",
+      "chineseAliases": []
+    },
+    {
+      "id": "Varus",
+      "key": "110",
+      "koreanName": "바루스",
+      "koreanTitle": "응징의 화살",
+      "chineseOfficial": "惩戒之箭",
+      "chinesePersonal": "韦鲁斯",
+      "englishName": "Varus",
+      "chineseAliases": []
+    },
+    {
+      "id": "Vayne",
+      "key": "67",
+      "koreanName": "베인",
+      "koreanTitle": "어둠 사냥꾼",
+      "chineseOfficial": "暗夜猎手",
+      "chinesePersonal": "薇恩",
+      "englishName": "Vayne",
+      "chineseAliases": []
+    },
+    {
+      "id": "Veigar",
+      "key": "45",
+      "koreanName": "베이가",
+      "koreanTitle": "악의 작은 지배자",
+      "chineseOfficial": "邪恶小法师",
+      "chinesePersonal": "维迦",
+      "englishName": "Veigar",
+      "chineseAliases": []
+    },
+    {
+      "id": "Velkoz",
+      "key": "161",
+      "koreanName": "벨코즈",
+      "koreanTitle": "공허의 눈",
+      "chineseOfficial": "虚空之眼",
+      "chinesePersonal": "维克兹",
+      "englishName": "Vel'Koz",
+      "chineseAliases": []
+    },
+    {
+      "id": "Vex",
+      "key": "711",
+      "koreanName": "벡스",
+      "koreanTitle": "우울주의자",
+      "chineseOfficial": "愁云使者",
+      "chinesePersonal": "薇古丝",
+      "englishName": "Vex",
+      "chineseAliases": []
+    },
+    {
+      "id": "Vi",
+      "key": "254",
+      "koreanName": "바이",
+      "koreanTitle": "필트오버의 집행자",
+      "chineseOfficial": "皮城执法官",
+      "chinesePersonal": "蔚",
+      "englishName": "Vi",
+      "chineseAliases": []
+    },
+    {
+      "id": "Viego",
+      "key": "234",
+      "koreanName": "비에고",
+      "koreanTitle": "몰락한 왕",
+      "chineseOfficial": "破败之王",
+      "chinesePersonal": "佛耶戈",
+      "englishName": "Viego",
+      "chineseAliases": []
+    },
+    {
+      "id": "Viktor",
+      "key": "112",
+      "koreanName": "빅토르",
+      "koreanTitle": "아케인의 전령관",
+      "chineseOfficial": "奥术先驱",
+      "chinesePersonal": "维克托",
+      "englishName": "Viktor",
+      "chineseAliases": []
+    },
+    {
+      "id": "Vladimir",
+      "key": "8",
+      "koreanName": "블라디미르",
+      "koreanTitle": "진홍빛 사신",
+      "chineseOfficial": "猩红收割者",
+      "chinesePersonal": "弗拉基米尔",
+      "englishName": "Vladimir",
+      "chineseAliases": []
+    },
+    {
+      "id": "Volibear",
+      "key": "106",
+      "koreanName": "볼리베어",
+      "koreanTitle": "무자비한 폭풍",
+      "chineseOfficial": "不灭狂雷",
+      "chinesePersonal": "沃利贝尔",
+      "englishName": "Volibear",
+      "chineseAliases": []
+    },
+    {
+      "id": "Warwick",
+      "key": "19",
+      "koreanName": "워윅",
+      "koreanTitle": "자운의 고삐 풀린 분노",
+      "chineseOfficial": "祖安怒兽",
+      "chinesePersonal": "沃里克",
+      "englishName": "Warwick",
+      "chineseAliases": []
+    },
+    {
+      "id": "Xayah",
+      "key": "498",
+      "koreanName": "자야",
+      "koreanTitle": "저항하는 자",
+      "chineseOfficial": "逆羽",
+      "chinesePersonal": "霞",
+      "englishName": "Xayah",
+      "chineseAliases": []
+    },
+    {
+      "id": "Xerath",
+      "key": "101",
+      "koreanName": "제라스",
+      "koreanTitle": "초월한 마법사",
+      "chineseOfficial": "远古巫灵",
+      "chinesePersonal": "泽拉斯",
+      "englishName": "Xerath",
+      "chineseAliases": []
+    },
+    {
+      "id": "XinZhao",
+      "key": "5",
+      "koreanName": "신 짜오",
+      "koreanTitle": "데마시아의 호위무사",
+      "chineseOfficial": "德邦总管",
+      "chinesePersonal": "赵信",
+      "englishName": "Xin Zhao",
+      "chineseAliases": []
+    },
+    {
+      "id": "Yasuo",
+      "key": "157",
+      "koreanName": "야스오",
+      "koreanTitle": "용서받지 못한 자",
+      "chineseOfficial": "疾风剑豪",
+      "chinesePersonal": "亚索",
+      "englishName": "Yasuo",
+      "chineseAliases": []
+    },
+    {
+      "id": "Yone",
+      "key": "777",
+      "koreanName": "요네",
+      "koreanTitle": "잊히지 못한 자",
+      "chineseOfficial": "封魔剑魂",
+      "chinesePersonal": "永恩",
+      "englishName": "Yone",
+      "chineseAliases": []
+    },
+    {
+      "id": "Yorick",
+      "key": "83",
+      "koreanName": "요릭",
+      "koreanTitle": "영혼의 길잡이",
+      "chineseOfficial": "牧魂人",
+      "chinesePersonal": "约里克",
+      "englishName": "Yorick",
+      "chineseAliases": []
+    },
+    {
+      "id": "Yunara",
+      "key": "804",
+      "koreanName": "유나라",
+      "koreanTitle": "꺾이지 않는 신념",
+      "chineseOfficial": "不破之誓",
+      "chinesePersonal": "芸阿娜",
+      "englishName": "Yunara",
+      "chineseAliases": []
+    },
+    {
+      "id": "Yuumi",
+      "key": "350",
+      "koreanName": "유미",
+      "koreanTitle": "마법 고양이",
+      "chineseOfficial": "魔法猫咪",
+      "chinesePersonal": "悠米",
+      "englishName": "Yuumi",
+      "chineseAliases": []
+    },
+    {
+      "id": "Zaahen",
+      "key": "904",
+      "koreanName": "자헨",
+      "koreanTitle": "저물지 않는 자",
+      "chineseOfficial": "不落魔锋",
+      "chinesePersonal": "亚恒",
+      "englishName": "Zaahen",
+      "chineseAliases": []
+    },
+    {
+      "id": "Zac",
+      "key": "154",
+      "koreanName": "자크",
+      "koreanTitle": "비밀 병기",
+      "chineseOfficial": "生化魔人",
+      "chinesePersonal": "扎克",
+      "englishName": "Zac",
+      "chineseAliases": []
+    },
+    {
+      "id": "Zed",
+      "key": "238",
+      "koreanName": "제드",
+      "koreanTitle": "그림자의 주인",
+      "chineseOfficial": "影流之主",
+      "chinesePersonal": "劫",
+      "englishName": "Zed",
+      "chineseAliases": []
+    },
+    {
+      "id": "Zeri",
+      "key": "221",
+      "koreanName": "제리",
+      "koreanTitle": "자운의 불꽃",
+      "chineseOfficial": "祖安花火",
+      "chinesePersonal": "泽丽",
+      "englishName": "Zeri",
+      "chineseAliases": []
+    },
+    {
+      "id": "Ziggs",
+      "key": "115",
+      "koreanName": "직스",
+      "koreanTitle": "마법공학 폭파병",
+      "chineseOfficial": "爆破鬼才",
+      "chinesePersonal": "吉格斯",
+      "englishName": "Ziggs",
+      "chineseAliases": []
+    },
+    {
+      "id": "Zilean",
+      "key": "26",
+      "koreanName": "질리언",
+      "koreanTitle": "시간의 수호자",
+      "chineseOfficial": "时光守护者",
+      "chinesePersonal": "基兰",
+      "englishName": "Zilean",
+      "chineseAliases": []
+    },
+    {
+      "id": "Zoe",
+      "key": "142",
+      "koreanName": "조이",
+      "koreanTitle": "여명의 성위",
+      "chineseOfficial": "暮光星灵",
+      "chinesePersonal": "佐伊",
+      "englishName": "Zoe",
+      "chineseAliases": []
+    },
+    {
+      "id": "Zyra",
+      "key": "143",
+      "koreanName": "자이라",
+      "koreanTitle": "가시 덩굴의 복수",
+      "chineseOfficial": "荆棘之兴",
+      "chinesePersonal": "婕拉",
+      "englishName": "Zyra",
+      "chineseAliases": []
+    }
+  ]
 }
