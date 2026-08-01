@@ -16,7 +16,8 @@
     clientReminders: false, otherSystemEvents: false,
     speakUrgentPlayerChat: true, speakImportantPlayerChat: true, speakNeutralPlayerChat: false,
     floatingButton: true, lowUsage: true, minimizeAfterStart: true,
-    closeToTray: true, overlayOpacity: 68, overlayPlacementIndex: 0, language: "zh-CN", history: []
+    closeToTray: true, overlayOpacity: 68, overlayPlacementIndex: 0, language: "zh-CN",
+    evaluationRecording: false, history: []
   };
   let historyFilter = "all";
   let toastTimer = 0;
@@ -37,9 +38,10 @@
     "仅播报": "Speech only", "保存并连接": "Save & connect", "如何获取 API Key": "How to get an API key",
     "仅保存在 Windows 凭据管理器": "Stored only in Windows Credential Manager", "本次运行中的识别与翻译": "Recognition and translation from this session",
     "条消息": "messages", "条已播报": "spoken", "条已过滤": "filtered", "搜索英雄或内容": "Search champion or message",
-    "全部": "All", "高优先级": "High priority", "清空记录": "Clear history", "今天 · 本次会话": "Today · This session",
+    "全部": "All", "高优先级": "High priority", "导出诊断": "Export diagnostics", "清空记录": "Clear history", "今天 · 本次会话": "Today · This session",
     "时间": "Time", "OCR 识别原文": "OCR source", "中文翻译": "Translation", "类型": "Type", "播报": "Speech",
-    "记录仅保存在本次运行中，关闭软件后自动清除": "History stays only for this session and is cleared when RiftLens closes",
+    "普通诊断默认只在内存；真实评估仅在主动开启后保存框选区域截图": "Ordinary diagnostics stay in memory; selected-region screenshots are saved only after you start a real evaluation capture",
+    "开始真实评估记录": "Start real evaluation capture", "停止并保存评估记录": "Stop and save capture",
     "把重要信息自然地说出来": "Hear important information in a natural voice", "语音服务可用": "Speech service available",
     "晓晓语音形象": "Xiaoxiao voice profile", "晓晓 Neural": "Xiaoxiao Neural", "Windows 神经语音 · 中文": "Windows neural voice · Chinese",
     "当前音色": "Current voice", "自然、清晰，适合游戏提醒": "Natural and clear for in-game alerts", "试听音色": "Preview voice",
@@ -48,9 +50,16 @@
     "播报策略": "Speech strategy", "A. 播报方式": "A. Turn handling", "紧急优先 · 重点合并": "Urgent first · Group key messages",
     "危险提醒立即处理；其他有效沟通按发言人短暂合并": "Danger calls skip the wait; other useful messages are briefly grouped by speaker",
     "B. 播报内容": "B. What to speak", "队友聊天": "Team chat", "战术信号": "Tactical signals", "击杀播报": "Kill feed",
-    "中立资源": "Objectives", "防沉迷提示": "Wellness reminders", "其他系统通知": "Other system notices",
+    "地图资源与建筑": "Map objectives & structures", "防沉迷提示": "Wellness reminders", "对局流程与系统": "Match flow & system",
     "始终翻译": "Always translated", "玩家聊天语音": "Player chat speech", "紧急提醒": "Urgent alerts",
-    "重点沟通": "Key messages", "中性闲聊": "Neutral chat", "系统语音 · 默认关闭": "System speech · Off by default",
+    "重点沟通": "Key messages", "中性闲聊": "Neutral chat", "系统 Ping 与固定通知 · 默认关闭": "System pings & fixed notices · Off by default",
+    "系统 Ping 与固定通知说明": "System pings and fixed notices details",
+    "“战术信号”只控制游戏生成的 Ping、战术标记和技能冷却等 HUD 分享，不控制玩家手动输入的战术聊天；其余开关只控制对应的固定系统文本。低置信度内容只显示、不播报。": "Tactical signals controls only game-generated pings, markers, and HUD shares such as cooldowns. It does not control player-typed tactical chat. The other switches control only their matching fixed system text. Low-confidence text is displayed silently.",
+    "只控制游戏生成的 Ping、战术标记与 HUD 分享；不控制玩家手动输入的战术聊天": "Controls only game-generated pings, tactical markers, and HUD shares; it does not control player-typed tactical chat",
+    "控制固定格式的击杀、第一滴血、多杀、连杀、终结与团灭播报": "Controls fixed-format kills, first blood, multikills, sprees, shutdowns, and ace announcements",
+    "控制巨龙、男爵、先锋、巢虫、防御塔、召唤水晶与水晶枢纽等固定提醒": "Controls fixed notices for Dragons, Baron, Herald, Void Grubs, turrets, inhibitors, and the nexus",
+    "只控制游戏时长、健康与休息提醒": "Controls only play-time, wellness, and break reminders",
+    "控制出兵、掉线重连、投降重开、暂停恢复、聊天限制与信号限频等固定通知": "Controls fixed notices for minion spawn, reconnects, surrender/remake, pause/resume, chat restrictions, and ping rate limits",
     "C. 表达方式": "C. Wording", "保留情绪摘要": "Keep emotional tone", "保留焦急、提醒等语气，不复述辱骂": "Keeps urgency and warnings without repeating abuse",
     "保留情绪，但不朗读脏话": "Keep emotion without reading abuse", "保留情绪，不朗读脏话": "Keep emotion without reading abuse",
     "时间戳、玩家 ID 与纯辱骂不播报": "Never speaks timestamps, player IDs, or pure abuse",
@@ -148,8 +157,8 @@
   Object.entries({
     "change-only": "仅在画面变化时识别",
     "tactical-signals": "战术信号", "kill-events": "击杀播报",
-    "objective-events": "中立资源", "client-reminders": "防沉迷提示",
-    "other-system-events": "其他系统通知", "urgent-player-speech": "播报紧急提醒",
+    "objective-events": "地图资源与建筑", "client-reminders": "防沉迷提示",
+    "other-system-events": "对局流程与系统", "urgent-player-speech": "播报紧急提醒",
     "important-player-speech": "播报重点沟通", "neutral-player-speech": "播报中性闲聊",
     "settings-emotion": "保留玩家情绪", "low-usage": "游戏中保持低占用",
     "minimize-after-start": "启动后最小化", "close-to-tray": "关闭窗口时缩小到托盘"
@@ -419,6 +428,11 @@
     $("#ai-pill").childNodes[1].textContent = `${tr(state.aiReady ? "AI 在线" : "AI 未连接")} `;
     $(".service-pill").classList.toggle("offline", !state.speechAvailable);
     $(".service-pill").lastChild.textContent = tr(state.speechAvailable ? "语音服务可用" : "语音服务离线");
+    const evaluationButton = $("#evaluation-recording");
+    evaluationButton.classList.toggle("recording", Boolean(state.evaluationRecording));
+    evaluationButton.querySelector("span").textContent = tr(
+      state.evaluationRecording ? "停止并保存评估记录" : "开始真实评估记录");
+    evaluationButton.setAttribute("aria-pressed", String(Boolean(state.evaluationRecording)));
     renderHistory();
 
     if (previousStatus && next.statusMessage && previousStatus !== next.statusMessage) showToast(next.statusMessage, /失败|错误|不可用|failed|error|unavailable/i.test(next.statusMessage));

@@ -4,6 +4,33 @@ All notable user-facing changes will be documented here. The project follows a l
 
 ## [Unreleased]
 
+### Added
+
+- A user-triggered redacted diagnostic export. It stays in memory until explicitly saved, contains no screenshots or API key, and replaces recognized player IDs with session aliases.
+- An opt-in, local-only real-evaluation capture mode for future maintainer testing. It is off by default, shows a privacy warning, records only the selected region, and never uploads automatically.
+
+### Changed
+
+- Fixed-format Korean, Chinese, and English Ping/HUD messages are classified locally before free-form AI translation, including ability and summoner-spell markers, health/mana shares, item-gold needs, ward states, objective respawn timers, and common tactical signals.
+- System-speech switches now describe map objectives and structures, wellness reminders, and match-flow/system notices more precisely. Player-authored chat remains translated by default.
+- Cross-frame deduplication uses a stable event key with limited OCR tolerance while preserving genuinely repeated Pings.
+- ONNX Runtime keeps CPU memory-arena reuse but disables fixed-shape memory patterns to reduce retained memory across variable chat crops.
+
+### Fixed
+
+- Long-match `minutes:seconds` timestamps, full-width punctuation, missing brackets, and limited OCR damage no longer let the clock colon become a false player/content separator.
+- Tactical signals and HUD shares no longer use “teammate says” wording. Known initiators mark/request/signal; unattributed game text uses passive wording.
+- A final speech policy rechecks the latest category switches and blocks fixed HUD/system text that accidentally reaches the free-chat path.
+- A bare `champion + R/Q/W/E` marker stays a marker instead of becoming an unsupported cooldown or “ability used” claim.
+- Residual timestamps and player IDs are removed before speech; fixed countdown separators are no longer read as negative numbers.
+
+### Evaluation
+
+- The same captured real-use session was replayed before and after the routing changes. Timestamp-prefix recall moved from `3.95%` to about `99.2%` (`+95.3` percentage points).
+- Against 141 manually reviewed labels from that same session, message-routing agreement moved from `36.88%` to `141/141`. All 24 observed problematic speech cases in the session are now covered by deterministic routing and the final speech gate.
+- On the same local screenshot probe, working set moved from about `250.28 MB` to `183.00 MB` (about `27%` lower), private memory from `249.67 MB` to `165.17 MB` (about `34%` lower), and OCR P50 from `1064.16 ms` to `1051.06 ms` (no measured slowdown).
+- These are local, single-session replay results—not a general accuracy promise. Raw captures, chat logs, annotations, replay outputs, local paths, and FPS/frametime measurements are not included in the repository. OCR recognition quality itself was not the primary change in this pass.
+
 ## [2.0.0] - 2026-07-26
 
 ### Added

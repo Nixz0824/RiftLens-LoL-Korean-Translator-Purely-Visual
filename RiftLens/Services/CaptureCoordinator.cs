@@ -1,4 +1,5 @@
 using System.Threading.Channels;
+using System.Diagnostics;
 using RiftLens.Models;
 
 namespace RiftLens.Services;
@@ -26,13 +27,30 @@ public sealed class CaptureCoordinator : IAsyncDisposable
     private Task? _translationTask;
     private int _paused;
     private int _stateGeneration;
+    private int _evaluationFrameSequence;
+    private int _evaluationCaptureEnabled;
+    private DateTimeOffset _lastEvaluationPeriodicSampleAt = DateTimeOffset.MinValue;
 
     public event Action<string>? StatusChanged;
     public event Action<OcrBatch>? OcrRecognized;
     public event Action<TranslationResult>? TranslationReady;
+    public event Action<MessageDiagnosticObservation>? DiagnosticObserved;
+    public event Action<EvaluationFrameObservation>? EvaluationFrameObserved;
 
     public bool IsRunning => _cancellation is { IsCancellationRequested: false };
     public bool IsPaused => Volatile.Read(ref _paused) == 1;
+    public bool EvaluationCaptureEnabled
+    {
+        get => Volatile.Read(ref _evaluationCaptureEnabled) == 1;
+        set
+        {
+            Interlocked.Exchange(ref _evaluationCaptureEnabled, value ? 1 : 0);
+            if (value)
+            {
+                _lastEvaluationPeriodicSampleAt = DateTimeOffset.MinValue;
+            }
+        }
+    }
 
     public CaptureCoordinator(AppSettings settings, HeroDictionary heroes, ITranslationService translator)
     {
@@ -59,6 +77,8 @@ public sealed class CaptureCoordinator : IAsyncDisposable
         _changeDetector.Reset();
         _deduplicator.Reset();
         _playerHeroes.Reset();
+        _evaluationFrameSequence = 0;
+        _lastEvaluationPeriodicSampleAt = DateTimeOffset.MinValue;
         ClearPendingMessages();
         Interlocked.Increment(ref _stateGeneration);
         Interlocked.Exchange(ref _paused, 0);
@@ -202,7 +222,28 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             {
                 var generation = Volatile.Read(ref _stateGeneration);
                 using var bitmap = _capture.Capture(_settings.CaptureRegion);
-                if (_changeDetector.HasMeaningfulChange(bitmap, _settings.ChangeThreshold))
+                var meaningfulChange = _changeDetector.HasMeaningfulChange(
+                    bitmap,
+                    _settings.ChangeThreshold);
+                if (!meaningfulChange)
+                {
+                    var periodicAt = DateTimeOffset.UtcNow;
+                    if (EvaluationCaptureEnabled
+                        && EvaluationFrameObserved is not null
+                        && periodicAt - _lastEvaluationPeriodicSampleAt >= TimeSpan.FromSeconds(2))
+                    {
+                        _lastEvaluationPeriodicSampleAt = periodicAt;
+                        EmitEvaluationFrame(
+                            bitmap,
+                            document: null,
+                            periodicAt,
+                            captureKind: "periodic_sample",
+                            meaningfulChange: false,
+                            ocrElapsedMs: 0,
+                            localPipelineElapsedMs: 0);
+                    }
+                }
+                if (meaningfulChange)
                 {
                     // Avoid OCR during LOL's short chat-scroll animation. Existing settings
                     // below 180 ms are raised at runtime without adding another screen capture.
@@ -212,23 +253,60 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                         continue;
                     }
                     using var stableBitmap = _capture.Capture(_settings.CaptureRegion);
+                    var capturedAt = DateTimeOffset.UtcNow;
+                    var localPipelineTimer = Stopwatch.StartNew();
+                    var ocrTimer = Stopwatch.StartNew();
                     var document = await _ocr.RecognizeDetailedAsync(
                         stableBitmap,
                         cancellationToken,
                         _settings.OcrScale);
+                    ocrTimer.Stop();
                     if (IsPaused || generation != Volatile.Read(ref _stateGeneration))
                     {
                         continue;
                     }
-                    var capturedAt = DateTimeOffset.UtcNow;
-                    var routed = _deduplicator
-                        .FindNewLines(document.RawText)
-                        .Where(IsPlausibleGameChat)
-                        .Select(line => _classifier.Classify(
-                            line,
-                            FindColorEvidence(document, line)) with { CapturedAt = capturedAt })
-                        .Select(_playerHeroes.Observe)
-                        .Where(message => message.Kind == GameMessageKind.PlayerChat
+                    var frameSequence = Interlocked.Increment(ref _evaluationFrameSequence);
+                    var frameId = $"frame-{frameSequence:000000}";
+                    var observed = _deduplicator
+                        .FindNewLineResults(document.RawText)
+                        .Where(line => IsPlausibleGameChat(line.NormalizedText))
+                        .Select((line, index) => new
+                        {
+                            Line = line,
+                            Message = _playerHeroes.Observe(
+                                _classifier.Classify(
+                                    line.NormalizedText,
+                                    FindColorEvidence(document, line.NormalizedText)) with
+                                {
+                                    CapturedAt = capturedAt,
+                                    EvaluationLineId = $"{frameId}/line-{index + 1:00}"
+                                })
+                        })
+                        .ToArray();
+                    localPipelineTimer.Stop();
+                    EmitEvaluationFrame(
+                        stableBitmap,
+                        document,
+                        capturedAt,
+                        captureKind: "ocr_stable_frame",
+                        meaningfulChange: true,
+                        ocrElapsedMs: ocrTimer.Elapsed.TotalMilliseconds,
+                        localPipelineElapsedMs: localPipelineTimer.Elapsed.TotalMilliseconds,
+                        frameId);
+                    foreach (var item in observed)
+                    {
+                        DiagnosticObserved?.Invoke(new MessageDiagnosticObservation(
+                            capturedAt,
+                            item.Line,
+                            item.Message,
+                            item.Message.Kind is GameMessageKind.PlayerChat or GameMessageKind.Unknown
+                                || _settings.IsSystemMessageEnabled(item.Message.Kind),
+                            frameId,
+                            item.Message.EvaluationLineId));
+                    }
+                    var routed = observed
+                        .Select(item => item.Message)
+                        .Where(message => message.Kind is GameMessageKind.PlayerChat or GameMessageKind.Unknown
                             || _settings.IsSystemMessageEnabled(message.Kind))
                         .ToArray();
                     if (routed.Length > 0)
@@ -257,6 +335,46 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             }
 
             await Task.Delay(interval, cancellationToken);
+        }
+    }
+
+    private void EmitEvaluationFrame(
+        Bitmap bitmap,
+        OcrDocument? document,
+        DateTimeOffset capturedAt,
+        string captureKind,
+        bool meaningfulChange,
+        double ocrElapsedMs,
+        double localPipelineElapsedMs,
+        string? frameId = null)
+    {
+        var handler = EvaluationFrameObserved;
+        if (!EvaluationCaptureEnabled || handler is null)
+        {
+            return;
+        }
+
+        var resolvedFrameId = frameId
+            ?? $"frame-{Interlocked.Increment(ref _evaluationFrameSequence):000000}";
+        var snapshot = (Bitmap)bitmap.Clone();
+        try
+        {
+            handler(new EvaluationFrameObservation(
+                resolvedFrameId,
+                capturedAt,
+                captureKind,
+                meaningfulChange,
+                snapshot,
+                document,
+                Math.Round(ocrElapsedMs, 2),
+                Math.Round(localPipelineElapsedMs, 2),
+                _settings.PollIntervalMs,
+                _settings.OcrScale));
+        }
+        catch
+        {
+            snapshot.Dispose();
+            throw;
         }
     }
 
@@ -335,6 +453,12 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                         await TranslatePlayerTurnAsync(urgent, generation, cancellationToken);
                     }
                 }
+                continue;
+            }
+
+            if (message.Kind == GameMessageKind.Unknown)
+            {
+                TranslationReady?.Invoke(SystemMessageResultFactory.Create(message, _settings));
                 continue;
             }
 
@@ -433,11 +557,18 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             }
 
             result.SourceKind = TranslationSourceKind.PlayerChat;
+            result.RoutedMessageKind = GameMessageKind.PlayerChat;
+            result.ClassificationConfidence = 1;
+            result.ClassificationRuleId = "player.structure";
             result.Speaker = speakerLabel;
             result.RawText = string.Join("\n", turn.RawLines);
             result.OriginalLines = turn.Contents
                 .Where(line => !string.IsNullOrWhiteSpace(line))
                 .Select(line => line.Trim())
+                .Take(8)
+                .ToList();
+            result.EvaluationLineIds = (turn.EvaluationLineIds ?? Array.Empty<string>())
+                .Where(lineId => !string.IsNullOrWhiteSpace(lineId))
                 .Take(8)
                 .ToList();
             result.SpokenSummary = PlayerSpeechTextSanitizer.Clean(result.SpokenSummary, turn);
@@ -461,27 +592,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
     {
         if (message.Kind != GameMessageKind.TacticalSignal)
         {
-            var systemSpoken = SystemMessageTemplates.Format(message, _settings.Language);
-            return new TranslationResult
-            {
-                SourceKind = TranslationSourceKind.SystemMessage,
-                Speaker = _settings.Language == AppLanguage.English ? "Game" : "系统",
-                Intent = message.Kind switch
-                {
-                    GameMessageKind.KillEvent => "kill_event",
-                    GameMessageKind.ObjectiveEvent => "objective_event",
-                    GameMessageKind.ClientReminder => "client_reminder",
-                    _ => "system_event"
-                },
-                Priority = message.Priority,
-                DisplayTranslation = systemSpoken,
-                DisplayLines = new List<string> { systemSpoken },
-                SpokenSummary = systemSpoken,
-                RawText = message.RawText,
-                OriginalLines = new List<string> { message.Content },
-                ShouldSpeak = true,
-                ExpiresAfterMs = 3500
-            };
+            return SystemMessageResultFactory.Create(message, _settings);
         }
 
         var speakerMention = _heroes.FindById(
@@ -492,8 +603,11 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                 message.SpeakerRaw,
                 _settings.PreferChampionPersonalName,
                 _settings.Language);
+        var hasKnownInitiator = !string.IsNullOrWhiteSpace(message.SpeakerKey);
         var speaker = speakerMention?.SpokenName
-            ?? (_settings.Language == AppLanguage.English ? "Teammate" : "队友");
+            ?? (hasKnownInitiator
+                ? _settings.Language == AppLanguage.English ? "Teammate" : "队友"
+                : string.Empty);
         var semanticEvent = message.SemanticEvent is null
             ? null
             : message.SemanticEvent with
@@ -505,11 +619,18 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             : SignalMessageTemplates.FormatSpokenSignal(
                 message.TacticalSummary,
                 speaker,
-                _settings.Language);
+                _settings.Language,
+                hasKnownInitiator);
         return new TranslationResult
         {
             SourceKind = TranslationSourceKind.TacticalSignal,
-            Speaker = speaker,
+            RoutedMessageKind = GameMessageKind.TacticalSignal,
+            ClassificationConfidence = message.ClassificationConfidence,
+            ClassificationRuleId = message.SystemEvent?.RuleId
+                ?? (message.SemanticEvent is null ? "signal.template" : "signal.semantic"),
+            Speaker = hasKnownInitiator
+                ? speaker
+                : _settings.Language == AppLanguage.English ? "Signal" : "信号",
             Intent = semanticEvent is null
                 ? "tactical_signal"
                 : GameSemanticEventParser.Intent(semanticEvent),
@@ -529,7 +650,11 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             SpokenSummary = spoken,
             RawText = message.RawText,
             OriginalLines = new List<string> { message.Content },
-            ShouldSpeak = true,
+            EvaluationLineIds = string.IsNullOrWhiteSpace(message.EvaluationLineId)
+                ? new List<string>()
+                : new List<string> { message.EvaluationLineId },
+            ShouldSpeak = message.ClassificationConfidence
+                >= SystemMessageCatalog.SpeechConfidenceThreshold,
             ExpiresAfterMs = 3500
         };
     }
@@ -566,8 +691,8 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                     mention.SpokenName,
                     System.Text.RegularExpressions.RegexOptions.IgnoreCase
                     | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
-            }
-        }
+    }
+}
         return localized.Trim();
     }
 
@@ -598,3 +723,15 @@ public sealed class CaptureCoordinator : IAsyncDisposable
     private string L(string chinese, string english) =>
         _settings.Language == AppLanguage.English ? english : chinese;
 }
+
+public sealed record EvaluationFrameObservation(
+    string FrameId,
+    DateTimeOffset CapturedAt,
+    string CaptureKind,
+    bool MeaningfulChange,
+    Bitmap Screenshot,
+    OcrDocument? Document,
+    double OcrElapsedMs,
+    double LocalPipelineElapsedMs,
+    int PollIntervalMs,
+    int OcrScale);

@@ -16,8 +16,77 @@ public enum TranslationSourceKind
     PlayerChat,
     TacticalSignal,
     SystemMessage,
+    Unknown,
     Preview
 }
+
+public enum GameSystemEventType
+{
+    Unknown,
+    ChampionKill,
+    Execution,
+    FirstBlood,
+    DoubleKill,
+    TripleKill,
+    QuadraKill,
+    PentaKill,
+    KillingSpree,
+    Rampage,
+    Unstoppable,
+    Dominating,
+    Godlike,
+    Legendary,
+    Shutdown,
+    Ace,
+    ChampionRespawn,
+    ObjectiveSpawn,
+    ObjectiveSpawnSoon,
+    ObjectiveSlain,
+    ObjectiveStolen,
+    HeraldCaptured,
+    HeraldReturned,
+    TerrainTransform,
+    FirstTurret,
+    TurretDestroyed,
+    TurretPlateDestroyed,
+    InhibitorDestroyed,
+    InhibitorRespawned,
+    NexusDestroyed,
+    ObjectiveBountyClaimed,
+    MinionsSpawned,
+    PlayerDisconnected,
+    PlayerReconnected,
+    LoadingTimeout,
+    SurrenderVote,
+    RemakeVote,
+    AfkSurrender,
+    GamePaused,
+    GameResumed,
+    ChatRestricted,
+    PingRateLimited,
+    NetworkNotice,
+    ChampionSpecialEvent,
+    WellnessReminder
+}
+
+public enum SystemMessageRuleStatus
+{
+    Current,
+    LegacyOrModeSpecific
+}
+
+public sealed record GameSystemEvent(
+    GameSystemEventType Type,
+    string Subject = "",
+    string Target = "",
+    string Objective = "",
+    string Team = "",
+    int? Count = null,
+    int? DurationSeconds = null,
+    double Confidence = 0,
+    string Evidence = "",
+    string RuleId = "",
+    SystemMessageRuleStatus RuleStatus = SystemMessageRuleStatus.Current);
 
 public enum SemanticSourceType
 {
@@ -122,7 +191,10 @@ public sealed record ClassifiedGameMessage(
     OcrColorEvidence? ColorEvidence = null,
     string SpeakerHeroRaw = "",
     string SpeakerHeroId = "",
-    GameSemanticEvent? SemanticEvent = null);
+    GameSemanticEvent? SemanticEvent = null,
+    GameSystemEvent? SystemEvent = null,
+    double ClassificationConfidence = 0,
+    string EvaluationLineId = "");
 
 public sealed record PlayerSpeechTurn(
     string SpeakerKey,
@@ -130,7 +202,8 @@ public sealed record PlayerSpeechTurn(
     IReadOnlyList<string> RawLines,
     IReadOnlyList<string> Contents,
     DateTimeOffset LastUpdatedAt,
-    string SpeakerHeroId = "");
+    string SpeakerHeroId = "",
+    IReadOnlyList<string>? EvaluationLineIds = null);
 
 public sealed record HeroMention(
     string Id,
@@ -153,6 +226,10 @@ public sealed class TranslationResult
 {
     public TranslationSourceKind SourceKind { get; set; } = TranslationSourceKind.PlayerChat;
     public bool ShouldSpeak { get; set; }
+    [System.Text.Json.Serialization.JsonIgnore]
+    public GameMessageKind RoutedMessageKind { get; set; } = GameMessageKind.PlayerChat;
+    public double ClassificationConfidence { get; set; } = 1;
+    public string ClassificationRuleId { get; set; } = string.Empty;
     public string Speaker { get; set; } = "队友";
     public string Intent { get; set; } = "message";
     public string Emotion { get; set; } = "neutral";
@@ -176,6 +253,8 @@ public sealed class TranslationResult
     public int ExpiresAfterMs { get; set; } = 6000;
     public string RawText { get; set; } = string.Empty;
     public List<string> OriginalLines { get; set; } = new();
+    [System.Text.Json.Serialization.JsonIgnore]
+    public List<string> EvaluationLineIds { get; set; } = new();
 }
 
 public sealed record OcrBatch(string RawText, IReadOnlyList<string> NewLines, DateTimeOffset CapturedAt);

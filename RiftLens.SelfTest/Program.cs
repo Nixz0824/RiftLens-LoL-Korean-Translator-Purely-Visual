@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using System.Threading.Channels;
 
 var failures = new List<string>();
 
@@ -76,7 +77,7 @@ if (args.Length >= 2 && string.Equals(args[0], "--render-translation", StringCom
             "적 정글 바텀 가는 중",
             "일단 빼고 점멸 아껴"
         },
-        RawText = "[12:34] Nixz#KR1 (자르반 4세): 적 정글 바텀 가는 중\n[12:35] Nixz#KR1 (자르반 4세): 일단 빼고 점멸 아껴"
+        RawText = "[12:34] PlayerOne#KR1 (자르반 4세): 적 정글 바텀 가는 중\n[12:35] PlayerOne#KR1 (자르반 4세): 일단 빼고 점멸 아껴"
     };
     overlayType.GetMethod("PrepareContent", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
         .Invoke(overlay, new object[] { result, settings });
@@ -173,12 +174,53 @@ await CheckAsync("聊天上滚去重", () =>
     Require(MessageDeduplicator.StripGameTimestamp("[12:34] 레오나: 탑 가세요") == "레오나: 탑 가세요", "时间戳+玩家消息未正确去除");
     Require(MessageDeduplicator.StripGameTimestamp("[0:05][팀] 아리: 미드 미아") == "[팀] 아리: 미드 미아", "时间戳+频道标签未正确去除");
     Require(MessageDeduplicator.StripGameTimestamp("(3:15) 적이 사라짐") == "적이 사라짐", "圆括号时间戳未去除");
+    Require(MessageDeduplicator.StripGameTimestamp("[12：34] 레오나: 탑 가세요") == "레오나: 탑 가세요", "全角冒号时间戳未去除");
+    Require(MessageDeduplicator.StripGameTimestamp("12:34] [팀] PlayerOne#KR1 (아리): 미드 조심") == "[팀] PlayerOne#KR1 (아리): 미드 조심", "缺左括号时间戳未恢复");
+    Require(MessageDeduplicator.StripGameTimestamp("I12:34] [팀] PlayerOne#KR1 (아리): 미드 조심") == "[팀] PlayerOne#KR1 (아리): 미드 조심", "左括号 OCR 为 I 的时间戳未恢复");
+    Require(MessageDeduplicator.StripGameTimestamp("[12:341 [팀] PlayerOne#KR1 (아리): 미드 조심") == "[팀] PlayerOne#KR1 (아리): 미드 조심", "右括号 OCR 为 1 的时间戳未恢复");
+    Require(MessageDeduplicator.StripGameTimestamp("12 34 [팀] PlayerOne#KR1 (아리): 미드 조심") == "[팀] PlayerOne#KR1 (아리): 미드 조심", "时间冒号漏识别时未恢复");
+    Require(MessageDeduplicator.StripGameTimestamp("25:99 Player: text") == "25:99 Player: text", "非法时钟值被误删");
+    Require(GameTimestampPrefixParser.StripForSpeech("12:34] 没有意义的时间前缀") == "没有意义的时间前缀",
+        "最终 TTS 前没有清除缺左括号的时间戳");
+    Require(GameTimestampPrefixParser.StripForSpeech("[12：34] 时间前缀") == "时间前缀",
+        "最终 TTS 前没有清除全角冒号时间戳");
     Require(MessageDeduplicator.StripGameTimestamp("레오나: 탑 가세요") == "레오나: 탑 가세요", "无时间戳消息被误修改");
+    var longGameTimestamp = GameTimestampPrefixParser.Parse(
+        "24:03OnPi(사일러스)님이 가고 있음");
+    Require(longGameTimestamp.Matched
+        && longGameTimestamp.Timestamp == TimeSpan.FromMinutes(24) + TimeSpan.FromSeconds(3)
+        && GameTimestampPrefixParser.Format(longGameTimestamp.Timestamp) == "24:03"
+        && longGameTimestamp.TextWithoutTimestamp == "OnPi(사일러스)님이 가고 있음",
+        "24 分钟后的无空格游戏时间戳没有按分钟:秒移除");
+    Require(MessageDeduplicator.StripGameTimestamp(
+            "59.07PlayerOne (아리): mid careful") == "PlayerOne (아리): mid careful",
+        "点号损坏且无空格的长局时间戳未恢复");
+    Require(MessageDeduplicator.StripGameTimestamp(
+            "12:34InGame (아리): mid careful") == "InGame (아리): mid careful",
+        "正文以 I 开头时被误当成损坏的右括号吞掉");
 
     // 时间戳不影响去重：相同内容不同时间戳应视为重复
     deduplicator.Reset();
     Require(deduplicator.FindNewLines("[12:34] 레오나: 탑 조심\n[12:35] 아리: 미드 미아").Count == 0, "首次识别不应播报");
     Require(deduplicator.FindNewLines("[12:34] 레오나: 탑 조심\n[12:35] 아리: 미드 미아\n[12:36] 레오나: 정글 갱").SequenceEqual(new[] { "레오나: 정글 갱" }), "时间戳消息去重失败");
+
+    // 空格、标点和单字符 OCR 波动不应让同一可见消息再次入队。
+    deduplicator.Reset();
+    Require(deduplicator.FindNewLines("루시안(루시안): 마나 24%\n세나(세나): 제어와드-1회충전됨").Count == 0,
+        "稳定事件键基线不应播报旧消息");
+    Require(deduplicator.FindNewLines("루시안 (루시안):마나24%\n세나(세나): 제어와드-1회충전됨").Count == 0,
+        "空格与标点变化造成同一消息重复入队");
+    Require(deduplicator.FindNewLines("루시안 (루시안):마나24%\n세나(세나): 제어와드-1회충전됨\n아칼리(아칼리): R")
+            .SequenceEqual(new[] { "아칼리(아칼리): R" }),
+        "稳定事件去重吞掉了真正新增的行");
+
+    // 屏幕中确实追加一条相同 Ping 时仍应视为新的可见行。
+    deduplicator.Reset();
+    Require(deduplicator.FindNewLines("세나(세나): 제어와드-1회충전됨").Count == 0,
+        "重复 Ping 测试基线不应播报");
+    Require(deduplicator.FindNewLines(
+            "세나(세나): 제어와드-1회충전됨\n세나(세나): 제어와드-1회충전됨").Count == 1,
+        "玩家真正再次 Ping 被跨帧去重错误吞掉");
 
     return Task.CompletedTask;
 });
@@ -193,10 +235,10 @@ await CheckAsync("玩家与系统消息分类", () =>
 
     // In-game structure: optional timestamp/channel + player ID + (champion) + colon.
     var timestamped = classifier.Classify(
-        "[12:34] [팀] Nixz#KR1 (아리): 미드 밀고 갈게",
+        "[12:34] [팀] PlayerOne#KR1 (아리): 미드 밀고 갈게",
         playerPalette);
     Require(timestamped.Kind == GameMessageKind.PlayerChat, "带时间戳的韩文玩家聊天被过滤");
-    Require(timestamped.SpeakerKey == "NIXZ#KR1", "玩家 ID 未从英雄名中独立提取");
+    Require(timestamped.SpeakerKey == "PLAYERONE#KR1", "玩家 ID 未从英雄名中独立提取");
     Require(timestamped.SpeakerRaw.Contains("아리", StringComparison.Ordinal), "英雄名未保留给播报映射");
     Require(timestamped.Content == "미드 밀고 갈게", "玩家聊天正文提取失败");
 
@@ -210,8 +252,17 @@ await CheckAsync("玩家与系统消息分类", () =>
         "选人阶段明确频道聊天未识别");
 
     // The same cyan prefix is not enough to turn a system line into player chat.
-    Require(classifier.Classify("Nixz#KR1: help top", playerPalette).Kind == GameMessageKind.PlayerChat,
+    Require(classifier.Classify("PlayerOne#KR1: help top", playerPalette).Kind == GameMessageKind.PlayerChat,
         "颜色辅助未恢复 OCR 丢失括号的玩家聊天");
+    var damagedTimestamp = classifier.Classify(
+        "12:34] [팀] PlayerOne#KR1 (아리): 미드 밀고 갈게",
+        playerPalette);
+    Require(damagedTimestamp.Kind == GameMessageKind.PlayerChat
+        && damagedTimestamp.SpeakerKey == "PLAYERONE#KR1"
+        && damagedTimestamp.Content == "미드 밀고 갈게",
+        "损坏时间戳中的冒号仍被当成玩家正文分隔符");
+    Require(classifier.Classify("12:34] unreadable fragment", playerPalette).Kind == GameMessageKind.Unknown,
+        "无法安全恢复的时间型冒号被颜色规则误当作玩家分隔符");
     Require(classifier.Classify("알림: 서버 연결 상태가 불안정합니다", playerPalette).Kind == GameMessageKind.OtherSystemEvent,
         "带相同青色前缀的系统通知冒充了玩家聊天");
     Require(classifier.Classify("unknown prefix: no colour evidence").Kind == GameMessageKind.Unknown,
@@ -227,11 +278,193 @@ await CheckAsync("玩家与系统消息分类", () =>
         "中立资源刷新提醒分类失败");
     Require(classifier.Classify("已连续游戏 2 小时，请注意休息").Kind == GameMessageKind.ClientReminder,
         "防沉迷提醒分类失败");
-    Require(classifier.Classify("敌方摧毁了一座防御塔").Kind == GameMessageKind.OtherSystemEvent,
-        "其他系统事件分类失败");
+    Require(classifier.Classify("敌方摧毁了一座防御塔").Kind == GameMessageKind.ObjectiveEvent,
+        "建筑事件没有归入地图资源与建筑");
     Require(classifier.Classify("와드가 만료되었습니다").Kind == GameMessageKind.Unknown,
         "未知文字不应伪装成玩家聊天或已知系统类别");
     return Task.CompletedTask;
+});
+
+await CheckAsync("设置保存到最终 TTS 闸门集成", async () =>
+{
+    var testRoot = Path.Combine(Path.GetTempPath(), "RiftLens-PolicyGate-" + Guid.NewGuid().ToString("N"));
+    var settingsPath = Path.Combine(testRoot, "settings.json");
+    try
+    {
+        var store = new SettingsStore(settingsPath);
+        var enabled = new AppSettings { KillEventEnabled = true };
+        await store.SaveAsync(enabled);
+        var settingsAtOcr = await store.LoadAsync();
+
+        var ocr = OcrDocument.FromText("TRIPLE KILL!");
+        var classifier = new ChatMessageClassifier();
+        var queue = Channel.CreateBounded<ClassifiedGameMessage>(1);
+        var classified = classifier.Classify(ocr.Lines.Single().Text);
+        await queue.Writer.WriteAsync(classified);
+        var queued = await queue.Reader.ReadAsync();
+        var result = SystemMessageResultFactory.Create(queued, settingsAtOcr);
+        Require(FinalSpeechPolicy.ShouldSpeak(result, settingsAtOcr),
+            "开启击杀播报后，合法三杀消息没有通过最终闸门");
+
+        settingsAtOcr.KillEventEnabled = false;
+        await store.SaveAsync(settingsAtOcr);
+        var latestSettings = await store.LoadAsync();
+        Require(!FinalSpeechPolicy.ShouldSpeak(result, latestSettings),
+            "分类后关闭击杀播报，队列中的旧消息仍能绕过最终 TTS 闸门");
+
+        var unknown = classifier.Classify("男爵刷新了吗");
+        await queue.Writer.WriteAsync(unknown);
+        var unknownResult = SystemMessageResultFactory.Create(await queue.Reader.ReadAsync(), latestSettings);
+        Require(unknownResult.SourceKind == TranslationSourceKind.Unknown
+            && unknownResult.DisplayTranslation == "男爵刷新了吗"
+            && !FinalSpeechPolicy.ShouldSpeak(unknownResult, latestSettings),
+            "Unknown 没有保持只显示、不播报");
+    }
+    finally
+    {
+        if (Directory.Exists(testRoot))
+        {
+            Directory.Delete(testRoot, recursive: true);
+        }
+    }
+});
+
+await CheckAsync("用户主动导出的脱敏诊断记录", async () =>
+{
+    var recorder = new DiagnosticSessionRecorder();
+    const string raw = "[12:34] [팀] SecretPlayer#KR1 (아리): 미드 조심";
+    var timestamp = GameTimestampPrefixParser.Parse(raw);
+    var line = new DeduplicatedMessageLine(raw, timestamp.TextWithoutTimestamp, timestamp);
+    var message = new ChatMessageClassifier().Classify(line.NormalizedText) with
+    {
+        CapturedAt = DateTimeOffset.UtcNow
+    };
+    recorder.RecordClassification(new MessageDiagnosticObservation(
+        DateTimeOffset.UtcNow,
+        line,
+        message,
+        CategoryEnabled: true));
+    recorder.RecordOutput(new TranslationResult
+    {
+        SourceKind = TranslationSourceKind.PlayerChat,
+        RoutedMessageKind = GameMessageKind.PlayerChat,
+        Intent = "warning",
+        SourceType = "player_chat",
+        SpeechAct = "warning",
+        ClassificationRuleId = "player.structure",
+        DisplayLines = new List<string> { "中路小心" },
+        OriginalLines = new List<string> { "미드 조심" },
+        SpokenSummary = "中路小心",
+        ShouldSpeak = true
+    }, finalSpeechAllowed: true);
+
+    var output = Path.Combine(Path.GetTempPath(), "RiftLens-Diagnostic-" + Guid.NewGuid().ToString("N") + ".json");
+    try
+    {
+        await recorder.ExportAsync(output);
+        var json = await File.ReadAllTextAsync(output);
+        Require(json.Contains("Player-01", StringComparison.Ordinal), "诊断导出没有使用会话玩家别名");
+        Require(!json.Contains("SecretPlayer", StringComparison.Ordinal), "诊断导出泄露原始玩家 ID");
+        Require(!json.Contains("\"apiKey\"", StringComparison.OrdinalIgnoreCase), "诊断导出包含 API Key 字段");
+        Require(json.Contains("timestamp.bracketed", StringComparison.Ordinal)
+            && json.Contains("player_authored_chat", StringComparison.Ordinal),
+            "诊断导出缺少时间戳证据或来源归属");
+    }
+    finally
+    {
+        if (File.Exists(output)) File.Delete(output);
+    }
+});
+
+await CheckAsync("用户主动开启的真实评估会话", async () =>
+{
+    var testRoot = Path.Combine(
+        Path.GetTempPath(),
+        "RiftLens-RealEvaluation-" + Guid.NewGuid().ToString("N"));
+    try
+    {
+        var settings = new AppSettings
+        {
+            CaptureRegion = new ScreenRegion { X = 40, Y = 50, Width = 320, Height = 96 },
+            PollIntervalMs = 500,
+            OcrScale = 3,
+            ApiModel = "test-model"
+        };
+        var recorder = await RealEvaluationSessionRecorder.StartAsync(
+            testRoot,
+            settings,
+            "self-test");
+        using var source = new Bitmap(320, 96);
+        using (var graphics = Graphics.FromImage(source))
+        {
+            graphics.Clear(Color.FromArgb(24, 31, 39));
+            graphics.DrawString(
+                "[12:34] Player (아리): 미드 조심",
+                SystemFonts.DefaultFont,
+                Brushes.White,
+                6,
+                20);
+        }
+        recorder.RecordFrame(new EvaluationFrameObservation(
+            "frame-000001",
+            DateTimeOffset.UtcNow,
+            "ocr_stable_frame",
+            true,
+            (Bitmap)source.Clone(),
+            OcrDocument.FromText("[12:34] Player (아리): 미드 조심"),
+            123.4,
+            129.8,
+            500,
+            3));
+
+        const string raw = "[12:34] Player (아리): 미드 조심";
+        var timestamp = GameTimestampPrefixParser.Parse(raw);
+        var line = new DeduplicatedMessageLine(raw, timestamp.TextWithoutTimestamp, timestamp);
+        var message = new ChatMessageClassifier().Classify(line.NormalizedText) with
+        {
+            CapturedAt = DateTimeOffset.UtcNow,
+            EvaluationLineId = "frame-000001/line-01"
+        };
+        recorder.RecordClassification(new MessageDiagnosticObservation(
+            DateTimeOffset.UtcNow,
+            line,
+            message,
+            CategoryEnabled: true,
+            FrameId: "frame-000001",
+            LineId: "frame-000001/line-01"));
+        recorder.RecordOutput(new TranslationResult
+        {
+            SourceKind = TranslationSourceKind.PlayerChat,
+            RoutedMessageKind = GameMessageKind.PlayerChat,
+            EvaluationLineIds = new List<string> { "frame-000001/line-01" },
+            OriginalLines = new List<string> { "미드 조심" },
+            DisplayLines = new List<string> { "中路小心" },
+            SpokenSummary = "中路小心",
+            ShouldSpeak = true
+        }, finalSpeechAllowed: true);
+        var sessionDirectory = recorder.SessionDirectory;
+        await recorder.CompleteAsync();
+
+        var manifest = await File.ReadAllTextAsync(Path.Combine(sessionDirectory, "manifest.json"));
+        var events = await File.ReadAllTextAsync(Path.Combine(sessionDirectory, "events.jsonl"));
+        Require(File.Exists(Path.Combine(sessionDirectory, "frames", "frame-000001.png")),
+            "真实评估会话没有保存框选区域帧");
+        Require(manifest.Contains("\"status\": \"completed\"", StringComparison.Ordinal)
+            && manifest.Contains("\"containsOriginalCroppedScreenshots\": true", StringComparison.Ordinal)
+            && manifest.Contains("\"containsApiKeyOrCredentials\": false", StringComparison.Ordinal),
+            "真实评估清单缺少完成状态或隐私声明");
+        Require(events.Contains("\"eventType\":\"frame\"", StringComparison.Ordinal)
+            && events.Contains("\"eventType\":\"classification\"", StringComparison.Ordinal)
+            && events.Contains("\"eventType\":\"output\"", StringComparison.Ordinal)
+            && events.Contains("frame-000001/line-01", StringComparison.Ordinal),
+            "真实评估事件没有完整关联帧、分类和实际输出");
+        Require(!events.Contains("apiKey", StringComparison.OrdinalIgnoreCase),
+            "真实评估事件意外包含 API Key 字段");
+    }
+    finally
+    {
+        if (Directory.Exists(testRoot)) Directory.Delete(testRoot, recursive: true);
+    }
 });
 
 await CheckAsync("结构化 Ping 与 HUD 语义", () =>
@@ -264,10 +497,20 @@ await CheckAsync("结构化 Ping 与 HUD 语义", () =>
         alive.SemanticEvent!,
         "阿狸",
         AppLanguage.Chinese);
-    Require(aliveSpeech.Contains("提醒", StringComparison.Ordinal)
-        && aliveSpeech.Contains("仍然存活", StringComparison.Ordinal)
+    Require(aliveSpeech.EndsWith("仍然存活", StringComparison.Ordinal)
+        && !aliveSpeech.Contains("提醒", StringComparison.Ordinal)
         && !aliveSpeech.Contains("正在", StringComparison.Ordinal),
         "存活状态被误说成正在执行的行动");
+
+    var unattributedRetreat = classifier.Classify("信号：撤退");
+    Require(unattributedRetreat.Kind == GameMessageKind.TacticalSignal
+        && unattributedRetreat.SemanticEvent is not null,
+        "无发起人的撤退信号未进入结构化信号分类");
+    Require(GameSemanticEventParser.Format(
+            unattributedRetreat.SemanticEvent!,
+            string.Empty,
+            AppLanguage.Chinese) == "收到撤退信号",
+        "无发起人的系统信号仍冒充队友发言");
 
     var marker = classifier.Classify("[팀] PlayerOne (아리): 신호: 드래곤");
     Require(marker.Kind == GameMessageKind.TacticalSignal
@@ -275,6 +518,71 @@ await CheckAsync("结构化 Ping 与 HUD 语义", () =>
         "带玩家前缀的目标标记未从自由聊天中提前分流");
     Require(GameSemanticEventParser.Format(marker.SemanticEvent!, "阿狸", AppLanguage.Chinese)
         == "阿狸标记了小龙", "目标标记被错误扩写为正在争夺目标");
+
+    var generatedOnMyWay = classifier.Classify("24:03OnPi(사일러스)님이 가고 있음");
+    Require(generatedOnMyWay.Kind == GameMessageKind.TacticalSignal
+        && generatedOnMyWay.SpeakerKey == "ONPI"
+        && generatedOnMyWay.SpeakerHeroRaw == "사일러스"
+        && generatedOnMyWay.SemanticEvent?.Status == "on_my_way",
+        "真实韩服正在路上固定句仍被当作玩家自由聊天");
+    Require(GameSemanticEventParser.Format(
+            generatedOnMyWay.SemanticEvent!,
+            "塞拉斯",
+            AppLanguage.Chinese) == "塞拉斯发出正在路上的信号",
+        "正在路上信号仍被扩写成玩家正在执行动作");
+
+    var spellMarker = classifier.Classify("[팀] PlayerOne (사일러스): 오리아나점멸");
+    var spellMarkerSpeech = spellMarker.SemanticEvent is null
+        ? string.Empty
+        : GameSemanticEventParser.Format(spellMarker.SemanticEvent, "塞拉斯", AppLanguage.Chinese);
+    Require(spellMarker.Kind == GameMessageKind.TacticalSignal
+        && spellMarker.SemanticEvent is { SpeechAct: SemanticSpeechAct.Marker, Status: "summoner_spell" }
+        && spellMarkerSpeech.StartsWith("塞拉斯标记了", StringComparison.Ordinal)
+        && spellMarkerSpeech.EndsWith("的闪现", StringComparison.Ordinal),
+        $"召唤师技能 HUD 分享没有以保守标记语气处理：{spellMarker.Kind}/{spellMarker.SemanticEvent}/{spellMarkerSpeech}");
+
+    var abilityMarker = classifier.Classify("[팀] PlayerOne (요네): 아칼리 R");
+    var abilitySpeech = GameSemanticEventParser.Format(
+        abilityMarker.SemanticEvent!,
+        "永恩",
+        AppLanguage.Chinese);
+    Require(abilityMarker.Kind == GameMessageKind.TacticalSignal
+        && abilityMarker.SemanticEvent is { SpeechAct: SemanticSpeechAct.Marker, Status: "ability" }
+        && !abilitySpeech.Contains("冷却", StringComparison.Ordinal)
+        && !abilitySpeech.Contains("已交", StringComparison.Ordinal),
+        "只有英雄名加 R 时仍推断了冷却或已使用状态");
+
+    var manaShare = classifier.Classify("[팀] PlayerOne (루시안): 마나24%");
+    Require(manaShare.Kind == GameMessageKind.TacticalSignal
+        && GameSemanticEventParser.Format(manaShare.SemanticEvent!, "卢锡安", AppLanguage.Chinese)
+            == "卢锡安蓝量24%",
+        "蓝量百分比 HUD 分享未进入本地确定性语义");
+
+    var itemNeed = classifier.Classify("[팀] PlayerOne (요네): 몰락한왕의검-91골드필요");
+    Require(itemNeed.Kind == GameMessageKind.TacticalSignal
+        && GameSemanticEventParser.Format(itemNeed.SemanticEvent!, "永恩", AppLanguage.Chinese)
+            .Contains("91金币", StringComparison.Ordinal),
+        "装备金币需求仍被发送给自由聊天 AI");
+
+    var objectiveTimer = classifier.Classify("[팀] PlayerOne (바드): 내셔남작-5:22후재생성");
+    Require(objectiveTimer.Kind == GameMessageKind.TacticalSignal
+        && objectiveTimer.SemanticEvent is { Status: "objective_respawn", DurationSeconds: 322 }
+        && GameSemanticEventParser.Format(objectiveTimer.SemanticEvent, "巴德", AppLanguage.Chinese)
+            .Contains("5分22秒刷新", StringComparison.Ordinal),
+        "目标刷新倒计时没有保留分钟和秒");
+
+    var failClosed = new TranslationResult
+    {
+        SourceKind = TranslationSourceKind.PlayerChat,
+        RoutedMessageKind = GameMessageKind.PlayerChat,
+        ShouldSpeak = true,
+        SpokenSummary = "永恩说，阿卡丽大招冷却中",
+        OriginalLines = new List<string> { "아칼리 R" }
+    };
+    Require(!FinalSpeechPolicy.ShouldSpeak(
+            failClosed,
+            new AppSettings { TacticalSignalEnabled = true }),
+        "误入玩家路径的固定 HUD 内容仍能绕过最终语音闸门");
 
     Require(classifier.Classify("[팀] PlayerOne (아리): 小龙等我").Kind == GameMessageKind.PlayerChat,
         "普通玩家战术聊天被宽泛规则误判为系统 Ping");
@@ -441,7 +749,7 @@ await CheckAsync("设置持久化", async () =>
     Require(loaded.OutputMode == OutputMode.VoiceOnly, "输出模式未保存");
     Require(loaded.SpeechVolume == 42, "语音音量未保存");
     Require(loaded.OcrScale == 3, "旧版 OCR 放大倍数未迁移到聊天优化值");
-    Require(loaded.SchemaVersion == 7, "旧版设置未迁移到逐条直译展示版本");
+    Require(loaded.SchemaVersion == 8, "旧版设置未迁移到结构化消息分类版本");
     Require(!loaded.TacticalSignalEnabled
         && !loaded.KillEventEnabled
         && !loaded.ObjectiveEventEnabled
@@ -497,14 +805,14 @@ await CheckAsync("玩家分级播报与隐私化语音", () =>
         "韩英混排危险提醒未跳过普通汇总等待");
 
     var turn = new PlayerSpeechTurn(
-        "NIXZ#KR1",
-        "Nixz#KR1 (자르반 4세)",
+        "PLAYERONE#KR1",
+        "PlayerOne#KR1 (자르반 4세)",
         Array.Empty<string>(),
         Array.Empty<string>(),
         DateTimeOffset.UtcNow,
         "JarvanIV");
     var cleaned = PlayerSpeechTextSanitizer.Clean(
-        "[12:34] Nixz#KR1：嘉文四世提醒下路先后退",
+        "[12:34] PlayerOne#KR1：嘉文四世提醒下路先后退",
         turn);
     Require(cleaned == "嘉文四世提醒下路先后退", "语音未删除时间戳或玩家 ID");
     return Task.CompletedTask;
@@ -834,7 +1142,7 @@ await CheckAsync("OCR 行颜色辅助证据", async () =>
         graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
         using var font = new Font("Malgun Gothic", 27, FontStyle.Regular, GraphicsUnit.Pixel);
         using var cyanBrush = new SolidBrush(Color.FromArgb(82, 205, 232));
-        const string prefix = "[팀] Nixz#KR1 (아리): ";
+        const string prefix = "[팀] PlayerOne#KR1 (아리): ";
         graphics.DrawString(prefix, font, cyanBrush, 16, 24);
         var prefixWidth = graphics.MeasureString(prefix, font).Width;
         graphics.DrawString("mid 来一下 조심", font, Brushes.WhiteSmoke, 16 + prefixWidth - 5, 24);
@@ -983,11 +1291,17 @@ await CheckAsync("中韩信号模板本地翻译", () =>
     Require(SignalMessageTemplates.TryTranslate("1234 골드", AppLanguage.English) == "Gold: 1234", "英文金币");
     Require(SignalMessageTemplates.TryTranslate("귀환 시작", AppLanguage.English) == "Recalling", "英文回城");
     Require(SignalMessageTemplates.FormatSpokenSignal("敌人不见了", "嘉文四世", AppLanguage.Chinese)
-        == "嘉文四世说，敌人不见了", "中文战术播报仍在生硬拼接发言人与内容");
+        == "嘉文四世发出敌人消失信号", "中文战术播报仍错误使用“某人说”句式");
     Require(SignalMessageTemplates.FormatSpokenSignal("敌人不见了", "Jarvan IV", AppLanguage.English)
-        == "Jarvan IV says the enemy is missing.", "英文战术播报句式不自然");
+        == "Jarvan IV signals that the enemy is missing.", "英文战术播报仍错误使用 says 句式");
     Require(SignalMessageTemplates.FormatSpokenSignal("撤退信号", "嘉文四世", AppLanguage.Chinese)
         == "嘉文四世发出撤退信号", "撤退信号动作句式被破坏");
+    Require(SignalMessageTemplates.FormatSpokenSignal(
+            "撤退信号",
+            string.Empty,
+            AppLanguage.Chinese,
+            hasKnownInitiator: false) == "收到撤退信号",
+        "无发起人的撤退信号仍伪造队友主语");
 
     // ── 应返回 null 的（系统消息不应翻译） ──
     Require(SignalMessageTemplates.TryTranslate("敌方摧毁了一座防御塔") == null, "中文防御塔消息不应翻译");

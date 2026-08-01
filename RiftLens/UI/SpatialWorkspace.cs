@@ -26,6 +26,8 @@ internal enum SpatialAction
     SaveApiKey,
     ShowApiHelp,
     ClearHistory,
+    ExportDiagnostics,
+    ToggleEvaluationRecording,
     TestSpeech,
     PreviewOverlay,
     RestoreDefaults,

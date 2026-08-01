@@ -9,6 +9,7 @@
 # Local toolchains, caches, build output, and previews
 .tools/
 artifacts/
+测试记录/
 TestResults/
 **/bin/
 **/obj/
@@ -40,6 +41,17 @@ skills-lock.json
 design-references/
 design-system/
 tmp_proj/
+
+# Maintainer-only evaluation fixtures and replay tooling
+RiftLens.ComparableEvaluation/
+RiftLens.SelfTest/Fixtures/
+RiftLens.SelfTest/EvaluationDatasetFixture.cs
+RiftLens.SelfTest/SyntheticEvaluationRunner.cs
+RiftLens.SelfTest/SystemMessageRegressionFixture.cs
+RiftLens.SelfTest/TranslationHumanReviewPackage.cs
+docs/EVALUATION_V2_V3.md
+docs/PERFORMANCE_ACCEPTANCE_PROTOCOL.md
+docs/REAL_EVALUATION_CAPTURE.md
 
 # OS metadata
 Thumbs.db

@@ -82,6 +82,12 @@ public sealed class SettingsStore
                 settings.OverlayDurationMs = 7000;
                 settings.SchemaVersion = 7;
             }
+            if (settings.SchemaVersion < 8)
+            {
+                // v8 keeps the same five safe-by-default switches while clarifying
+                // that objectives include structures and other notices mean match flow.
+                settings.SchemaVersion = 8;
+            }
             // 旧版本默认 2 倍放大，对游戏内 12-16px 韩文不足；读取时自动迁移到聊天优化值。
             settings.OcrScale = Math.Clamp(settings.OcrScale, 3, 4);
             return settings;

@@ -61,7 +61,7 @@ public sealed class ScreenRegion
 
 public sealed class AppSettings
 {
-    public int SchemaVersion { get; set; } = 7;
+    public int SchemaVersion { get; set; } = 8;
     public AppLanguage Language { get; set; } = AppLanguage.Chinese;
     public ScreenRegion CaptureRegion { get; set; } = new();
     public ScreenRegion DisplayRegion { get; set; } = new();

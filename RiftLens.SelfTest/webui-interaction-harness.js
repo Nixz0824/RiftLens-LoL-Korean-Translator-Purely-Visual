@@ -44,6 +44,14 @@
     const actions = [...new Set([...document.querySelectorAll("[data-action]")].map(element => element.dataset.action))];
     document.querySelectorAll("[data-action]").forEach(element => element.click());
     actions.forEach(action => verify(messages.some(message => message.action === action), `Action failed: ${action}`));
+    verify(last("toggleEvaluationRecording"), "Real-evaluation capture action is missing");
+    window.__riftLensHostMessage({ data: { type: "state", data: { evaluationRecording: true } } });
+    verify(document.querySelector("#evaluation-recording").classList.contains("recording"),
+      "Real-evaluation capture lacks an active state");
+    verify(document.querySelector("#evaluation-recording span").textContent.includes(
+      language === "en-US" ? "Stop and save" : "停止并保存"),
+      "Real-evaluation capture active copy is not localized");
+    window.__riftLensHostMessage({ data: { type: "state", data: { evaluationRecording: false } } });
 
     click('.sidebar [data-nav="settings"]');
     verify(document.querySelector(".always-state").textContent.trim().length > 0, "Always-on player-chat state is missing");
@@ -91,6 +99,13 @@
     });
 
     click('.sidebar [data-nav="voice"]');
+    verify(document.querySelector('#objective-events').closest("label").textContent.includes(
+        language === "en-US" ? "Map objectives & structures" : "地图资源与建筑"),
+      "Map-objective and structure switch copy is out of sync");
+    const systemHelp = document.querySelector(".system-type-heading .help");
+    verify(systemHelp && systemHelp.dataset.tip.includes(
+      language === "en-US" ? "does not control player-typed tactical chat" : "不控制玩家手动输入的战术聊天"),
+      "System Ping and player tactical-chat boundary is missing");
     const help = click(".help");
     verify(help.getAttribute("aria-expanded") === "true", "Help button did not expand");
     verify(document.querySelector("#tooltip").classList.contains("show"), "Help tooltip did not appear");

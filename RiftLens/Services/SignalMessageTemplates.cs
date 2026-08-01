@@ -195,36 +195,52 @@ public static partial class SignalMessageTemplates
     public static string FormatSpokenSignal(
         string translatedChinese,
         string speaker,
-        AppLanguage language)
+        AppLanguage language,
+        bool hasKnownInitiator = true)
     {
-        var resolvedSpeaker = string.IsNullOrWhiteSpace(speaker)
-            ? language == AppLanguage.English ? "Teammate" : "队友"
-            : speaker.Trim();
+        hasKnownInitiator &= !string.IsNullOrWhiteSpace(speaker);
+        var resolvedSpeaker = hasKnownInitiator ? speaker.Trim() : string.Empty;
         var localizedAction = TranslateResult(translatedChinese, language);
 
         if (language == AppLanguage.English)
         {
+            if (translatedChinese is "敌人不见了" or "敌人失踪")
+            {
+                return hasKnownInitiator
+                    ? $"{resolvedSpeaker} signals that the enemy is missing."
+                    : "An enemy-missing signal was received.";
+            }
             if (translatedChinese.EndsWith("信号", StringComparison.Ordinal))
             {
-                return $"{resolvedSpeaker} signals {localizedAction.ToLowerInvariant()}.";
+                return hasKnownInitiator
+                    ? $"{resolvedSpeaker} signals {localizedAction.ToLowerInvariant()}."
+                    : $"A {localizedAction.ToLowerInvariant()} signal was received.";
             }
 
-            return $"{resolvedSpeaker} says {NaturalizeEnglishClause(localizedAction)}.";
+            return hasKnownInitiator
+                ? $"{resolvedSpeaker} shares: {NaturalizeEnglishClause(localizedAction)}."
+                : $"Game signal: {NaturalizeEnglishClause(localizedAction)}.";
         }
 
         if (translatedChinese.EndsWith("信号", StringComparison.Ordinal))
         {
-            return $"{resolvedSpeaker}发出{localizedAction}";
+            return hasKnownInitiator
+                ? $"{resolvedSpeaker}发出{localizedAction}"
+                : $"收到{localizedAction}";
         }
 
         var naturalAction = localizedAction switch
         {
-            "请求协助" or "请求支援" => "需要协助",
-            "请求撤退" => "请撤退",
-            "危险警告" => "小心危险",
+            "请求协助" or "请求支援" => "请求支援",
+            "请求撤退" => "发出撤退信号",
+            "危险警告" => "发出危险信号",
+            "敌人不见了" or "敌人失踪" => "发出敌人消失信号",
+            "正在路上" => "发出正在路上的信号",
             _ => localizedAction
         };
-        return $"{resolvedSpeaker}说，{naturalAction}";
+        return hasKnownInitiator
+            ? $"{resolvedSpeaker}{naturalAction}"
+            : $"游戏信号：{naturalAction}";
     }
 
     private static string NaturalizeEnglishClause(string action)

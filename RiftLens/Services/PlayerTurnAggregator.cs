@@ -13,6 +13,7 @@ public sealed class PlayerTurnAggregator
     private string _speakerHeroId = string.Empty;
     private readonly List<string> _rawLines = new();
     private readonly List<string> _contents = new();
+    private readonly List<string> _evaluationLineIds = new();
     private DateTimeOffset _lastUpdatedAt;
 
     public bool HasPending => _contents.Count > 0;
@@ -52,11 +53,17 @@ public sealed class PlayerTurnAggregator
         {
             _contents.Add(message.Content);
         }
+        if (!string.IsNullOrWhiteSpace(message.EvaluationLineId)
+            && !_evaluationLineIds.Contains(message.EvaluationLineId, StringComparer.Ordinal))
+        {
+            _evaluationLineIds.Add(message.EvaluationLineId);
+        }
         _lastUpdatedAt = message.CapturedAt == default ? DateTimeOffset.UtcNow : message.CapturedAt;
 
         // A single turn cannot grow without bound when somebody floods chat.
         while (_rawLines.Count > 8) _rawLines.RemoveAt(0);
         while (_contents.Count > 8) _contents.RemoveAt(0);
+        while (_evaluationLineIds.Count > 8) _evaluationLineIds.RemoveAt(0);
         return completed;
     }
 
@@ -73,12 +80,14 @@ public sealed class PlayerTurnAggregator
             _rawLines.ToArray(),
             _contents.ToArray(),
             _lastUpdatedAt,
-            _speakerHeroId);
+            _speakerHeroId,
+            _evaluationLineIds.ToArray());
         _speakerKey = string.Empty;
         _speakerRaw = string.Empty;
         _speakerHeroId = string.Empty;
         _rawLines.Clear();
         _contents.Clear();
+        _evaluationLineIds.Clear();
         _lastUpdatedAt = default;
         return turn;
     }

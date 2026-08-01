@@ -27,6 +27,26 @@
 - **Conservative fallback when meaning is uncertain. · 不确定时保守降级。** AI narration must provide an exact evidence fragment and preserve numbers, negation, targets, and action modality. Unsupported speech is silenced while the one-to-one translated text remains visible in the overlay.<br>AI 播报必须返回可在原文中核对的证据片段，并保留数字、否定、对象与行动状态；校验失败时停止该条语音，但悬浮窗仍保留逐条直译。
 - **Clearer player-first controls and presentation. · 更清楚的玩家优先设置与显示。** Player chat stays translated by default; tactical signals and system categories remain independently optional. The overlay now groups lines by speaker, shows literal translated lines for 7 seconds, and uses refreshed floating-window and Windows icon rendering.<br>队友聊天仍默认翻译；战术信号与各类系统消息保持独立可选。悬浮译文按发言人分组、逐条显示直译并保留 7 秒，同时更新了悬浮窗边缘与 Windows 图标。
 
+### 2026-08-02 Reliability Update · 可靠性更新
+
+- **Timestamp-first parsing. · 时间戳优先解析。** Game time is treated as `minutes:seconds`, including matches beyond 24 minutes, full-width punctuation, no-space forms, and limited OCR damage. The timestamp colon is resolved before any player/content separator.<br>局内时间按“分钟:秒”处理，覆盖 24 分钟后的长局、全角标点、无空格形式和受控 OCR 损坏；先处理时间戳，再寻找玩家正文分隔符。
+- **Deterministic HUD routing. · 固定 HUD 本地分流。** Common ability, summoner-spell, health/mana, item-gold, ward, objective-timer, on-my-way, danger, assist, missing-enemy, and vision messages are handled locally before free-form AI. A bare `champion + R/Q/W/E` remains a marker rather than an invented cooldown/action claim.<br>常见技能、召唤师技能、血量/蓝量、装备金币、守卫、资源倒计时、正在路上、危险、支援、敌人消失和视野消息优先由本地规则处理；只有“英雄 + R/Q/W/E”时保持标记语气，不推断冷却或已使用。
+- **Source-aware speech. · 按来源播报。** Player-authored chat, player-initiated signals, unattributed game signals, and fixed system notices keep separate source labels. Only player-authored chat may use a “player says” framing; the final speech gate rechecks the latest category switches.<br>玩家手动聊天、玩家触发的信号、无发起人的游戏信号和固定系统通知保持不同来源；只有玩家手动聊天会使用“某人说”，最终语音闸门还会按最新开关再次校验。
+- **Lower retained OCR memory. · 降低 OCR 常驻内存。** ONNX Runtime keeps CPU arena reuse while avoiding a fixed memory pattern for variable chat crops.<br>ONNX Runtime 保留 CPU 内存池复用，同时不再为尺寸变化的聊天截图固定内存模式。
+
+#### Same-session replay snapshot · 同会话回放快照
+
+| Metric · 指标 | Before · 优化前 | After · 优化后 | Relative result · 相对变化 |
+| --- | ---: | ---: | ---: |
+| Timestamp-prefix recall · 时间戳前缀召回率 | 3.95% | ~99.2% | +~95.3 percentage points · 约 +95.3 个百分点 |
+| Routing agreement on 141 reviewed lines · 141 条人工核对消息的分类一致率 | 36.88% | 141/141 | +63.12 percentage points · +63.12 个百分点 |
+| Observed bad-speech cases covered · 已观察错误播报保护覆盖 | 0/24 by the new guards · 新保护 0/24 | 24/24 | All observed cases covered · 已覆盖本次全部样例 |
+| OCR process working set · OCR 进程工作集 | 250.28 MB | 183.00 MB | ~27% lower · 约下降 27% |
+| OCR process private memory · OCR 进程私有内存 | 249.67 MB | 165.17 MB | ~34% lower · 约下降 34% |
+| OCR latency P50 · OCR 延迟 P50 | 1064.16 ms | 1051.06 ms | ~1.2% lower; no measured slowdown · 约下降 1.2%，未测得变慢 |
+
+These figures come from replaying the same single real-use session and a same-machine screenshot probe. The 141 labels were manually reviewed; raw captures, chat logs, annotations, replay files, local paths, and FPS/frametime data are deliberately not published. They describe regression progress on this known session, not future-match accuracy, and this pass did not primarily change OCR recognition quality.<br>这些数字来自同一段真实使用会话的前后回放，以及同机同截图探针；141 条分类真值经过人工核对。原始截图、聊天记录、人工标注、回放文件、本机路径与 FPS/帧时间数据均未公开。这些结果只说明对这段已知会话的回归改进，不能外推为未来所有对局的准确率；本轮也并非主要优化 OCR 文字识别本身。
+
 > [!NOTE]
 > 2.0 is still an early personal MVP. The new rules are deliberately conservative, but future LoL client wording, custom localisation, unusual HUD layouts, and OCR noise can still produce unknown cases. Redacted examples are welcome in Issues.
 >
@@ -80,12 +100,13 @@ RiftLens 是一款面向 **LOL 韩服游戏聊天、英雄选择聊天和直播�
 
 | Data · 数据 | Where it goes · 去向 | Persisted? · 是否持久化 |
 | --- | --- | --- |
-| **Screenshots of the selected region**<br>框选区域截图 | In-memory change detection and local PaddleOCR/ONNX Runtime inference, with local Tesseract fallback only.<br>仅本机内存中的变化检测、PaddleOCR/ONNX Runtime 识别及 Tesseract 兜底。 | No · 否 |
+| **Screenshots of the selected region**<br>框选区域截图 | In-memory change detection and local PaddleOCR/ONNX Runtime inference by default. An explicitly started real-evaluation capture can write only these selected-region crops to a user-chosen local folder.<br>默认仅在本机内存中进行变化检测、PaddleOCR/ONNX Runtime 识别及 Tesseract 兜底；只有用户主动开启真实评估记录时，才会把框选区域裁剪图写入所选本机文件夹。 | No by default; yes only after explicit opt-in · 默认否；仅主动开启后保存 |
 | **New OCR text, speaker labels, hero hits & summary preferences**<br>OCR 后的新文字、发言人标签、英雄命中与摘要偏好 | Your configured OpenAI-compatible translation endpoint.<br>用户配置的 OpenAI-compatible 翻译接口。 | Governed by that service's policy.<br>由该服务的政策决定。 |
 | **AI-generated spoken narration text**<br>AI 生成的播报文字 | Microsoft Edge online speech service (when online neural voice is enabled).<br>启用在线神经语音时发送给 Microsoft Edge 在线语音服务。 | RiftLens does not save it.<br>RiftLens 不保存。 |
 | **API Key**<br>API Key | Windows Credential Manager, target name `RiftLens/TranslationApi`.<br>Windows 凭据管理器，目标名 `RiftLens/TranslationApi`。 | Yes, protected by the current Windows user.<br>是，由当前 Windows 用户保护。 |
 | **Other settings & region coordinates**<br>其他设置和区域坐标 | `%LOCALAPPDATA%\RiftLens\settings.json` — excludes the API Key.<br>`%LOCALAPPDATA%\RiftLens\settings.json`，不含 API Key。 | Yes · 是 |
 | **Translation history**<br>翻译历史 | In-memory and on-screen for the current session only.<br>仅当前运行会话的内存与界面。 | Cleared on close.<br>关闭后清除。 |
+| **Redacted diagnostics / real-evaluation records**<br>脱敏诊断 / 真实评估记录 | Written only after the user explicitly exports diagnostics or starts a local evaluation capture; never uploaded automatically.<br>只有用户主动导出诊断或开启本地评估记录时才写入；不会自动上传。 | User-selected local file/folder · 用户选择的本机文件或文件夹 |
 
 Full details in [PRIVACY.md](PRIVACY.md). Using online translation or online speech means relevant text is subject to the corresponding third-party terms of service and privacy policy.
 

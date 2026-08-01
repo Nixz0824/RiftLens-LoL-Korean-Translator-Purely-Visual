@@ -82,7 +82,7 @@ public static partial class PlayerSpeechTextSanitizer
             return string.Empty;
         }
 
-        var result = LeadingTimestampRegex().Replace(text.Trim(), string.Empty);
+        var result = GameTimestampPrefixParser.StripForSpeech(text.Trim());
         var playerName = ExtractPlayerName(turn.SpeakerRaw);
         if (!string.IsNullOrWhiteSpace(playerName))
         {
@@ -115,11 +115,6 @@ public static partial class PlayerSpeechTextSanitizer
             ? speakerRaw[..openBracket].Trim()
             : speakerRaw.Trim();
     }
-
-    [GeneratedRegex(
-        @"^\s*(?:(?:[\[\(]\d{1,2}:\d{2}[\]\)])|(?:\d{1,2}:\d{2}(?=\s)))\s*",
-        RegexOptions.CultureInvariant)]
-    private static partial Regex LeadingTimestampRegex();
 
     [GeneratedRegex(@"\s+", RegexOptions.CultureInvariant)]
     private static partial Regex MultiSpaceRegex();

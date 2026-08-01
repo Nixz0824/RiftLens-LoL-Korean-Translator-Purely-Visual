@@ -63,6 +63,7 @@ internal sealed class WebWorkspace : UserControl
     public int OverlayPlacementIndex { get; set; }
     public string Language { get; set; } = "zh-CN";
     public string ApiKeyText { get; set; } = string.Empty;
+    public bool EvaluationRecording { get; set; }
 
     public WebWorkspace()
     {
@@ -242,6 +243,8 @@ internal sealed class WebWorkspace : UserControl
             "saveApiKey" => SpatialAction.SaveApiKey,
             "showApiHelp" => SpatialAction.ShowApiHelp,
             "clearHistory" => SpatialAction.ClearHistory,
+            "exportDiagnostics" => SpatialAction.ExportDiagnostics,
+            "toggleEvaluationRecording" => SpatialAction.ToggleEvaluationRecording,
             "testSpeech" => SpatialAction.TestSpeech,
             "previewOverlay" => SpatialAction.PreviewOverlay,
             "restoreDefaults" => SpatialAction.RestoreDefaults,
@@ -350,6 +353,7 @@ internal sealed class WebWorkspace : UserControl
                 overlayOpacity = OverlayOpacity,
                 overlayPlacementIndex = OverlayPlacementIndex,
                 language = Language,
+                evaluationRecording = EvaluationRecording,
                 filteredCount = 0,
                 history = _history.ToArray()
             }

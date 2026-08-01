@@ -1,50 +1,63 @@
-using System.Text.RegularExpressions;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace RiftLens.Services;
 
 public sealed partial class MessageDeduplicator
 {
-    private IReadOnlyList<string>? _previousLines;
-    private readonly Queue<string> _recentOrder = new();
-    private readonly HashSet<string> _recent = new(StringComparer.Ordinal);
+    private static readonly TimeSpan RecentFallbackWindow = TimeSpan.FromSeconds(5);
+    private IReadOnlyList<string>? _previousEventKeys;
+    private readonly List<RecentEventKey> _recent = new();
 
-    public IReadOnlyList<string> FindNewLines(string recognizedText)
+    public IReadOnlyList<string> FindNewLines(string recognizedText) =>
+        FindNewLineResults(recognizedText)
+            .Select(line => line.NormalizedText)
+            .ToArray();
+
+    public IReadOnlyList<DeduplicatedMessageLine> FindNewLineResults(string recognizedText)
     {
-        var current = SplitLines(recognizedText);
+        var current = SplitLineResults(recognizedText);
+        var currentKeys = current.Select(line => CreateStableEventKey(line.NormalizedText)).ToArray();
         if (current.Count == 0)
         {
-            _previousLines ??= Array.Empty<string>();
-            return Array.Empty<string>();
+            _previousEventKeys ??= Array.Empty<string>();
+            return Array.Empty<DeduplicatedMessageLine>();
         }
 
-        if (_previousLines is null)
+        var observedAt = DateTimeOffset.UtcNow;
+        if (_previousEventKeys is null)
         {
-            _previousLines = current;
-            Remember(current);
-            return Array.Empty<string>();
+            _previousEventKeys = currentKeys;
+            Remember(currentKeys, observedAt);
+            return Array.Empty<DeduplicatedMessageLine>();
         }
 
-        var overlap = FindLargestOverlap(_previousLines, current);
-        var candidates = overlap > 0 ? current.Skip(overlap) : current.Where(line => !_recent.Contains(line));
-        var result = candidates.Where(line => !_recent.Contains(line)).ToArray();
-        _previousLines = current;
-        Remember(current);
+        var overlap = FindLargestOverlap(_previousEventKeys, currentKeys);
+        var candidates = overlap > 0
+            ? current.Skip(overlap)
+            : current.Where((_, index) => !WasRecentlySeen(currentKeys[index], observedAt));
+        var result = candidates.ToArray();
+        _previousEventKeys = currentKeys;
+        Remember(currentKeys, observedAt);
         return result;
     }
 
     public void Reset()
     {
-        _previousLines = null;
+        _previousEventKeys = null;
         _recent.Clear();
-        _recentOrder.Clear();
     }
 
-    public static IReadOnlyList<string> SplitLines(string text) => text
+    public static IReadOnlyList<string> SplitLines(string text) =>
+        SplitLineResults(text)
+            .Select(line => line.NormalizedText)
+            .ToArray();
+
+    private static IReadOnlyList<DeduplicatedMessageLine> SplitLineResults(string text) => text
         .Replace("\r", string.Empty, StringComparison.Ordinal)
         .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-        .Select(Normalize)
-        .Where(line => line.Length >= 2)
+        .Select(CreateLineResult)
+        .Where(line => line.NormalizedText.Length >= 2)
         .ToArray();
 
     private static int FindLargestOverlap(IReadOnlyList<string> previous, IReadOnlyList<string> current)
@@ -55,7 +68,9 @@ public sealed partial class MessageDeduplicator
             var matches = true;
             for (var index = 0; index < length; index++)
             {
-                if (!string.Equals(previous[previous.Count - length + index], current[index], StringComparison.Ordinal))
+                if (!AreEquivalentEventKeys(
+                        previous[previous.Count - length + index],
+                        current[index]))
                 {
                     matches = false;
                     break;
@@ -71,29 +86,96 @@ public sealed partial class MessageDeduplicator
         return 0;
     }
 
-    private void Remember(IEnumerable<string> lines)
+    private bool WasRecentlySeen(string eventKey, DateTimeOffset observedAt)
     {
-        foreach (var line in lines)
+        PruneRecent(observedAt);
+        return _recent.Any(item => AreEquivalentEventKeys(item.Key, eventKey));
+    }
+
+    private void Remember(IEnumerable<string> eventKeys, DateTimeOffset observedAt)
+    {
+        PruneRecent(observedAt);
+        foreach (var eventKey in eventKeys)
         {
-            if (!_recent.Add(line))
+            var existingIndex = _recent.FindIndex(item =>
+                AreEquivalentEventKeys(item.Key, eventKey));
+            if (existingIndex >= 0)
             {
+                _recent[existingIndex] = new RecentEventKey(eventKey, observedAt);
                 continue;
             }
 
-            _recentOrder.Enqueue(line);
-            while (_recentOrder.Count > 160)
-            {
-                _recent.Remove(_recentOrder.Dequeue());
-            }
+            _recent.Add(new RecentEventKey(eventKey, observedAt));
+        }
+
+        while (_recent.Count > 80)
+        {
+            _recent.RemoveAt(0);
         }
     }
 
-    private static string Normalize(string value)
+    private void PruneRecent(DateTimeOffset observedAt) =>
+        _recent.RemoveAll(item => observedAt - item.ObservedAt > RecentFallbackWindow);
+
+    private static string CreateStableEventKey(string value)
     {
-        var trimmed = StripGameTimestamp(value.Trim());
-        return MultiSpaceRegex()
-            .Replace(trimmed, " ")
+        var normalized = value.Normalize(NormalizationForm.FormKC).ToUpperInvariant();
+        var builder = new StringBuilder(normalized.Length);
+        foreach (var character in normalized)
+        {
+            if (char.IsLetterOrDigit(character))
+            {
+                builder.Append(character);
+            }
+        }
+        return builder.ToString();
+    }
+
+    private static bool AreEquivalentEventKeys(string left, string right)
+    {
+        if (string.Equals(left, right, StringComparison.Ordinal))
+        {
+            return true;
+        }
+        if (Math.Min(left.Length, right.Length) < 10
+            || Math.Abs(left.Length - right.Length) > 2)
+        {
+            return false;
+        }
+
+        var maximumDistance = Math.Max(1, Math.Min(2, Math.Max(left.Length, right.Length) / 24));
+        var previous = Enumerable.Range(0, right.Length + 1).ToArray();
+        for (var row = 1; row <= left.Length; row++)
+        {
+            var current = new int[right.Length + 1];
+            current[0] = row;
+            var rowMinimum = current[0];
+            for (var column = 1; column <= right.Length; column++)
+            {
+                var substitution = previous[column - 1]
+                    + (left[row - 1] == right[column - 1] ? 0 : 1);
+                current[column] = Math.Min(
+                    Math.Min(previous[column] + 1, current[column - 1] + 1),
+                    substitution);
+                rowMinimum = Math.Min(rowMinimum, current[column]);
+            }
+            if (rowMinimum > maximumDistance)
+            {
+                return false;
+            }
+            previous = current;
+        }
+        return previous[right.Length] <= maximumDistance;
+    }
+
+    private static DeduplicatedMessageLine CreateLineResult(string value)
+    {
+        var raw = value.Trim();
+        var timestamp = GameTimestampPrefixParser.Parse(raw);
+        var normalized = MultiSpaceRegex()
+            .Replace(timestamp.TextWithoutTimestamp, " ")
             .Normalize(NormalizationForm.FormKC);
+        return new DeduplicatedMessageLine(raw, normalized, timestamp);
     }
 
     /// <summary>
@@ -102,21 +184,16 @@ public sealed partial class MessageDeduplicator
     /// </summary>
     public static string StripGameTimestamp(string line)
     {
-        if (string.IsNullOrWhiteSpace(line)) return line;
-
-        // [12:34] 或 (12:34) — 可能出现在行首，可选后面跟着 [팀]/[전체]/[파티]
-        var result = TimeBracketRegex().Replace(line, string.Empty, 1);
-        // 纯数字时间戳 12:34 在行首（较少见但也可能）
-        result = PlainTimeRegex().Replace(result, string.Empty, 1);
-        return result.TrimStart();
+        return GameTimestampPrefixParser.Strip(line);
     }
-
-    [GeneratedRegex(@"^[\[\(]\d{1,2}:\d{2}[\]\)]\s*", RegexOptions.CultureInvariant)]
-    private static partial Regex TimeBracketRegex();
-
-    [GeneratedRegex(@"^\d{1,2}:\d{2}\s+", RegexOptions.CultureInvariant)]
-    private static partial Regex PlainTimeRegex();
 
     [GeneratedRegex("\\s+")]
     private static partial Regex MultiSpaceRegex();
+
+    private sealed record RecentEventKey(string Key, DateTimeOffset ObservedAt);
 }
+
+public sealed record DeduplicatedMessageLine(
+    string RawText,
+    string NormalizedText,
+    GameTimestampParseResult Timestamp);

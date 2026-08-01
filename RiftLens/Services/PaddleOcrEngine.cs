@@ -577,8 +577,10 @@ internal sealed class PaddleOcrEngine : IDisposable
             GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL,
             IntraOpNumThreads = 1,
             InterOpNumThreads = 1,
+            // Keep the CPU arena for low-latency reuse, but do not retain a fixed
+            // memory pattern for three models whose chat-line widths vary heavily.
             EnableCpuMemArena = true,
-            EnableMemoryPattern = true,
+            EnableMemoryPattern = false,
             LogSeverityLevel = OrtLoggingLevel.ORT_LOGGING_LEVEL_ERROR
         };
     }

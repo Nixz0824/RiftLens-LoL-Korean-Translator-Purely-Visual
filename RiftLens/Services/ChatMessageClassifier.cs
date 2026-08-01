@@ -11,23 +11,6 @@ namespace RiftLens.Services;
 /// </summary>
 public sealed partial class ChatMessageClassifier
 {
-    private static readonly string[] ClientReminderFragments =
-    {
-        "플레이 시간", "장시간 게임", "휴식을 취", "건강", "청소년",
-        "连续游戏", "游戏时间", "适当休息", "健康游戏", "防沉迷",
-        "play time", "take a break", "healthy gaming", "wellness"
-    };
-
-    private static readonly string[] OtherSystemFragments =
-    {
-        "[시스템]", "게임에서 나갔", "게임에 참가했", "재접속했",
-        "항복 투표", "항복에 찬성", "항복에 반대", "서버 점검",
-        "[系统]", "重新连接", "重新连入", "离开了游戏", "加入了游戏",
-        "发起了投降", "同意投降", "赞成投降", "服务器",
-        "[system]", "reconnected", "left the game", "joined the game",
-        "surrender vote", "server maintenance"
-    };
-
     public ClassifiedGameMessage Classify(
         string line,
         OcrColorEvidence? colorEvidence = null)
@@ -68,7 +51,8 @@ public sealed partial class ChatMessageClassifier
         // remaining "name: content" form before keyword checks only when the
         // LoL cyan-metadata + neutral-content palette supports player chat.
         // Reserved system labels can never pass this path.
-        if (colorEvidence?.SupportsPlayerChat == true)
+        if (colorEvidence?.SupportsPlayerChat == true
+            && !GameTimestampPrefixParser.StartsWithTimestampLikePrefix(normalized))
         {
             var colorBackedPlayer = ColorBackedPlayerRegex().Match(normalized);
             if (colorBackedPlayer.Success
@@ -80,20 +64,42 @@ public sealed partial class ChatMessageClassifier
 
         if (GameSemanticEventParser.TryParseSystemFeed(normalized, out var semanticEvent))
         {
+            TryReadGeneratedFeedSpeaker(
+                normalized,
+                out var speakerKey,
+                out var speakerRaw,
+                out var speakerHeroRaw);
             return new ClassifiedGameMessage(
                 GameMessageKind.TacticalSignal,
                 normalized,
                 normalized,
+                SpeakerKey: speakerKey,
+                SpeakerRaw: speakerRaw,
                 TacticalSummary: GameSemanticEventParser.Format(
                     semanticEvent,
-                    "队友",
+                    string.Empty,
                     AppLanguage.Chinese),
                 Priority: GameSemanticEventParser.Priority(semanticEvent),
                 ColorEvidence: colorEvidence,
-                SemanticEvent: semanticEvent);
+                SpeakerHeroRaw: speakerHeroRaw,
+                SemanticEvent: semanticEvent,
+                ClassificationConfidence: semanticEvent.Confidence);
         }
 
-        var tacticalSummary = SignalMessageTemplates.TryTranslateSignal(normalized);
+        if (SystemMessageCatalog.TryClassify(
+                normalized,
+                out var kind,
+                out var priority,
+                out var systemEvent))
+        {
+            return SystemMessage(kind, normalized, priority, colorEvidence, systemEvent);
+        }
+
+        // Keep the legacy template fallback only for an explicit "Signal:" frame.
+        // Broad terms such as gg/help/dragon are player language, not proof of a Ping.
+        var tacticalSummary = SignalMessageTemplates.IsExplicitSignalMessage(normalized)
+            ? SignalMessageTemplates.TryTranslateSignal(normalized)
+            : null;
         if (!string.IsNullOrWhiteSpace(tacticalSummary))
         {
             return new ClassifiedGameMessage(
@@ -102,32 +108,8 @@ public sealed partial class ChatMessageClassifier
                 normalized,
                 TacticalSummary: tacticalSummary,
                 Priority: GetSignalPriority(tacticalSummary),
-                ColorEvidence: colorEvidence);
-        }
-
-        if (ObjectiveEventRegex().IsMatch(normalized))
-        {
-            return SystemMessage(GameMessageKind.ObjectiveEvent, normalized, 2, colorEvidence);
-        }
-
-        if (KillEventRegex().IsMatch(normalized))
-        {
-            return SystemMessage(GameMessageKind.KillEvent, normalized, 1, colorEvidence);
-        }
-
-        if (ClientReminderFragments.Any(fragment =>
-                normalized.Contains(fragment, StringComparison.OrdinalIgnoreCase))
-            || ClientReminderRegex().IsMatch(normalized))
-        {
-            return SystemMessage(GameMessageKind.ClientReminder, normalized, 1, colorEvidence);
-        }
-
-        if (OtherSystemFragments.Any(fragment =>
-                normalized.Contains(fragment, StringComparison.OrdinalIgnoreCase))
-            || SystemPrefixRegex().IsMatch(normalized)
-            || OtherSystemEventRegex().IsMatch(normalized))
-        {
-            return SystemMessage(GameMessageKind.OtherSystemEvent, normalized, 1, colorEvidence);
+                ColorEvidence: colorEvidence,
+                ClassificationConfidence: 0.9);
         }
 
         return Unknown(normalized, colorEvidence);
@@ -179,7 +161,8 @@ public sealed partial class ChatMessageClassifier
             speakerRaw,
             Priority: 3,
             ColorEvidence: colorEvidence,
-            SpeakerHeroRaw: hero);
+            SpeakerHeroRaw: hero,
+            ClassificationConfidence: includeHero ? 1 : 0.98);
     }
 
     private static bool TryPlayerFeed(
@@ -217,7 +200,8 @@ public sealed partial class ChatMessageClassifier
             Priority: GameSemanticEventParser.Priority(semanticEvent),
             ColorEvidence: colorEvidence,
             SpeakerHeroRaw: hero,
-            SemanticEvent: semanticEvent);
+            SemanticEvent: semanticEvent,
+            ClassificationConfidence: semanticEvent.Confidence);
         return true;
     }
 
@@ -225,13 +209,26 @@ public sealed partial class ChatMessageClassifier
         GameMessageKind kind,
         string normalized,
         int priority,
-        OcrColorEvidence? colorEvidence) =>
-        new(kind, normalized, normalized, Priority: priority, ColorEvidence: colorEvidence);
+        OcrColorEvidence? colorEvidence,
+        GameSystemEvent systemEvent) =>
+        new(
+            kind,
+            normalized,
+            normalized,
+            Priority: priority,
+            ColorEvidence: colorEvidence,
+            SystemEvent: systemEvent,
+            ClassificationConfidence: systemEvent.Confidence);
 
     private static ClassifiedGameMessage Unknown(
         string line,
         OcrColorEvidence? colorEvidence) =>
-        new(GameMessageKind.Unknown, line, line, ColorEvidence: colorEvidence);
+        new(
+            GameMessageKind.Unknown,
+            line,
+            line,
+            ColorEvidence: colorEvidence,
+            ClassificationConfidence: colorEvidence?.SupportsSystemEvent == true ? 0.45 : 0.2);
 
     private static bool IsReservedSpeaker(string speaker)
     {
@@ -252,16 +249,42 @@ public sealed partial class ChatMessageClassifier
             ? 2
             : 1;
 
+    private static bool TryReadGeneratedFeedSpeaker(
+        string normalized,
+        out string speakerKey,
+        out string speakerRaw,
+        out string speakerHeroRaw)
+    {
+        var match = GeneratedFeedSpeakerRegex().Match(normalized);
+        if (!match.Success)
+        {
+            speakerKey = string.Empty;
+            speakerRaw = string.Empty;
+            speakerHeroRaw = string.Empty;
+            return false;
+        }
+
+        var speaker = match.Groups["speaker"].Value.Trim();
+        speakerHeroRaw = match.Groups["hero"].Value.Trim();
+        speakerKey = Regex.Replace(speaker, @"\s+", string.Empty)
+            .Normalize(NormalizationForm.FormKC)
+            .ToUpperInvariant();
+        speakerRaw = string.IsNullOrWhiteSpace(speakerHeroRaw)
+            ? speaker
+            : $"{speaker} ({speakerHeroRaw})";
+        return !string.IsNullOrWhiteSpace(speakerKey);
+    }
+
     [GeneratedRegex(
         @"^\s*(?:\[(?:팀|전체|파티|所有人|队伍|团队|组队|All|Team|Party)\]\s*)?"
         + @"(?<speaker>[^:：\r\n\(\[（]{1,64}?)\s*[\(\[（]\s*"
-        + @"(?<hero>[^:：\r\n\)\]）]{1,36})\s*[\)\]）]\s*[:：]\s*(?<content>\S.*)$",
+        + @"(?<hero>[^:：\r\n\)\]）]{1,36})\s*[\)\]）]\s*[:：·•]\s*(?<content>\S.*)$",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex PlayerWithHeroRegex();
 
     [GeneratedRegex(
         @"^\s*\[(?:팀|전체|파티|所有人|队伍|团队|组队|All|Team|Party)\]\s*"
-        + @"(?<speaker>[^:：\]\r\n]{1,64})[:：]\s*(?<content>\S.*)$",
+        + @"(?<speaker>[^:：\]\r\n]{1,64})[:：·•]\s*(?<content>\S.*)$",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex ChannelPlayerRegex();
 
@@ -271,37 +294,8 @@ public sealed partial class ChatMessageClassifier
     private static partial Regex ColorBackedPlayerRegex();
 
     [GeneratedRegex(
-        @"(?:더블\s*킬|트리플\s*킬|쿼드라\s*킬|펜타\s*킬|연속\s*킬|킬을\s*달성)"
-        + @"|(?:[^:：]{1,48})(?:이|가)\s*(?:[^:：]{1,48})(?:을|를)\s*처치"
-        + @"|(?:击杀了|被击杀|双杀|三杀|四杀|五杀|大杀特杀|主宰比赛|超神|终结了|已被终结)"
-        + @"|(?:has slain|was slain|double kill|triple kill|quadra kill|penta kill|killing spree)",
+        @"^\s*(?<speaker>[^\(\[（]{1,64})\s*[\(\[（]\s*(?<hero>[^\)\]）]{1,36})[\)\]）]\s*님?\s*(?:이|가)?(?:\s|(?=[\p{L}]))",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
-    private static partial Regex KillEventRegex();
+    private static partial Regex GeneratedFeedSpeakerRegex();
 
-    [GeneratedRegex(
-        @"(?:(?:드래곤|용|내셔\s*남작|바론|협곡의\s*전령|전령|공허\s*유충|유충|아타칸).*(?:생성|등장|부활|처치|사냥|곧|초\s*후))"
-        + @"|(?:(?:巨龙|小龙|元素龙|远古龙|男爵|峡谷先锋|虚空巢虫|巢虫|阿塔坎).*(?:刷新|复活|生成|出现|击杀|消灭|秒后))"
-        + @"|(?:(?:dragon|drake|baron|nashor|rift herald|void grub|atakhan).*(?:spawn|respawn|slain|killed|seconds?))",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
-    private static partial Regex ObjectiveEventRegex();
-
-    [GeneratedRegex(
-        @"(?:게임|플레이).*(?:시간|휴식|건강)"
-        + @"|(?:游戏|游玩).*(?:时间|小时|休息|健康|防沉迷)"
-        + @"|(?:play|gaming).*(?:hours?|break|healthy|wellness)",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
-    private static partial Regex ClientReminderRegex();
-
-    [GeneratedRegex(
-        @"(?:포탑|억제기).*(?:파괴|무너)|(?:摧毁了|被摧毁|防御塔|兵营|水晶)"
-        + @"|(?:게임에서\s*나갔|게임에\s*참가했|재접속했|서버\s*(?:연결|상태|점검))"
-        + @"|(?:重新连接|重新连入|离开了游戏|加入了游戏|服务器|网络连接)"
-        + @"|(?:left the game|joined the game|reconnect|server|network connection)",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
-    private static partial Regex OtherSystemEventRegex();
-
-    [GeneratedRegex(
-        @"^\s*(?:\[(?:시스템|系统|SYSTEM)\]|(?:시스템|알림|안내|공지|系统|通知|提示|SYSTEM|NOTICE)\s*[:：])",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
-    private static partial Regex SystemPrefixRegex();
 }

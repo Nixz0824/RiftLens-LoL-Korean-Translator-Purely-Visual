@@ -11,6 +11,8 @@ public sealed class MainForm : Form
     private readonly TranslationOverlayForm _overlay = new();
     private readonly OverlayControlForm _overlayControl = new();
     private readonly NaturalSpeechService _speech = new();
+    private readonly DiagnosticSessionRecorder _diagnostics = new();
+    private RealEvaluationSessionRecorder? _evaluationSession;
     private readonly System.Windows.Forms.Timer _volumeSaveTimer = new() { Interval = 500 };
     private readonly NotifyIcon _trayIcon;
     private readonly WebWorkspace _workspace = new();
@@ -88,9 +90,9 @@ public sealed class MainForm : Form
     private readonly CheckBox _minimizeAfterStart = CheckInput("开始后隐藏到系统托盘");
     private readonly CheckBox _tacticalSignals = CheckInput("战术信号（撤退、支援、危险）");
     private readonly CheckBox _killEvents = CheckInput("击杀播报");
-    private readonly CheckBox _objectiveEvents = CheckInput("中立资源刷新与击杀提醒");
+    private readonly CheckBox _objectiveEvents = CheckInput("地图资源与建筑提醒");
     private readonly CheckBox _clientReminders = CheckInput("防沉迷与客户端提醒");
-    private readonly CheckBox _otherSystemEvents = CheckInput("其他系统通知");
+    private readonly CheckBox _otherSystemEvents = CheckInput("对局流程与系统通知");
     private readonly TextBox _activity = new()
     {
         Multiline = true,
@@ -226,7 +228,14 @@ public sealed class MainForm : Form
                 break;
             case SpatialAction.ClearHistory:
                 _workspace.ClearHistory();
+                _diagnostics.Reset();
                 SetStatus(L("本次会话的翻译记录已清空。", "Translation history for this session was cleared."));
+                break;
+            case SpatialAction.ExportDiagnostics:
+                await ExportDiagnosticsAsync();
+                break;
+            case SpatialAction.ToggleEvaluationRecording:
+                await ToggleEvaluationRecordingAsync();
                 break;
             case SpatialAction.TestSpeech:
                 TestSpeech();
@@ -1243,9 +1252,9 @@ public sealed class MainForm : Form
             ("玩家聊天播报", _speechFilter),
             ("战术信号", _tacticalSignals),
             ("击杀播报", _killEvents),
-            ("中立资源", _objectiveEvents),
+            ("地图资源与建筑", _objectiveEvents),
             ("客户端提醒", _clientReminders),
-            ("其他系统通知", _otherSystemEvents),
+            ("对局流程与系统", _otherSystemEvents),
             ("运行习惯", _minimizeAfterStart),
             ("语音操作", ActionRow(("试听晓晓", new Action(TestSpeech)), ("立即静音", new Action(() => _speech.Clear())))));
         speechSettings.Dock = DockStyle.Top;
@@ -1684,8 +1693,27 @@ public sealed class MainForm : Form
                 _settings.ApiModel,
                 key);
             _coordinator = new CaptureCoordinator(_settings, _heroes, translator);
+            _coordinator.EvaluationCaptureEnabled = _evaluationSession?.IsRecording == true;
+            _diagnostics.Reset();
             _coordinator.StatusChanged += message => SafeUi(() => SetStatus(message));
             _coordinator.OcrRecognized += batch => SafeUi(() => Log("OCR", string.Join(" / ", batch.NewLines)));
+            _coordinator.DiagnosticObserved += observation =>
+            {
+                _diagnostics.RecordClassification(observation);
+                _evaluationSession?.RecordClassification(observation);
+            };
+            _coordinator.EvaluationFrameObserved += observation =>
+            {
+                var session = _evaluationSession;
+                if (session?.IsRecording == true)
+                {
+                    session.RecordFrame(observation);
+                }
+                else
+                {
+                    observation.Screenshot.Dispose();
+                }
+            };
             _coordinator.TranslationReady += result => SafeUi(() => HandleTranslation(result));
             _coordinator.Start();
             _overlayControl.SetPaused(false);
@@ -1720,6 +1748,7 @@ public sealed class MainForm : Form
 
         await _coordinator.DisposeAsync();
         _coordinator = null;
+        await StopEvaluationRecordingAsync(showCompletionDialog: true);
         _speech.Clear();
         _overlay.HideImmediately();
         _overlayControl.Hide();
@@ -1812,13 +1841,19 @@ public sealed class MainForm : Form
 
     private void HandleTranslation(TranslationResult result)
     {
+        var shouldSpeakNow = FinalSpeechPolicy.ShouldSpeak(result, _settings);
+        var shouldQueueSpeech = shouldSpeakNow
+            && _settings.OutputMode is OutputMode.VoiceOnly or OutputMode.OverlayAndVoice;
+        result.ShouldSpeak = shouldSpeakNow;
+        _diagnostics.RecordOutput(result, shouldQueueSpeech);
+        _evaluationSession?.RecordOutput(result, shouldQueueSpeech);
         Log("翻译", $"[{result.Speaker}] {result.DisplayTranslation}");
         SafeUi(() => AddHistoryRecord(result));
         if (_settings.OutputMode is OutputMode.OverlayOnly or OutputMode.OverlayAndVoice)
         {
             _ = ShowOverlaySafelyAsync(result);
         }
-        if ((_settings.OutputMode is OutputMode.VoiceOnly or OutputMode.OverlayAndVoice) && result.ShouldSpeak)
+        if (shouldQueueSpeech)
         {
             _speech.Enqueue(
                 result.SpokenSummary,
@@ -1829,7 +1864,163 @@ public sealed class MainForm : Form
                 result.SourceKind is TranslationSourceKind.TacticalSignal
                     or TranslationSourceKind.SystemMessage,
                 _settings.Language,
-                result.Priority);
+                result.Priority,
+                () => FinalSpeechPolicy.ShouldSpeak(result, _settings)
+                    && _settings.OutputMode is OutputMode.VoiceOnly or OutputMode.OverlayAndVoice);
+        }
+    }
+
+    private async Task ExportDiagnosticsAsync()
+    {
+        if (_diagnostics.Count == 0)
+        {
+            SetStatus(L(
+                "当前还没有可导出的诊断记录，请先运行一段时间。",
+                "There is no diagnostic trace to export yet. Run RiftLens for a while first."));
+            return;
+        }
+
+        using var dialog = new SaveFileDialog
+        {
+            Title = L("导出 RiftLens 脱敏诊断记录", "Export redacted RiftLens diagnostics"),
+            Filter = "JSON (*.json)|*.json",
+            DefaultExt = "json",
+            AddExtension = true,
+            FileName = $"RiftLens-diagnostics-{DateTime.Now:yyyyMMdd-HHmmss}.json",
+            OverwritePrompt = true
+        };
+        if (dialog.ShowDialog(this) != DialogResult.OK)
+        {
+            return;
+        }
+
+        try
+        {
+            await _diagnostics.ExportAsync(dialog.FileName);
+            SetStatus(L(
+                "脱敏诊断记录已导出；不含截图、API Key 或原始玩家 ID。",
+                "Redacted diagnostics exported without screenshots, API keys, or original player IDs."));
+        }
+        catch (Exception exception)
+        {
+            SetStatus(L(
+                "导出诊断记录失败：",
+                "Failed to export diagnostics: ") + exception.Message);
+        }
+    }
+
+    private async Task ToggleEvaluationRecordingAsync()
+    {
+        if (_evaluationSession is not null)
+        {
+            await StopEvaluationRecordingAsync(showCompletionDialog: true);
+            return;
+        }
+
+        ReadControlsIntoSettings();
+        if (!_settings.CaptureRegion.IsValid)
+        {
+            SetStatus(L(
+                "请先框选聊天识别区域，再开始真实评估记录。",
+                "Select the chat recognition region before starting a real evaluation capture."));
+            ShowPage("home");
+            return;
+        }
+
+        var warning = L(
+            "真实评估需要保存你框选聊天区域的原始截图，才能人工核对 OCR 错字和漏识别。\n\n"
+            + "截图与文字可能包含玩家昵称和聊天内容；记录只写入你选择的本机文件夹，不会自动上传，也不会包含 API Key。分享前必须人工检查并脱敏。\n\n"
+            + "是否继续？",
+            "A real evaluation must save original screenshots of your selected chat region so OCR errors and misses can be annotated.\n\n"
+            + "Screenshots and text may contain player names and chat. The capture is written only to a local folder you choose, is never uploaded automatically, and never contains your API key. Review and redact it before sharing.\n\n"
+            + "Continue?");
+        if (MessageBox.Show(
+                this,
+                warning,
+                L("开始真实评估记录", "Start real evaluation capture"),
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning,
+                MessageBoxDefaultButton.Button2) != DialogResult.Yes)
+        {
+            return;
+        }
+
+        using var dialog = new FolderBrowserDialog
+        {
+            Description = L(
+                "选择用于保存真实评估记录的本机文件夹",
+                "Choose a local folder for the real evaluation capture"),
+            UseDescriptionForTitle = true,
+            ShowNewFolderButton = true
+        };
+        if (dialog.ShowDialog(this) != DialogResult.OK
+            || string.IsNullOrWhiteSpace(dialog.SelectedPath))
+        {
+            return;
+        }
+
+        try
+        {
+            _evaluationSession = await RealEvaluationSessionRecorder.StartAsync(
+                dialog.SelectedPath,
+                _settings,
+                Application.ProductVersion);
+            if (_coordinator is not null)
+            {
+                _coordinator.EvaluationCaptureEnabled = true;
+            }
+            _workspace.EvaluationRecording = true;
+            _workspace.Invalidate();
+            SetStatus(L(
+                "真实评估记录已开启；正在本地保存框选区域截图和实际处理结果。",
+                "Real evaluation capture is active. Selected-region screenshots and actual processing results are being saved locally."));
+        }
+        catch (Exception exception)
+        {
+            SetStatus(L(
+                "无法开始真实评估记录：",
+                "Unable to start real evaluation capture: ") + exception.Message);
+        }
+    }
+
+    private async Task StopEvaluationRecordingAsync(bool showCompletionDialog)
+    {
+        var session = Interlocked.Exchange(ref _evaluationSession, null);
+        if (_coordinator is not null)
+        {
+            _coordinator.EvaluationCaptureEnabled = false;
+        }
+        _workspace.EvaluationRecording = false;
+        _workspace.Invalidate();
+        if (session is null)
+        {
+            return;
+        }
+
+        var path = session.SessionDirectory;
+        try
+        {
+            await session.CompleteAsync();
+            SetStatus(L(
+                "真实评估记录已完成并保存在所选文件夹。",
+                "Real evaluation capture completed and was saved in the selected folder."));
+            if (showCompletionDialog && !_exiting)
+            {
+                MessageBox.Show(
+                    this,
+                    L(
+                        "真实评估记录已安全收尾。请保留整个文件夹，之后交给 Codex 进行人工标注和重新评估。\n\n保存位置：",
+                        "The real evaluation capture was finalized. Keep the entire folder for later annotation and evaluation with Codex.\n\nSaved at: ") + path,
+                    L("评估记录已保存", "Evaluation capture saved"),
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+            }
+        }
+        catch (Exception exception)
+        {
+            SetStatus(L(
+                "真实评估记录收尾失败：",
+                "Failed to finalize the real evaluation capture: ") + exception.Message);
         }
     }
 
@@ -1865,10 +2056,11 @@ public sealed class MainForm : Form
                 TranslationSourceKind.SystemMessage when result.Intent == "kill_event" =>
                     L("击杀播报", "Kill feed"),
                 TranslationSourceKind.SystemMessage when result.Intent == "objective_event" =>
-                    L("中立资源", "Objective"),
+                    L("地图资源与建筑", "Map objective & structure"),
                 TranslationSourceKind.SystemMessage when result.Intent == "client_reminder" =>
                     L("客户端提醒", "Client reminder"),
                 TranslationSourceKind.SystemMessage => L("系统通知", "System notice"),
+                TranslationSourceKind.Unknown => L("未分类 · 仅显示", "Unclassified · Display only"),
                 _ => string.Empty
             }));
 
@@ -2329,6 +2521,17 @@ public sealed class MainForm : Form
         _overlay.HideImmediately();
         _overlayControl.Hide();
         _coordinator?.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        var evaluationSession = Interlocked.Exchange(ref _evaluationSession, null);
+        if (evaluationSession is not null)
+        {
+            try
+            {
+                evaluationSession.CompleteAsync().GetAwaiter().GetResult();
+            }
+            catch
+            {
+            }
+        }
         if (_volumeSaveTimer.Enabled)
         {
             _volumeSaveTimer.Stop();

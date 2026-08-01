@@ -297,6 +297,7 @@ public static class GameTermGlossary
 
         // Summoner-spell shorthand and cooldown calls
         new("闪现", "Flash", "점멸", "플", "闪现", "Flash"),
+        new("解封的传送", "Unleashed Teleport", "강력 순간이동", "강력순간이동", "解封的传送", "Unleashed Teleport"),
         new("传送", "Teleport", "순간이동", "텔레포트", "텔포", "텔", "传送", "Teleport", "TP"),
         new("引燃", "Ignite", "점화", "点燃", "引燃", "Ignite"),
         new("治疗术", "Heal", "회복", "힐", "治疗", "治疗术", "Heal"),
@@ -312,13 +313,15 @@ public static class GameTermGlossary
         new("召唤师技能", "summoner spell", "스펠", "召唤师技能", "summoner spell"),
         new("终极技能", "ultimate", "궁극기", "궁", "大招", "终极技能", "ultimate", "ult"),
         new("被动技能", "passive", "패시브", "被动", "被动技能", "passive"),
-        new("冷却时间", "cooldown", "쿨타임", "쿨", "冷却", "冷却时间", "CD", "cooldown"),
+        new("冷却时间", "cooldown", "대기시간", "대기 시간", "쿨타임", "쿨", "冷却", "冷却时间", "CD", "cooldown"),
         new("控制", "crowd control", "군중 제어", "씨씨", "控制", "CC", "crowd control"),
         new("伤害", "damage", "딜", "伤害", "damage", "dmg"),
         new("坦度", "tankiness", "탱", "坦度", "tankiness"),
         new("仇恨", "aggro", "어그로", "仇恨", "aggro"),
         new("经验值", "experience", "경험치", "经验", "经验值", "experience", "XP"),
         new("金币", "gold", "골드", "金币", "gold"),
+        new("蓝量", "mana", "마나", "蓝量", "法力", "法力值", "mana"),
+        new("生命值", "health", "체력", "生命值", "血量", "health", "HP"),
         new("等级", "level", "레벨", "等级", "level", "lvl"),
         new("补刀", "CS", "CS", "cs", "补刀", "CS"),
         new("小兵", "minion", "미니언", "小兵", "minion"),
@@ -326,7 +329,7 @@ public static class GameTermGlossary
         new("兵线", "wave", "웨이브", "兵线", "wave"),
         new("视野", "vision", "시야", "视野", "vision"),
         new("侦查守卫", "ward", "와드", "眼", "侦查守卫", "ward"),
-        new("控制守卫", "Control Ward", "제어 와드", "핑와", "真眼", "控制守卫", "Control Ward", "pink ward"),
+        new("控制守卫", "Control Ward", "제어 와드", "제어와드", "핑와", "真眼", "控制守卫", "Control Ward", "pink ward"),
         new("神谕透镜", "Oracle Lens", "렌즈", "扫描", "神谕透镜", "Oracle Lens", "sweeper"),
         new("草丛", "brush", "부쉬", "수풀", "草丛", "brush", "bush"),
 

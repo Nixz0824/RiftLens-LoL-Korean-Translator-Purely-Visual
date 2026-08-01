@@ -25,6 +25,26 @@
 - **Conservative fallback.** AI narration must return an exact source-text evidence fragment and preserve numbers, negation, targets, and action modality. Unsupported speech is silenced while the one-to-one literal translation remains visible.
 - **Clearer player-first output.** Player chat is translated by default; tactical pings and system categories remain independently optional. Overlay lines are grouped by speaker, show literal translations for seven seconds, and use refreshed floating-window and Windows icon rendering.
 
+### 2026-08-02 reliability update
+
+- **Timestamp-first parsing.** Game time is treated as `minutes:seconds`, including matches beyond 24 minutes, full-width punctuation, no-space forms, and limited OCR damage. The timestamp colon is resolved before any player/content separator.
+- **Deterministic HUD routing.** Common ability, summoner-spell, health/mana, item-gold, ward, objective-timer, on-my-way, danger, assist, missing-enemy, and vision messages are handled locally before free-form AI. A bare `champion + R/Q/W/E` remains a marker instead of becoming an invented cooldown/action claim.
+- **Source-aware speech.** Player-authored chat, player-initiated signals, unattributed game signals, and fixed system notices keep separate source labels. Only player-authored chat may use a “player says” framing, and the final speech gate rechecks the latest category switches.
+- **Lower retained OCR memory.** ONNX Runtime keeps CPU arena reuse while avoiding a fixed memory pattern for variable chat crops.
+
+#### Same-session replay snapshot
+
+| Metric | Before | After | Relative result |
+| --- | ---: | ---: | ---: |
+| Timestamp-prefix recall | 3.95% | ~99.2% | +~95.3 percentage points |
+| Routing agreement on 141 manually reviewed lines | 36.88% | 141/141 | +63.12 percentage points |
+| Observed bad-speech cases covered by the new guards | 0/24 | 24/24 | All observed cases covered |
+| OCR process working set | 250.28 MB | 183.00 MB | ~27% lower |
+| OCR process private memory | 249.67 MB | 165.17 MB | ~34% lower |
+| OCR latency P50 | 1064.16 ms | 1051.06 ms | ~1.2% lower; no measured slowdown |
+
+These figures come from replaying the same single real-use session and a same-machine screenshot probe. The 141 labels were manually reviewed; raw captures, chat logs, annotations, replay files, local paths, and FPS/frametime data are deliberately not published. They describe regression progress on this known session, not future-match accuracy, and this pass did not primarily change OCR recognition quality.
+
 > [!NOTE]
 > 2.0 remains an early personal MVP. Future client wording, custom localisation, unusual HUD layouts, and OCR noise may still produce unknown cases. Redacted examples are welcome in Issues.
 
@@ -68,12 +88,13 @@ It does not read game memory, inject into the game, simulate keyboard or mouse i
 
 | Data | Destination | Persisted by RiftLens |
 | --- | --- | --- |
-| Selected-region screenshots | In-memory change detection and local PaddleOCR/ONNX Runtime inference, with local Tesseract fallback only | No |
+| Selected-region screenshots | In-memory change detection and local PaddleOCR/ONNX Runtime inference by default. An explicitly started real-evaluation capture can write only these selected-region crops to a user-chosen local folder | No by default; yes only after explicit opt-in |
 | New OCR text, speaker label, champion matches, and summary preferences | User-configured OpenAI-compatible translation endpoint | No |
 | AI-generated spoken summary | Microsoft Edge online speech when neural speech is enabled | No |
 | API key | Windows Credential Manager under `RiftLens/TranslationApi` | Yes, protected for the current Windows user |
 | Other settings and coordinates | `%LOCALAPPDATA%\RiftLens\settings.json`, without the key | Yes |
 | Translation history | Current process memory and UI only | Cleared on exit |
+| Redacted diagnostics / real-evaluation records | Written only after the user explicitly exports diagnostics or starts a local evaluation capture; never uploaded automatically | User-selected local file or folder |
 
 See [PRIVACY.md](PRIVACY.md) for the complete bilingual privacy notes. Text sent to third-party services is governed by their respective policies.
 

@@ -48,7 +48,8 @@ public sealed class NaturalSpeechService : IDisposable
         bool preferNeural = true,
         bool isTactical = false,
         AppLanguage language = AppLanguage.Chinese,
-        int priority = 1)
+        int priority = 1,
+        Func<bool>? canSpeak = null)
     {
         if (_disposed || string.IsNullOrWhiteSpace(text))
         {
@@ -73,7 +74,8 @@ public sealed class NaturalSpeechService : IDisposable
             isTactical,
             language,
             priority,
-            DateTimeOffset.UtcNow.AddMilliseconds(Math.Clamp(expiresAfterMs, 1500, 10000)));
+            DateTimeOffset.UtcNow.AddMilliseconds(Math.Clamp(expiresAfterMs, 1500, 10000)),
+            canSpeak);
         if (_queue.TryAdd(item))
         {
             return;
@@ -152,6 +154,10 @@ public sealed class NaturalSpeechService : IDisposable
                 {
                     continue;
                 }
+                if (!IsStillAllowed(item))
+                {
+                    continue;
+                }
 
                 lock (_activeGate)
                 {
@@ -165,6 +171,11 @@ public sealed class NaturalSpeechService : IDisposable
                         && DateTimeOffset.UtcNow >= _onlineDisabledUntil
                         && TrySpeakNeural(item);
                     if (spoken || Interlocked.Exchange(ref _purgeRequested, 0) == 1)
+                    {
+                        continue;
+                    }
+
+                    if (!IsStillAllowed(item))
                     {
                         continue;
                     }
@@ -232,6 +243,10 @@ public sealed class NaturalSpeechService : IDisposable
             }
 
             if (Interlocked.Exchange(ref _purgeRequested, 0) == 1)
+            {
+                return true;
+            }
+            if (!IsStillAllowed(item))
             {
                 return true;
             }
@@ -402,6 +417,10 @@ public sealed class NaturalSpeechService : IDisposable
 
     private void SpeakWithSapi(dynamic voice, SpeechItem item)
     {
+        if (!IsStillAllowed(item))
+        {
+            return;
+        }
         TrySelectVoice(voice, item.Language);
         voice.Volume = Volatile.Read(ref _configuredVolume);
         voice.Rate = item.Rate;
@@ -413,6 +432,18 @@ public sealed class NaturalSpeechService : IDisposable
                 voice.Speak(string.Empty, 2);
                 break;
             }
+        }
+    }
+
+    private static bool IsStillAllowed(SpeechItem item)
+    {
+        try
+        {
+            return item.CanSpeak?.Invoke() ?? true;
+        }
+        catch
+        {
+            return false;
         }
     }
 
@@ -453,5 +484,6 @@ public sealed class NaturalSpeechService : IDisposable
         bool IsTactical,
         AppLanguage Language,
         int Priority,
-        DateTimeOffset ExpiresAt);
+        DateTimeOffset ExpiresAt,
+        Func<bool>? CanSpeak);
 }
