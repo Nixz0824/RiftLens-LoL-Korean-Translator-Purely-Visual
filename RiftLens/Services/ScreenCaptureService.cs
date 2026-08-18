@@ -12,7 +12,7 @@ public sealed class ScreenCaptureService
             throw new InvalidOperationException("请先框选一个有效的屏幕识别区域。");
         }
 
-        var requested = region.ToRectangle();
+        var requested = region.Resolve();
         var available = Rectangle.Intersect(requested, SystemInformation.VirtualScreen);
         if (available.Width < 16 || available.Height < 12)
         {

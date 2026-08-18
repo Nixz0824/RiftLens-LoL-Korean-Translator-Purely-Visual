@@ -47,7 +47,7 @@ Screenshots end at local OCR. The network translation boundary begins only after
 | Diagnostics | `DiagnosticSessionRecorder` | Keep a bounded, redacted trace in memory and write it only when the user explicitly selects Export diagnostics |
 | Translation | `OpenAiCompatibleTranslationService`, `TranslationSemanticGuard`, `HeroDictionary`, `GameTermGlossary` | Align official Korean/Chinese/English terms, keep literal display lines separate from speech summaries, and reject unsupported evidence, number, negation, countdown, or action claims |
 | Speech | `PlayerSpeechPolicy`, `PlayerSpeechTextSanitizer`, `NaturalSpeechService`, `EdgeNeuralSpeechClient`, `SignalMessageTemplates` | Classify player speech into three user-controlled tiers, remove timestamps/player IDs, prioritize urgent audio, synthesize natural speech, and fall back locally |
-| Native UI | `MainForm`, `RegionSelectorForm`, `TranslationOverlayForm`, `OverlayControlForm`, `LayeredWindowSurface` | Own the window lifecycle, selection, anti-aliased click-through overlay, fixed custom display bounds, and draggable floating control |
+| Native UI | `MainForm`, `RegionSelectorForm`, `TranslationOverlayForm`, `OverlayControlForm`, `LayeredWindowSurface` | Own the window lifecycle, selection, anti-aliased click-through overlay, fixed custom display bounds, and a floating control with pause, mute, and reselect |
 | Web UI | `WebWorkspace`, `WebUI/*` | Render the main four-page interface from packaged local files and exchange typed messages with the host |
 
 ## Threading and lifecycle
@@ -88,6 +88,7 @@ Classification is heuristic because the application sees pixels rather than stru
 - Implement `ITranslationService` for another text service while preserving the same privacy boundary.
 - Extend `ChatMessageClassifier` with redacted or synthetic fixtures.
 - Add a new language through UI copy, signal templates, hero names, OCR data, and speech as one complete change.
-- Add display-relative region profiles without changing the capture pipeline.
+- Store capture boxes as fractions of the League client area (`ScreenRegion` relative fields). Absolute pixels remain the fallback when no game window is found.
+- Ask the translation model only for one-to-one `displayLines`. Local speech planning, `TranslationSemanticGuard`, and `FinalSpeechPolicy` own narration.
 
 Avoid turning the app into a game integration layer. Memory access, injection, packet capture, input automation, automatic replies, mandatory accounts, telemetry, and a hosted backend are outside project scope.

@@ -129,6 +129,7 @@ public sealed class MainForm : Form
         _overlayControl.TogglePauseRequested += TogglePause;
         _overlayControl.VolumeChanged += volume => ApplySpeechVolume(volume, persist: true);
         _overlayControl.MuteRequested += () => { _speech.Clear(); _overlay.HideImmediately(); };
+        _overlayControl.ReselectRequested += async () => await SelectRegionAsync(false);
         _overlayControl.ShowMainWindowRequested += ShowMainWindow;
         _overlayControl.StopRequested += async () => await StopListeningAsync();
         _overlayControl.PositionChanged += point =>
@@ -379,6 +380,18 @@ public sealed class MainForm : Form
                 placement = Math.Clamp(placement, 0, Enum.GetValues<OverlayPlacement>().Length - 1);
                 SelectValue(_placement, (OverlayPlacement)placement);
                 _workspace.OverlayPlacementIndex = placement;
+                await SaveSettingsAsync();
+                break;
+            case SpatialAction.ApplyPreset when value is int presetIndex:
+                if (presetIndex >= 0 && presetIndex < _presetSelector.Items.Count)
+                {
+                    _presetSelector.SelectedIndex = presetIndex;
+                    ApplySelectedPreset();
+                    RefreshRegionPreview();
+                }
+                break;
+            case SpatialAction.SpeechPresetChanged when value is int speechPreset:
+                ApplySpeechPreset(speechPreset);
                 await SaveSettingsAsync();
                 break;
             case SpatialAction.LanguageChanged when value is string language:
@@ -1645,6 +1658,8 @@ public sealed class MainForm : Form
             return;
         }
 
+        GameWindowLocator.TryBind(selectedRegion);
+
         if (displayRegion)
         {
             _settings.DisplayRegion = selectedRegion;
@@ -1657,12 +1672,74 @@ public sealed class MainForm : Form
         else
         {
             _settings.CaptureRegion = selectedRegion;
-            SetStatus(L(
-                "翻译识别区已保存。开始翻译后可在记录页核对 OCR 原文。",
-                "Recognition region saved. After starting, verify OCR source text in History."));
+            SetStatus(selectedRegion.HasRelative
+                ? L(
+                    "识别区已按游戏窗口保存。窗口移动后会跟着走。",
+                    "Recognition region is saved relative to the game window and will follow it.")
+                : L(
+                    "翻译识别区已保存。开始翻译后可在记录页核对 OCR 原文。",
+                    "Recognition region saved. After starting, verify OCR source text in History."));
         }
         await SaveSettingsAsync();
+        RefreshRegionPreview();
         UpdateReadiness();
+    }
+
+    private void ApplySpeechPreset(int preset)
+    {
+        switch (Math.Clamp(preset, 0, 2))
+        {
+            case 0:
+                _settings.SpeakUrgentPlayerChat = true;
+                _settings.SpeakImportantPlayerChat = false;
+                _settings.SpeakNeutralPlayerChat = false;
+                break;
+            case 2:
+                _settings.SpeakUrgentPlayerChat = true;
+                _settings.SpeakImportantPlayerChat = true;
+                _settings.SpeakNeutralPlayerChat = true;
+                break;
+            default:
+                _settings.SpeakUrgentPlayerChat = true;
+                _settings.SpeakImportantPlayerChat = true;
+                _settings.SpeakNeutralPlayerChat = false;
+                break;
+        }
+
+        _workspace.SpeakUrgentPlayerChat = _settings.SpeakUrgentPlayerChat;
+        _workspace.SpeakImportantPlayerChat = _settings.SpeakImportantPlayerChat;
+        _workspace.SpeakNeutralPlayerChat = _settings.SpeakNeutralPlayerChat;
+        SyncSpeechFilterFromPlayerSwitches();
+    }
+
+    private void RefreshRegionPreview()
+    {
+        try
+        {
+            if (!_settings.CaptureRegion.IsValid)
+            {
+                _workspace.RegionPreview = string.Empty;
+                return;
+            }
+
+            using var bitmap = new ScreenCaptureService().Capture(_settings.CaptureRegion);
+            var width = 480;
+            var height = Math.Max(72, bitmap.Height * width / Math.Max(1, bitmap.Width));
+            using var scaled = new Bitmap(width, height);
+            using (var graphics = Graphics.FromImage(scaled))
+            {
+                graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                graphics.DrawImage(bitmap, 0, 0, width, height);
+            }
+
+            using var stream = new MemoryStream();
+            scaled.Save(stream, System.Drawing.Imaging.ImageFormat.Jpeg);
+            _workspace.RegionPreview = "data:image/jpeg;base64," + Convert.ToBase64String(stream.ToArray());
+        }
+        catch
+        {
+            _workspace.RegionPreview = string.Empty;
+        }
     }
 
     private async Task StartListeningAsync()
@@ -1845,6 +1922,11 @@ public sealed class MainForm : Form
         var shouldQueueSpeech = shouldSpeakNow
             && _settings.OutputMode is OutputMode.VoiceOnly or OutputMode.OverlayAndVoice;
         result.ShouldSpeak = shouldSpeakNow;
+        if (!shouldSpeakNow)
+        {
+            result.SpeechSilenceReason = FinalSpeechPolicy.DescribeSilence(result, _settings)
+                ?? result.SpeechSilenceReason;
+        }
         _diagnostics.RecordOutput(result, shouldQueueSpeech);
         _evaluationSession?.RecordOutput(result, shouldQueueSpeech);
         Log("翻译", $"[{result.Speaker}] {result.DisplayTranslation}");
@@ -2039,10 +2121,11 @@ public sealed class MainForm : Form
                 : $"{speaker}：{result.DisplayTranslation}";
         _recentMeta.Text = result.ShouldSpeak
             ? L("刚刚 · 已加入播报队列", "Just now · Queued for speech")
-            : L("刚刚 · 已显示", "Just now · Displayed");
+            : LocalSpeechPlanner.FormatReason(result.SpeechSilenceReason, _settings.Language);
         _workspace.RecentOriginal = _recentOriginal.Text;
         _workspace.RecentTranslation = _recentTranslation.Text;
         _workspace.RecentMeta = _recentMeta.Text;
+        _workspace.RecentSilenceReason = result.SpeechSilenceReason;
         _workspace.AddHistory(new SpatialHistoryItem(
             DateTime.Now,
             result.RawText,
@@ -2062,7 +2145,8 @@ public sealed class MainForm : Form
                 TranslationSourceKind.SystemMessage => L("系统通知", "System notice"),
                 TranslationSourceKind.Unknown => L("未分类 · 仅显示", "Unclassified · Display only"),
                 _ => string.Empty
-            }));
+            },
+            LocalSpeechPlanner.FormatReason(result.SpeechSilenceReason, _settings.Language)));
 
         var entry = BuildHistoryRecordCard(result, speaker);
         _historyList.SuspendLayout();
@@ -2143,6 +2227,9 @@ public sealed class MainForm : Form
             ? _settings.CaptureRegion.ToString()
             : L("尚未框选需要识别的文字区域", "No text recognition region selected");
         _workspace.ModelName = _settings.ApiModel;
+        _workspace.AppVersion = Application.ProductVersion;
+        _workspace.ActivePresetIndex = _settings.ActivePresetIndex;
+        _workspace.PresetNames = _settings.Presets.Select(preset => preset.Name).ToArray();
         _regionBadge.SetStatus(regionReady ? "已完成" : "需要设置", regionReady);
         _ocrBadge.SetStatus(_ocrReady ? "已内置" : _ocrInitializing ? "初始化中" : "文件缺失", _ocrReady);
         _apiBadge.SetStatus(keyReady ? "已连接" : "需要配置", keyReady);

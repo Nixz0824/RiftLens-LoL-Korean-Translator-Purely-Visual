@@ -41,6 +41,11 @@ internal sealed class WebWorkspace : UserControl
     public string RecentOriginal { get; set; } = string.Empty;
     public string RecentTranslation { get; set; } = string.Empty;
     public string RecentMeta { get; set; } = string.Empty;
+    public string RecentSilenceReason { get; set; } = string.Empty;
+    public string RegionPreview { get; set; } = string.Empty;
+    public string AppVersion { get; set; } = "2.1.0";
+    public int ActivePresetIndex { get; set; } = -1;
+    public IReadOnlyList<string> PresetNames { get; set; } = Array.Empty<string>();
     public int Volume { get; set; } = 65;
     public int SpeechRate { get; set; } = 1;
     public int OutputModeIndex { get; set; } = 2;
@@ -276,6 +281,8 @@ internal sealed class WebWorkspace : UserControl
             "overlayOpacityChanged" => SpatialAction.OverlayOpacityChanged,
             "overlayPlacementChanged" => SpatialAction.OverlayPlacementChanged,
             "languageChanged" => SpatialAction.LanguageChanged,
+            "applyPreset" => SpatialAction.ApplyPreset,
+            "speechPresetChanged" => SpatialAction.SpeechPresetChanged,
             _ => (SpatialAction?)null
         };
         if (mapped is null)
@@ -287,7 +294,8 @@ internal sealed class WebWorkspace : UserControl
         {
             "navigate" => ReadPage(message.Payload),
             "volumeChanged" or "speechRateChanged" or "speechFilterChanged" or "outputModeChanged"
-                or "systemFilterChanged" or "overlayOpacityChanged" or "overlayPlacementChanged" => ReadInt(message.Payload),
+                or "systemFilterChanged" or "overlayOpacityChanged" or "overlayPlacementChanged"
+                or "applyPreset" or "speechPresetChanged" => ReadInt(message.Payload),
             "toggleAutoSpeech" or "changeOnlyChanged" or "signalVoiceChanged"
                 or "urgentPlayerSpeechChanged" or "importantPlayerSpeechChanged" or "neutralPlayerSpeechChanged"
                 or "tacticalSignalsChanged" or "killEventsChanged" or "objectiveEventsChanged"
@@ -332,6 +340,11 @@ internal sealed class WebWorkspace : UserControl
                 recentOriginal = RecentOriginal,
                 recentTranslation = RecentTranslation,
                 recentMeta = RecentMeta,
+                recentSilenceReason = RecentSilenceReason,
+                regionPreview = RegionPreview,
+                appVersion = AppVersion,
+                activePresetIndex = ActivePresetIndex,
+                presets = PresetNames,
                 volume = Volume,
                 speechRate = SpeechRate,
                 outputModeIndex = OutputModeIndex,

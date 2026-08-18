@@ -8,24 +8,25 @@
   <img alt="Platform Windows" src="https://img.shields.io/badge/Windows-10%2F11-082942?style=flat-square">
   <img alt=".NET 8" src="https://img.shields.io/badge/.NET-8.0-7b72ff?style=flat-square">
   <img alt="License MIT" src="https://img.shields.io/badge/License-MIT-08b982?style=flat-square">
-  <img alt="Version 2.0.0" src="https://img.shields.io/badge/Version-2.0.0-7b72ff?style=flat-square">
+  <img alt="Version 2.1.0" src="https://img.shields.io/badge/Version-2.1.0-7b72ff?style=flat-square">
   <img alt="Status MVP" src="https://img.shields.io/badge/Status-MVP-f0a24b?style=flat-square">
 </div>
 
 > [!IMPORTANT]
 > RiftLens is a working personal MVP, not an official Riot Games product. Read the [compatibility disclaimer](#game-compatibility-and-disclaimer) before use; a low-impact design is not a zero-risk promise.
 
-## RiftLens 2.0
+## RiftLens 2.1
 
-[Download RiftLens 2.0 for Windows x64](https://github.com/Nixz0824/RiftLens-LoL-Korean-Translator-Purely-Visual/releases/tag/v2.0.0)
+[Download RiftLens 2.1 for Windows x64](https://github.com/Nixz0824/RiftLens-LoL-Korean-Translator-Purely-Visual/releases/tag/v2.1.0)
 
-- **More capable trilingual OCR.** Bundled PP-OCRv5 Mobile Korean-English and Chinese-English recognizers process the same selected region and fuse word results by confidence and script. Tesseract remains as an on-device fallback.
-- **Stable player–champion pairing.** Repeated official champion-name matches are learned per player for the current match, reducing later errors caused by changing chat backgrounds.
-- **Evidence-checked narration.** A lightweight local semantic layer separates markers, status shares, cooldowns, requests, plans, and actual actions. `Flash - 20s` means “Flash has 20 seconds remaining,” and an objective ping remains a marker unless its text explicitly describes an ongoing action.
-- **Conservative fallback.** AI narration must return an exact source-text evidence fragment and preserve numbers, negation, targets, and action modality. Unsupported speech is silenced while the one-to-one literal translation remains visible.
-- **Clearer player-first output.** Player chat is translated by default; tactical pings and system categories remain independently optional. Overlay lines are grouped by speaker, show literal translations for seven seconds, and use refreshed floating-window and Windows icon rendering.
+- **The 2.0 launcher look stays.** 2.1 is the capture, translation, speech, and overlay pipeline, not a second visual redesign.
+- **Capture boxes can follow the game window.** If the League client is visible, the box is stored as fractions of that client area and resolved again on each capture.
+- **The model only returns line-by-line translations.** Spoken wording, priority, and the speak/silence decision are assembled locally, then rechecked before audio starts.
+- **Silence has a reason.** The overlay and latest-result status show a short “text only” note instead of going blank.
+- **In-match control can reselect.** The floating control can pause, mute, and pick the recognition region again without opening the main window.
+- **Incomplete last lines wait once more.** A cut-off speaker prefix or truncated last row gets one extra aggregation window before translation.
 
-### 2026-08-02 reliability update
+### Reliability work included in 2.1
 
 - **Timestamp-first parsing.** Game time is treated as `minutes:seconds`, including matches beyond 24 minutes, full-width punctuation, no-space forms, and limited OCR damage. The timestamp colon is resolved before any player/content separator.
 - **Deterministic HUD routing.** Common ability, summoner-spell, health/mana, item-gold, ward, objective-timer, on-my-way, danger, assist, missing-enemy, and vision messages are handled locally before free-form AI. A bare `champion + R/Q/W/E` remains a marker instead of becoming an invented cooldown/action claim.
@@ -46,7 +47,7 @@
 These figures come from replaying the same single real-use session and a same-machine screenshot probe. The 141 labels were manually reviewed; raw captures, chat logs, annotations, replay files, local paths, and FPS/frametime data are deliberately not published. They describe regression progress on this known session, not future-match accuracy, and this pass did not primarily change OCR recognition quality.
 
 > [!NOTE]
-> 2.0 remains an early personal MVP. Future client wording, custom localisation, unusual HUD layouts, and OCR noise may still produce unknown cases. Redacted examples are welcome in Issues.
+> 2.1 remains an early personal MVP. Future client wording, custom localisation, unusual HUD layouts, and OCR noise may still produce unknown cases. Redacted examples are welcome in Issues.
 
 ## What it is
 
@@ -77,7 +78,7 @@ It does not read game memory, inject into the game, simulate keyboard or mouse i
 - **Safer speech without erasing emotion.** Normal messages retain meaning. Hostile wording is removed while useful tactics and general emotional tone are preserved where possible.
 - **No guessed champions.** A 173-champion Korean, Chinese, and English dictionary based on Data Dragon 16.14.1 is used only when a champion name is actually present.
 - **Natural speech with fallback.** Chinese uses `zh-CN-XiaoxiaoNeural`; English uses `en-US-JennyNeural`. RiftLens falls back quietly to an installed Windows voice when online synthesis is unavailable.
-- **Game-friendly presentation.** The overlay does not activate, is click-through, and is excluded from its own captures. A compact floating control handles pause, resume, volume, and mute.
+- **Game-friendly presentation.** The overlay does not activate, is click-through, and is excluded from its own captures. A compact floating control handles pause, resume, volume, mute, and reselect.
 - **Chinese and English UI.** The interface, AI output, tactical signals, history labels, and voice language switch together and are covered by interaction tests.
 
 ## Data flow
@@ -107,9 +108,9 @@ See [PRIVACY.md](PRIVACY.md) for the complete bilingual privacy notes. Text sent
 - The smaller build requires .NET 8 Desktop Runtime; the self-contained build does not.
 - Borderless windowed mode is recommended. Third-party overlays are not guaranteed in exclusive fullscreen.
 
-### Download 2.0
+### Download 2.1
 
-Open the [v2.0.0 release page](https://github.com/Nixz0824/RiftLens-LoL-Korean-Translator-Purely-Visual/releases/tag/v2.0.0), download `RiftLens-2.0.0-win-x64.zip`, extract the complete folder, and run `RiftLens.exe`. Keep the packaged `WebUI` folder beside the executable.
+Open the [v2.1.0 release page](https://github.com/Nixz0824/RiftLens-LoL-Korean-Translator-Purely-Visual/releases/tag/v2.1.0), download `RiftLens-2.1.0-win-x64.zip`, extract the complete folder, and run `RiftLens.exe`. Keep the packaged `WebUI` folder beside the executable.
 
 ### Run from source
 

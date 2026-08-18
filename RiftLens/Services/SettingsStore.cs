@@ -88,6 +88,18 @@ public sealed class SettingsStore
                 // that objectives include structures and other notices mean match flow.
                 settings.SchemaVersion = 8;
             }
+            if (settings.SchemaVersion < 9)
+            {
+                // v9 stores window-relative capture boxes and ships real default
+                // ratios instead of name-only empty presets.
+                if (settings.Presets.Count == 0
+                    || settings.Presets.All(preset => !preset.CaptureRegion.IsValid))
+                {
+                    settings.Presets = CapturePreset.CreateDefaults();
+                }
+
+                settings.SchemaVersion = 9;
+            }
             // 旧版本默认 2 倍放大，对游戏内 12-16px 韩文不足；读取时自动迁移到聊天优化值。
             settings.OcrScale = Math.Clamp(settings.OcrScale, 3, 4);
             return settings;

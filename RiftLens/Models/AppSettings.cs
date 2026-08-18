@@ -1,3 +1,5 @@
+using RiftLens.Services;
+
 namespace RiftLens.Models;
 
 public enum AppLanguage
@@ -43,10 +45,54 @@ public sealed class ScreenRegion
     public int Y { get; set; }
     public int Width { get; set; }
     public int Height { get; set; }
+    public string? AnchorProcess { get; set; }
+    public double RelX { get; set; }
+    public double RelY { get; set; }
+    public double RelWidth { get; set; }
+    public double RelHeight { get; set; }
 
-    public bool IsValid => Width >= 16 && Height >= 12;
+    public bool HasRelative => RelWidth >= 0.02 && RelHeight >= 0.02;
+    public bool IsValid => (Width >= 16 && Height >= 12) || HasRelative;
 
     public Rectangle ToRectangle() => new(X, Y, Width, Height);
+
+    public Rectangle Resolve()
+    {
+        if (HasRelative)
+        {
+            var client = GameWindowLocator.TryGetClientBounds(AnchorProcess, out var found)
+                ? found
+                : Screen.PrimaryScreen?.Bounds ?? SystemInformation.VirtualScreen;
+            var resolved = new Rectangle(
+                client.X + (int)Math.Round(RelX * client.Width),
+                client.Y + (int)Math.Round(RelY * client.Height),
+                Math.Max(16, (int)Math.Round(RelWidth * client.Width)),
+                Math.Max(12, (int)Math.Round(RelHeight * client.Height)));
+            return Rectangle.Intersect(resolved, SystemInformation.VirtualScreen);
+        }
+
+        return ToRectangle();
+    }
+
+    public void BindToClient(Rectangle client, string? processName)
+    {
+        if (client.Width < 16 || client.Height < 12)
+        {
+            return;
+        }
+
+        var area = ToRectangle();
+        if (area.Width < 16 || area.Height < 12 || !client.IntersectsWith(area))
+        {
+            return;
+        }
+
+        AnchorProcess = processName;
+        RelX = Math.Clamp((area.X - client.X) / (double)client.Width, 0, 1);
+        RelY = Math.Clamp((area.Y - client.Y) / (double)client.Height, 0, 1);
+        RelWidth = Math.Clamp(area.Width / (double)client.Width, 0.02, 1);
+        RelHeight = Math.Clamp(area.Height / (double)client.Height, 0.02, 1);
+    }
 
     public static ScreenRegion FromRectangle(Rectangle rectangle) => new()
     {
@@ -56,12 +102,48 @@ public sealed class ScreenRegion
         Height = rectangle.Height
     };
 
-    public override string ToString() => IsValid ? $"{Width} × {Height} @ ({X}, {Y})" : "尚未选择";
+    public static ScreenRegion FromRelative(
+        string nameHint,
+        double relX,
+        double relY,
+        double relWidth,
+        double relHeight,
+        int fallbackX,
+        int fallbackY,
+        int fallbackWidth,
+        int fallbackHeight) => new()
+    {
+        AnchorProcess = nameHint,
+        RelX = relX,
+        RelY = relY,
+        RelWidth = relWidth,
+        RelHeight = relHeight,
+        X = fallbackX,
+        Y = fallbackY,
+        Width = fallbackWidth,
+        Height = fallbackHeight
+    };
+
+    public override string ToString()
+    {
+        if (!IsValid)
+        {
+            return "尚未选择";
+        }
+
+        if (HasRelative)
+        {
+            var process = string.IsNullOrWhiteSpace(AnchorProcess) ? "窗口" : AnchorProcess;
+            return $"{process} · {RelWidth:P0} × {RelHeight:P0}";
+        }
+
+        return $"{Width} × {Height} @ ({X}, {Y})";
+    }
 }
 
 public sealed class AppSettings
 {
-    public int SchemaVersion { get; set; } = 8;
+    public int SchemaVersion { get; set; } = 9;
     public AppLanguage Language { get; set; } = AppLanguage.Chinese;
     public ScreenRegion CaptureRegion { get; set; } = new();
     public ScreenRegion DisplayRegion { get; set; } = new();
@@ -125,9 +207,30 @@ public sealed class CapturePreset
 
     public static List<CapturePreset> CreateDefaults() => new()
     {
-        new CapturePreset { Name = "游戏内聊天 · 右下角聊天框" },
-        new CapturePreset { Name = "英雄选择 · 中间聊天区域" },
-        new CapturePreset { Name = "直播字幕 · 画面底部" },
+        new CapturePreset
+        {
+            Name = "游戏内聊天 · 左下角聊天框",
+            CaptureRegion = ScreenRegion.FromRelative(
+                "League of Legends",
+                0.006, 0.668, 0.228, 0.238,
+                12, 721, 438, 257)
+        },
+        new CapturePreset
+        {
+            Name = "英雄选择 · 中间聊天区域",
+            CaptureRegion = ScreenRegion.FromRelative(
+                "LeagueClientUx",
+                0.278, 0.704, 0.444, 0.208,
+                533, 760, 853, 225)
+        },
+        new CapturePreset
+        {
+            Name = "直播字幕 · 画面底部",
+            CaptureRegion = ScreenRegion.FromRelative(
+                "",
+                0.148, 0.824, 0.704, 0.138,
+                284, 889, 1351, 149)
+        },
         new CapturePreset { Name = "自定义 1" },
         new CapturePreset { Name = "自定义 2" },
     };

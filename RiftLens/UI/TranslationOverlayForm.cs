@@ -33,6 +33,7 @@ public sealed class TranslationOverlayForm : Form
     private IReadOnlyList<string> _translationLines = Array.Empty<string>();
     private IReadOnlyList<string> _originalLines = Array.Empty<string>();
     private bool _showOriginal;
+    private string _silenceReason = string.Empty;
     private int _contentWidth = 410;
     private int _speakerHeight;
     private byte _surfaceOpacity;
@@ -178,6 +179,9 @@ public sealed class TranslationOverlayForm : Form
             .Take(8)
             .ToArray();
         _showOriginal = settings.ShowOriginalText && _originalLines.Count > 0;
+        _silenceReason = result.ShouldSpeak
+            ? string.Empty
+            : LocalSpeechPlanner.FormatReason(result.SpeechSilenceReason, settings.Language);
     }
 
     private void EnsureFonts(AppSettings settings)
@@ -345,6 +349,11 @@ public sealed class TranslationOverlayForm : Form
                 Math.Min(_speakerHeight + 1, Math.Max(1, surfaceBounds.Bottom - speakerY - 4))),
             speakerFormat);
 
+        if (!string.IsNullOrWhiteSpace(_silenceReason))
+        {
+            DrawSilenceBadge(graphics, surfaceBounds);
+        }
+
         var textY = speakerY + _speakerHeight + 6;
         var contentBottom = surfaceBounds.Bottom - VerticalPadding + 2;
         for (var index = 0; index < _messageLayouts.Count && textY < contentBottom; index++)
@@ -401,6 +410,33 @@ public sealed class TranslationOverlayForm : Form
                 textY + 4);
             textY += 8;
         }
+    }
+
+    private void DrawSilenceBadge(Graphics graphics, Rectangle surfaceBounds)
+    {
+        using var badgeFont = new Font(
+            _cachedSpeakerFont?.FontFamily ?? Font.FontFamily,
+            10f,
+            FontStyle.Bold,
+            GraphicsUnit.Pixel);
+        var size = graphics.MeasureString(_silenceReason, badgeFont);
+        var width = Math.Min(_contentWidth, (int)Math.Ceiling(size.Width) + 14);
+        var badge = new Rectangle(
+            surfaceBounds.Right - width - 12,
+            surfaceBounds.Top + 8,
+            width,
+            18);
+        using var fill = new SolidBrush(Color.FromArgb(210, 38, 62, 72));
+        using var path = UiTheme.RoundedPath(badge, 9);
+        graphics.FillPath(fill, path);
+        using var text = new SolidBrush(Color.FromArgb(235, 168, 214, 204));
+        graphics.DrawString(_silenceReason, badgeFont, text, badge, new StringFormat
+        {
+            Alignment = StringAlignment.Center,
+            LineAlignment = StringAlignment.Center,
+            Trimming = StringTrimming.EllipsisCharacter,
+            FormatFlags = StringFormatFlags.NoWrap
+        });
     }
 
     private static StringFormat CreateTextFormat() => new(StringFormat.GenericTypographic)

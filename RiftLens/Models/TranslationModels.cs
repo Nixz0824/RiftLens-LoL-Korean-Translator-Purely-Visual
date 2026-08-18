@@ -250,6 +250,7 @@ public sealed class TranslationResult
     public List<string> DisplayLines { get; set; } = new();
     public string SpokenSummary { get; set; } = string.Empty;
     public bool ToxicityFiltered { get; set; }
+    public string SpeechSilenceReason { get; set; } = string.Empty;
     public int ExpiresAfterMs { get; set; } = 6000;
     public string RawText { get; set; } = string.Empty;
     public List<string> OriginalLines { get; set; } = new();

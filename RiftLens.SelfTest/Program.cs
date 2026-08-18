@@ -749,7 +749,7 @@ await CheckAsync("设置持久化", async () =>
     Require(loaded.OutputMode == OutputMode.VoiceOnly, "输出模式未保存");
     Require(loaded.SpeechVolume == 42, "语音音量未保存");
     Require(loaded.OcrScale == 3, "旧版 OCR 放大倍数未迁移到聊天优化值");
-    Require(loaded.SchemaVersion == 8, "旧版设置未迁移到结构化消息分类版本");
+    Require(loaded.SchemaVersion == 9, "旧版设置未迁移到窗口相对框选版本");
     Require(!loaded.TacticalSignalEnabled
         && !loaded.KillEventEnabled
         && !loaded.ObjectiveEventEnabled
@@ -906,26 +906,8 @@ await CheckAsync("AI 结构化翻译协议", async () =>
 {
     var modelResult = JsonSerializer.Serialize(new
     {
-        shouldSpeak = true,
-        speaker = "蕾欧娜",
-        intent = "warning",
-        emotion = "urgent",
-        emotionIntensity = 2,
-        priority = 3,
-        sourceType = "player_chat",
-        speechAct = "warning",
-        subject = "상대 정글",
-        target = "탑",
-        status = "danger",
-        durationSeconds = (int?)null,
-        modality = "asserted",
-        semanticConfidence = 0.96,
-        evidence = "상대 정글 조심해",
-        displayTranslation = "蕾欧娜焦急地提醒上单支援，并小心敌方打野。",
         displayLines = new[] { "请上路支援。", "小心敌方打野。" },
-        spokenSummary = "蕾欧娜提醒上单及时支援，小心敌方打野。",
-        toxicityFiltered = true,
-        expiresAfterMs = 6000
+        toxicityFiltered = false
     });
     var apiResponse = JsonSerializer.Serialize(new
     {
@@ -955,38 +937,19 @@ await CheckAsync("AI 结构化翻译协议", async () =>
     using var sent = JsonDocument.Parse(handler.RequestBody);
     var systemPrompt = sent.RootElement.GetProperty("messages")[0].GetProperty("content").GetString() ?? string.Empty;
     Require(systemPrompt.Contains("不可信", StringComparison.Ordinal), "提示注入防护规则缺失");
-    Require(systemPrompt.Contains("禁止把正常内容降级", StringComparison.Ordinal), "忠实摘要规则缺失");
+    Require(systemPrompt.Contains("不添加原文没有的英雄", StringComparison.Ordinal), "忠实直译规则缺失");
     Require(systemPrompt.Contains("本地官方三语词典", StringComparison.Ordinal), "AI 提示未保护本地官方术语");
     Require(systemPrompt.Contains("displayLines", StringComparison.Ordinal), "AI 提示未要求逐条换行翻译");
-    Require(systemPrompt.Contains("逐条直译展示", StringComparison.Ordinal)
-        && systemPrompt.Contains("只有 spokenSummary", StringComparison.Ordinal),
-        "屏显直译与语音摘要没有严格分离");
-    Require(systemPrompt.Contains("semanticConfidence", StringComparison.Ordinal)
-        && systemPrompt.Contains("HUD 分隔符", StringComparison.Ordinal)
-        && systemPrompt.Contains("只有 evidence 明确", StringComparison.Ordinal),
-        "AI 提示没有要求可核验语义证据或禁止动作臆测");
+    Require(systemPrompt.Contains("逐条直译", StringComparison.Ordinal)
+        && systemPrompt.Contains("语音摘要、意图、优先级和是否播报由本地代码决定", StringComparison.Ordinal),
+        "屏显直译与本地语音闸门没有严格分离");
+    Require(systemPrompt.Contains("HUD 分隔符", StringComparison.Ordinal),
+        "AI 提示没有禁止把冷却横杠译成负数");
 
     var genericResult = JsonSerializer.Serialize(new
     {
-        shouldSpeak = true,
-        speaker = "蕾欧娜",
-        intent = "assist",
-        emotion = "neutral",
-        emotionIntensity = 0,
-        priority = 2,
-        sourceType = "player_chat",
-        speechAct = "warning",
-        subject = "상대 정글",
-        target = "탑",
-        status = "danger",
-        durationSeconds = (int?)null,
-        modality = "asserted",
-        semanticConfidence = 0.94,
-        evidence = "상대 정글 조심해",
-        displayTranslation = "请上路支援，并小心对面打野。",
-        spokenSummary = "蕾欧娜在请求支援",
-        toxicityFiltered = false,
-        expiresAfterMs = 5000
+        displayLines = new[] { "请上路支援，并小心对面打野。" },
+        toxicityFiltered = false
     });
     using var faithfulTranslator = new OpenAiCompatibleTranslationService(
         "https://api.deepseek.com",
@@ -1008,25 +971,8 @@ await CheckAsync("AI 结构化翻译协议", async () =>
 
     var hostileResult = JsonSerializer.Serialize(new
     {
-        shouldSpeak = true,
-        speaker = "队友",
-        intent = "hostility",
-        emotion = "angry",
-        emotionIntensity = 3,
-        priority = 1,
-        sourceType = "player_chat",
-        speechAct = "hostility",
-        subject = "",
-        target = "",
-        status = "",
-        durationSeconds = (int?)null,
-        modality = "asserted",
-        semanticConfidence = 0.92,
-        evidence = "심한 욕설",
-        displayTranslation = "队友持续进行人身攻击。",
-        spokenSummary = "队友有些不满",
-        toxicityFiltered = true,
-        expiresAfterMs = 4000
+        displayLines = new[] { "队友持续进行人身攻击。" },
+        toxicityFiltered = true
     });
     using var protectiveTranslator = new OpenAiCompatibleTranslationService(
         "https://api.deepseek.com",
@@ -1049,25 +995,8 @@ await CheckAsync("AI 结构化翻译协议", async () =>
 
     var englishResult = JsonSerializer.Serialize(new
     {
-        shouldSpeak = true,
-        speaker = "Vayne",
-        intent = "assist",
-        emotion = "urgent",
-        emotionIntensity = 2,
-        priority = 3,
-        sourceType = "player_chat",
-        speechAct = "warning",
-        subject = "상대 정글",
-        target = "탑",
-        status = "danger",
-        durationSeconds = (int?)null,
-        modality = "asserted",
-        semanticConfidence = 0.95,
-        evidence = "상대 정글 조심해",
-        displayTranslation = "Rotate top now and watch for the enemy jungler.",
-        spokenSummary = "Vayne is asking for help",
-        toxicityFiltered = false,
-        expiresAfterMs = 5000
+        displayLines = new[] { "Rotate top now and watch for the enemy jungler." },
+        toxicityFiltered = false
     });
     var englishHandler = new FakeHttpHandler(JsonSerializer.Serialize(new
     {
@@ -1089,6 +1018,36 @@ await CheckAsync("AI 结构化翻译协议", async () =>
     using var englishRequest = JsonDocument.Parse(englishHandler.RequestBody);
     var englishUserPayload = englishRequest.RootElement.GetProperty("messages")[1].GetProperty("content").GetString() ?? string.Empty;
     Require(englishUserPayload.Contains("English (en-US)", StringComparison.Ordinal), "AI 请求缺少英文目标语言");
+});
+
+await CheckAsync("窗口相对框选与残行等待", () =>
+{
+    var region = ScreenRegion.FromRelative("League of Legends", 0.01, 0.67, 0.22, 0.24, 12, 720, 420, 250);
+    Require(region.HasRelative && region.IsValid, "相对区域没有被视为有效框选");
+    var client = new Rectangle(100, 50, 1920, 1080);
+    region.BindToClient(new Rectangle(0, 0, 1920, 1080), "League of Legends");
+    Require(region.AnchorProcess == "League of Legends", "框选没有绑定到游戏窗口");
+    Require(PartialLineWait.LooksIncomplete("탑"), "过短残行没有触发等待");
+    Require(PartialLineWait.LooksIncomplete("레오나:"), "只有发言人前缀时没有触发等待");
+    Require(!PartialLineWait.LooksIncomplete("탑 조심해."), "完整短句被误判为残行");
+    return Task.CompletedTask;
+});
+
+await CheckAsync("本地语音闸门会写明静音原因", () =>
+{
+    var silenced = new TranslationResult
+    {
+        ShouldSpeak = true,
+        DisplayLines = new List<string> { "正在打小龙" }
+    };
+    LocalSpeechPlanner.Apply(
+        silenced,
+        new TranslationRequest(new[] { "小龙" }, Array.Empty<HeroMention>(), SpeechFilterLevel.Standard, 64));
+    Require(!silenced.ShouldSpeak, "没有动作证据时本地闸门仍允许播报");
+    Require(silenced.SpeechSilenceReason == SpeechSilenceReasons.SemanticGuard, "静音后没有留下语义原因");
+    Require(LocalSpeechPlanner.FormatReason(silenced.SpeechSilenceReason, AppLanguage.Chinese).Contains("仅字幕"),
+        "静音原因没有转成玩家能看懂的字幕提示");
+    return Task.CompletedTask;
 });
 
 await CheckAsync("韩中英脚本感知融合", () =>

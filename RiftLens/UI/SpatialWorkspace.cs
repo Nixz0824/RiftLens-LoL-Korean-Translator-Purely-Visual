@@ -58,7 +58,9 @@ internal enum SpatialAction
     CloseToTrayChanged,
     OverlayOpacityChanged,
     OverlayPlacementChanged,
-    LanguageChanged
+    LanguageChanged,
+    ApplyPreset,
+    SpeechPresetChanged
 }
 
 internal sealed record SpatialHistoryItem(
@@ -67,7 +69,8 @@ internal sealed record SpatialHistoryItem(
     string Translation,
     bool Spoken,
     int Priority,
-    string Kind);
+    string Kind,
+    string? SilenceReason = null);
 
 /// <summary>
 /// 高保真 Soft Spatial 工作区。界面由 GDI+ 一次合成，避免 WinForms 系统控件

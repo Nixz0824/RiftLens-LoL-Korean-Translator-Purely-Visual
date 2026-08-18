@@ -4,13 +4,26 @@ All notable user-facing changes will be documented here. The project follows a l
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-08-18
+
+Implementation brief: `docs/2.1-PLAN.md`.
+
 ### Added
 
+- Window-relative capture boxes. If the League client is visible, the box is stored as fractions of that client area and resolved again on each capture.
+- Real default presets for in-game chat, champion select, and a bottom subtitle band.
+- Overlay control actions for pause, mute, and reselect while the pill is expanded.
+- A one-line “text only” reason on the overlay and in the latest-result status when speech is refused.
+- One extra aggregation wait when the last OCR line looks incomplete.
 - A user-triggered redacted diagnostic export. It stays in memory until explicitly saved, contains no screenshots or API key, and replaces recognized player IDs with session aliases.
 - An opt-in, local-only real-evaluation capture mode for future maintainer testing. It is off by default, shows a privacy warning, records only the selected region, and never uploads automatically.
 
 ### Changed
 
+- The launcher WebUI stays on the 2.0 visual. 2.1 is the capture, translation, speech, and overlay pipeline.
+- Settings schema is now `9`. Empty name-only presets are replaced with the real default ratios.
+- The translation model is asked only for `displayLines` and a toxicity flag. Spoken text, intent, priority, and the speak/silence decision are assembled locally, then rechecked by `TranslationSemanticGuard` and `FinalSpeechPolicy`.
+- Diagnostics and the honest local-build version control live on the Settings page.
 - Fixed-format Korean, Chinese, and English Ping/HUD messages are classified locally before free-form AI translation, including ability and summoner-spell markers, health/mana shares, item-gold needs, ward states, objective respawn timers, and common tactical signals.
 - System-speech switches now describe map objectives and structures, wellness reminders, and match-flow/system notices more precisely. Player-authored chat remains translated by default.
 - Cross-frame deduplication uses a stable event key with limited OCR tolerance while preserving genuinely repeated Pings.
@@ -69,4 +82,4 @@ All notable user-facing changes will be documented here. The project follows a l
 
 ## Release policy
 
-RiftLens 2.0.0 is the first numbered public MVP release. It passes the repository's automated Windows checks, but it remains a personal early-stage project: real-match OCR, client wording, antivirus reputation, and unusual Windows/HUD configurations will continue to need community testing.
+RiftLens 2.1.0 is the current public MVP release. It passes the repository's automated Windows checks, but it remains a personal early-stage project: real-match OCR, client wording, antivirus reputation, and unusual Windows/HUD configurations will continue to need community testing.

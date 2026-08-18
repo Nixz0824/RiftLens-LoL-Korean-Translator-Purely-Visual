@@ -14,7 +14,7 @@ namespace RiftLens.UI;
 public sealed class OverlayControlForm : Form
 {
     private const int CollapsedWidth = 48;
-    private const int ExpandedWidth = 260;
+    private const int ExpandedWidth = 318;
     private const int ControlHeight = 48;
     private const int ExpandDurationMs = 170;
     private const int WsExNoActivate = 0x08000000;
@@ -28,6 +28,7 @@ public sealed class OverlayControlForm : Form
     private readonly ToolStripMenuItem _volumeMenu;
     private readonly ToolStripMenuItem _volumeMuteItem;
     private readonly ToolStripMenuItem _muteItem;
+    private readonly ToolStripMenuItem _reselectItem;
     private readonly ToolStripMenuItem _showItem;
     private readonly ToolStripMenuItem _stopItem;
     private readonly ToolTip _toolTip = new();
@@ -55,6 +56,7 @@ public sealed class OverlayControlForm : Form
     public event Action? TogglePauseRequested;
     public event Action<int>? VolumeChanged;
     public event Action? MuteRequested;
+    public event Action? ReselectRequested;
     public event Action? ShowMainWindowRequested;
     public event Action? StopRequested;
     public event Action<Point>? PositionChanged;
@@ -94,11 +96,13 @@ public sealed class OverlayControlForm : Form
         _volumeMuteItem = new ToolStripMenuItem("静音", null, (_, _) => RequestVolume(0));
         _volumeMenu.DropDownItems.Add(_volumeMuteItem);
         _muteItem = new ToolStripMenuItem("立即静音并隐藏译文", null, (_, _) => MuteRequested?.Invoke());
+        _reselectItem = new ToolStripMenuItem("重新框选识别区", null, (_, _) => ReselectRequested?.Invoke());
         _showItem = new ToolStripMenuItem("显示主窗口", null, (_, _) => ShowMainWindowRequested?.Invoke());
         _stopItem = new ToolStripMenuItem("停止翻译", null, (_, _) => StopRequested?.Invoke());
         menu.Items.Add(_pauseItem);
         menu.Items.Add(_volumeMenu);
         menu.Items.Add(_muteItem);
+        menu.Items.Add(_reselectItem);
         menu.Items.Add(_showItem);
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(_stopItem);
@@ -164,6 +168,18 @@ public sealed class OverlayControlForm : Form
             {
                 _draggingVolume = true;
                 SetVolumeFromX(args.X);
+                return;
+            }
+
+            if (IsMuteBounds(args.Location))
+            {
+                MuteRequested?.Invoke();
+                return;
+            }
+
+            if (IsReselectBounds(args.Location))
+            {
+                ReselectRequested?.Invoke();
                 return;
             }
 
@@ -246,6 +262,7 @@ public sealed class OverlayControlForm : Form
         if (Width > CollapsedWidth + 2)
         {
             DrawVolumeControl(graphics);
+            DrawActionGlyphs(graphics);
             DrawDragHandle(graphics);
         }
     }
@@ -282,6 +299,7 @@ public sealed class OverlayControlForm : Form
         _volumeMenu.AccessibleName = L("播报音量", "Speech volume");
         _volumeMuteItem.Text = L("静音", "Mute");
         _muteItem.Text = L("立即静音并隐藏译文", "Mute now and hide translation");
+        _reselectItem.Text = L("重新框选识别区", "Reselect recognition region");
         _showItem.Text = L("显示主窗口", "Show main window");
         _stopItem.Text = L("停止翻译", "Stop translation");
         UpdateAccessibleText();
@@ -457,9 +475,49 @@ public sealed class OverlayControlForm : Form
             graphics,
             $"{_volume}%",
             UiTheme.Caption(8.5f, FontStyle.Bold),
-            new Rectangle(ExpandedWidth - 45, 5, 37, ControlHeight - 10),
+            new Rectangle(CollapsedWidth + 126, 5, 34, ControlHeight - 10),
             textColor,
             TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
+    }
+
+    private void DrawActionGlyphs(Graphics graphics)
+    {
+        var expansion = Math.Clamp((Width - CollapsedWidth) / (float)(ExpandedWidth - CollapsedWidth), 0f, 1f);
+        if (expansion < 0.72f)
+        {
+            return;
+        }
+
+        var alpha = (int)Math.Round((expansion - 0.72f) / 0.28f * 255);
+        DrawRoundButton(graphics, MuteBounds, alpha);
+        DrawRoundButton(graphics, ReselectBounds, alpha);
+        DrawSpeakerGlyph(graphics, new Point(MuteBounds.Left + 4, MuteBounds.Top + 5), _volume == 0, alpha);
+        DrawScanGlyph(graphics, ReselectBounds, alpha);
+    }
+
+    private static void DrawRoundButton(Graphics graphics, Rectangle bounds, int alpha)
+    {
+        using var fill = new SolidBrush(Color.FromArgb((int)(alpha * 0.12f), UiTheme.Mint));
+        using var path = UiTheme.RoundedPath(bounds, 8);
+        graphics.FillPath(fill, path);
+    }
+
+    private static void DrawScanGlyph(Graphics graphics, Rectangle bounds, int alpha)
+    {
+        using var pen = new Pen(Color.FromArgb(alpha, UiTheme.Text), 1.55f)
+        {
+            StartCap = LineCap.Round,
+            EndCap = LineCap.Round
+        };
+        var inset = Rectangle.Inflate(bounds, -7, -7);
+        graphics.DrawLine(pen, inset.Left, inset.Top + 5, inset.Left, inset.Top);
+        graphics.DrawLine(pen, inset.Left, inset.Top, inset.Left + 5, inset.Top);
+        graphics.DrawLine(pen, inset.Right, inset.Top + 5, inset.Right, inset.Top);
+        graphics.DrawLine(pen, inset.Right, inset.Top, inset.Right - 5, inset.Top);
+        graphics.DrawLine(pen, inset.Left, inset.Bottom - 5, inset.Left, inset.Bottom);
+        graphics.DrawLine(pen, inset.Left, inset.Bottom, inset.Left + 5, inset.Bottom);
+        graphics.DrawLine(pen, inset.Right, inset.Bottom - 5, inset.Right, inset.Bottom);
+        graphics.DrawLine(pen, inset.Right, inset.Bottom, inset.Right - 5, inset.Bottom);
     }
 
     private static void DrawSpeakerGlyph(Graphics graphics, Point origin, bool muted, int alpha)
@@ -522,13 +580,21 @@ public sealed class OverlayControlForm : Form
         }
     }
 
-    private Rectangle SliderTrackBounds => new(CollapsedWidth + 51, 17, 105, 14);
+    private Rectangle SliderTrackBounds => new(CollapsedWidth + 36, 17, 88, 14);
+    private Rectangle MuteBounds => new(ExpandedWidth - 86, 10, 28, 28);
+    private Rectangle ReselectBounds => new(ExpandedWidth - 54, 10, 28, 28);
     private Rectangle DragHandleBounds => new(10, ControlHeight - 17, 15, 13);
 
     private bool IsPrimaryBounds(Point point) => point.X < CollapsedWidth;
 
     private bool IsSliderBounds(Point point) =>
         Width > CollapsedWidth + 20 && Rectangle.Inflate(SliderTrackBounds, 4, 10).Contains(point);
+
+    private bool IsMuteBounds(Point point) =>
+        Width >= ExpandedWidth - 8 && MuteBounds.Contains(point);
+
+    private bool IsReselectBounds(Point point) =>
+        Width >= ExpandedWidth - 8 && ReselectBounds.Contains(point);
 
     private bool IsDragHandleBounds(Point point) =>
         Width >= ExpandedWidth - 2 && Rectangle.Inflate(DragHandleBounds, 2, 2).Contains(point);

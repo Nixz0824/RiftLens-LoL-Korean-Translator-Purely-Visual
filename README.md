@@ -8,7 +8,7 @@
   <img alt="Platform Windows" src="https://img.shields.io/badge/Windows-10%2F11-082942?style=flat-square">
   <img alt=".NET 8" src="https://img.shields.io/badge/.NET-8.0-7b72ff?style=flat-square">
   <img alt="License MIT" src="https://img.shields.io/badge/License-MIT-08b982?style=flat-square">
-  <img alt="Version 2.0.0" src="https://img.shields.io/badge/Version-2.0.0-7b72ff?style=flat-square">
+  <img alt="Version 2.1.0" src="https://img.shields.io/badge/Version-2.1.0-7b72ff?style=flat-square">
   <img alt="Status MVP" src="https://img.shields.io/badge/Status-MVP-f0a24b?style=flat-square">
 </div>
 
@@ -17,17 +17,18 @@
 >
 > RiftLens 是作者个人以 vibe coding 方式开发的可运行 MVP，并非 Riot Games 官方产品。使用前请阅读[游戏兼容性与免责声明](#游戏兼容性与免责声明)；低侵入设计不等于零风险承诺。
 
-## RiftLens 2.0 · What Changed / 本次更新
+## RiftLens 2.1 · What Changed / 本次更新
 
-[Download RiftLens 2.0 for Windows x64](https://github.com/Nixz0824/RiftLens-LoL-Korean-Translator-Purely-Visual/releases/tag/v2.0.0) · [下载 Windows x64 版 RiftLens 2.0](https://github.com/Nixz0824/RiftLens-LoL-Korean-Translator-Purely-Visual/releases/tag/v2.0.0)
+[Download RiftLens 2.1 for Windows x64](https://github.com/Nixz0824/RiftLens-LoL-Korean-Translator-Purely-Visual/releases/tag/v2.1.0) · [下载 Windows x64 版 RiftLens 2.1](https://github.com/Nixz0824/RiftLens-LoL-Korean-Translator-Purely-Visual/releases/tag/v2.1.0)
 
-- **More capable Korean–Chinese–English OCR. · 更完整的韩中英识别。** Bundled PP-OCRv5 Mobile Korean-English and Chinese-English recognizers now inspect the same selected screen region and fuse words by confidence and script, while a local Tesseract path remains as fallback.<br>内置 PP-OCRv5 Mobile 韩英与中英识别器会同时处理同一个用户框选区域，并按置信度和文字脚本融合结果；Tesseract 仍作为本地兜底。
-- **Stable player–champion pairing. · 本局玩家与英雄稳定对应。** Repeated official champion-name hits are learned per player during the current match, so later background noise is less likely to change Jarvan IV into a wrong or non-official name.<br>同一局内会按玩家累计可信的官方英雄名命中；关系稳定后，后续背景干扰更不容易把“嘉文四世”等英雄名识别成错误或非官方名称。
-- **Evidence-checked narration. · 有证据约束的语音理解。** A lightweight local semantic layer separates markers, status shares, cooldowns, requests, plans, and actual actions. `Flash - 20s` is treated as “Flash has 20 seconds remaining,” not “negative 20 seconds”; an objective ping is a marker unless the text explicitly says someone is taking it.<br>新增轻量本地语义层，区分标记、状态、倒计时、请求、计划和真实行动。`闪现 - 20s` 会被理解为“闪现还有 20 秒”，不会读成“负 20 秒”；目标 Ping 只会按标记处理，除非原文明说正在争夺。
-- **Conservative fallback when meaning is uncertain. · 不确定时保守降级。** AI narration must provide an exact evidence fragment and preserve numbers, negation, targets, and action modality. Unsupported speech is silenced while the one-to-one translated text remains visible in the overlay.<br>AI 播报必须返回可在原文中核对的证据片段，并保留数字、否定、对象与行动状态；校验失败时停止该条语音，但悬浮窗仍保留逐条直译。
-- **Clearer player-first controls and presentation. · 更清楚的玩家优先设置与显示。** Player chat stays translated by default; tactical signals and system categories remain independently optional. The overlay now groups lines by speaker, shows literal translated lines for 7 seconds, and uses refreshed floating-window and Windows icon rendering.<br>队友聊天仍默认翻译；战术信号与各类系统消息保持独立可选。悬浮译文按发言人分组、逐条显示直译并保留 7 秒，同时更新了悬浮窗边缘与 Windows 图标。
+- **The 2.0 launcher look stays. · 主界面沿用 2.0。** 2.1 is the capture, translation, speech, and overlay pipeline, not a second visual redesign.<br>2.1 收紧识别、翻译、语音和局内控制，不再换一套主界面。
+- **Capture boxes can follow the game window. · 识别框可跟随游戏窗口。** If the League client is visible, the box is stored as fractions of that client area and resolved again on each capture.<br>能看到客户端时，框选按窗口比例保存，窗口移动后会跟着走。
+- **The model only returns line-by-line translations. · 模型只做逐条直译。** Spoken wording, priority, and the speak/silence decision are assembled locally, then rechecked before audio starts.<br>是否播报、怎么说、为什么静音由本地规则决定，并在出声前再核一次。
+- **Silence has a reason. · 不播报会写明原因。** The overlay and latest-result status show a short “text only” note instead of going blank.<br>悬浮窗和最近结果会留下一行说明，而不是只剩空白。
+- **In-match control can reselect. · 局内可重新框选。** The floating control can pause, mute, and pick the recognition region again without opening the main window.<br>局内控制条支持暂停、静音和重新框选，不必回到主窗口。
+- **Incomplete last lines wait once more. · 残缺末行会再等一下。** A cut-off speaker prefix or truncated last row gets one extra aggregation window before translation.<br>只有发言人前缀或明显残缺的最后一行会多等一个聚合窗口。
 
-### 2026-08-02 Reliability Update · 可靠性更新
+### Reliability work included in 2.1 · 2.1 一并纳入的可靠性工作
 
 - **Timestamp-first parsing. · 时间戳优先解析。** Game time is treated as `minutes:seconds`, including matches beyond 24 minutes, full-width punctuation, no-space forms, and limited OCR damage. The timestamp colon is resolved before any player/content separator.<br>局内时间按“分钟:秒”处理，覆盖 24 分钟后的长局、全角标点、无空格形式和受控 OCR 损坏；先处理时间戳，再寻找玩家正文分隔符。
 - **Deterministic HUD routing. · 固定 HUD 本地分流。** Common ability, summoner-spell, health/mana, item-gold, ward, objective-timer, on-my-way, danger, assist, missing-enemy, and vision messages are handled locally before free-form AI. A bare `champion + R/Q/W/E` remains a marker rather than an invented cooldown/action claim.<br>常见技能、召唤师技能、血量/蓝量、装备金币、守卫、资源倒计时、正在路上、危险、支援、敌人消失和视野消息优先由本地规则处理；只有“英雄 + R/Q/W/E”时保持标记语气，不推断冷却或已使用。
@@ -48,9 +49,9 @@
 These figures come from replaying the same single real-use session and a same-machine screenshot probe. The 141 labels were manually reviewed; raw captures, chat logs, annotations, replay files, local paths, and FPS/frametime data are deliberately not published. They describe regression progress on this known session, not future-match accuracy, and this pass did not primarily change OCR recognition quality.<br>这些数字来自同一段真实使用会话的前后回放，以及同机同截图探针；141 条分类真值经过人工核对。原始截图、聊天记录、人工标注、回放文件、本机路径与 FPS/帧时间数据均未公开。这些结果只说明对这段已知会话的回归改进，不能外推为未来所有对局的准确率；本轮也并非主要优化 OCR 文字识别本身。
 
 > [!NOTE]
-> 2.0 is still an early personal MVP. The new rules are deliberately conservative, but future LoL client wording, custom localisation, unusual HUD layouts, and OCR noise can still produce unknown cases. Redacted examples are welcome in Issues.
+> 2.1 is still an early personal MVP. The new rules are deliberately conservative, but future LoL client wording, custom localisation, unusual HUD layouts, and OCR noise can still produce unknown cases. Redacted examples are welcome in Issues.
 >
-> 2.0 仍是个人维护的早期 MVP。新规则刻意偏保守，但 LOL 客户端后续文案、特殊汉化、少见 HUD 布局和 OCR 噪声仍可能带来未知情况；欢迎在 Issue 中提供脱敏样例。
+> 2.1 仍是个人维护的早期 MVP。新规则刻意偏保守，但 LOL 客户端后续文案、特殊汉化、少见 HUD 布局和 OCR 噪声仍可能带来未知情况；欢迎在 Issue 中提供脱敏样例。
 
 ## At a Glance · 一眼看懂
 
@@ -89,7 +90,7 @@ RiftLens 是一款面向 **LOL 韩服游戏聊天、英雄选择聊天和直播�
 - **Civilised, but keeps the emotion. · 文明化但不抹掉情绪。** Normal communication keeps its original meaning; hostile content has specific attacks removed while retaining available tactical information and approximate emotional tone.<br>正常沟通保留原意；不友善内容删除具体攻击措辞，仍尽量保留其中可用的战术信息和大致情绪。
 - **Champion names are never guessed. · 英雄名称不猜测。** Built-in 173-champion Chinese–Korean–English name mapping from Data Dragon 16.14.1; a champion name is only used when the text actually contains it — otherwise "teammate" is used.<br>内置 Data Dragon 16.14.1 的 173 名英雄中、韩、英名称映射；只有文字中实际命中英雄名时才使用角色名，否则称"队友"。
 - **Natural voice with graceful fallback. · 自然语音与降级。** Chinese defaults to `zh-CN-XiaoxiaoNeural`; English uses `en-US-JennyNeural`. Falls back silently to Windows local TTS when the online voice is unavailable.<br>中文默认尝试 `zh-CN-XiaoxiaoNeural`，英文使用 `en-US-JennyNeural`；在线语音不可用时安静地回退到 Windows 本地语音。
-- **Never steals game focus. · 不抢游戏焦点。** The translation overlay is non-activating, mouse-transparent, and excluded from screen capture. A micro floating control handles pause, resume, volume, and mute.<br>译文层不激活、鼠标穿透并排除自身截图；微型悬浮控件支持暂停、继续、音量和静音。
+- **Never steals game focus. · 不抢游戏焦点。** The translation overlay is non-activating, mouse-transparent, and excluded from screen capture. A micro floating control handles pause, resume, volume, mute, and reselect.<br>译文层不激活、鼠标穿透并排除自身截图；微型悬浮控件支持暂停、继续、音量、静音和重新框选。
 - **Bilingual Chinese–English. · 中英双语。** UI, AI output, tactical signals, history column headers, and voice language switch together, with automated bilingual interaction checks.<br>界面、AI 输出、战术信号、历史列名和语音语言统一切换，并有双语交互自动化检查。
 
 ## How Data Flows · 数据如何流动
@@ -121,9 +122,9 @@ Full details in [PRIVACY.md](PRIVACY.md). Using online translation or online spe
 - **Smaller publish output** requires .NET 8 Desktop Runtime; the self-contained publish output does **not** need a preinstalled .NET.<br>小体积发布包需要 .NET 8 Desktop Runtime；自包含发布包不需要预装 .NET。
 - **Borderless window mode is recommended** for games. Exclusive fullscreen does not guarantee third-party overlays can display.<br>游戏推荐无边框窗口模式。独占全屏不保证能显示第三方悬浮层。
 
-### Download 2.0 · 下载 2.0
+### Download 2.1 · 下载 2.1
 
-Open the [v2.0.0 release page](https://github.com/Nixz0824/RiftLens-LoL-Korean-Translator-Purely-Visual/releases/tag/v2.0.0), download `RiftLens-2.0.0-win-x64.zip`, extract the complete folder, and run `RiftLens.exe`. Keep the packaged `WebUI` folder beside the executable.<br>打开 [v2.0.0 Release 页面](https://github.com/Nixz0824/RiftLens-LoL-Korean-Translator-Purely-Visual/releases/tag/v2.0.0)，下载并完整解压 `RiftLens-2.0.0-win-x64.zip`，再运行 `RiftLens.exe`；请保留程序旁边随包提供的 `WebUI` 文件夹。
+Open the [v2.1.0 release page](https://github.com/Nixz0824/RiftLens-LoL-Korean-Translator-Purely-Visual/releases/tag/v2.1.0), download `RiftLens-2.1.0-win-x64.zip`, extract the complete folder, and run `RiftLens.exe`. Keep the packaged `WebUI` folder beside the executable.<br>打开 [v2.1.0 Release 页面](https://github.com/Nixz0824/RiftLens-LoL-Korean-Translator-Purely-Visual/releases/tag/v2.1.0)，下载并完整解压 `RiftLens-2.1.0-win-x64.zip`，再运行 `RiftLens.exe`；请保留程序旁边随包提供的 `WebUI` 文件夹。
 
 ### Build from Source · 从源码运行
 

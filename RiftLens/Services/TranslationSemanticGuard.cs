@@ -67,6 +67,10 @@ public static partial class TranslationSemanticGuard
         // A failed semantic summary must never be spoken. The UI continues to
         // show displayLines, which are separately constrained to literal output.
         result.ShouldSpeak = false;
+        if (string.IsNullOrWhiteSpace(result.SpeechSilenceReason))
+        {
+            result.SpeechSilenceReason = SpeechSilenceReasons.SemanticGuard;
+        }
     }
 
     public static bool NumbersArePreserved(

@@ -385,6 +385,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
         var generation = Volatile.Read(ref _stateGeneration);
         var lastPlayerObservedAt = DateTimeOffset.MinValue;
         var lastSystemMessageSpokenAt = DateTimeOffset.MinValue;
+        var partialWaitUsed = false;
 
         while (!cancellationToken.IsCancellationRequested)
         {
@@ -404,6 +405,13 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             {
                 if (turns.HasPending)
                 {
+                    if (!partialWaitUsed && PartialLineWait.LooksIncomplete(turns.LastContent))
+                    {
+                        partialWaitUsed = true;
+                        continue;
+                    }
+
+                    partialWaitUsed = false;
                     var completed = turns.Flush();
                     if (completed is not null)
                     {
@@ -440,6 +448,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             {
                 lastPlayerObservedAt = DateTimeOffset.UtcNow;
                 pendingSystemMessage = null;
+                partialWaitUsed = false;
                 var completed = turns.Add(message);
                 if (completed is not null)
                 {
@@ -572,8 +581,17 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                 .Take(8)
                 .ToList();
             result.SpokenSummary = PlayerSpeechTextSanitizer.Clean(result.SpokenSummary, turn);
-            result.ShouldSpeak = PlayerSpeechPolicy.ShouldSpeak(result, _settings)
-                && !string.IsNullOrWhiteSpace(result.SpokenSummary);
+            if (!PlayerSpeechPolicy.ShouldSpeak(result, _settings)
+                || string.IsNullOrWhiteSpace(result.SpokenSummary))
+            {
+                result.ShouldSpeak = false;
+                if (string.IsNullOrWhiteSpace(result.SpeechSilenceReason))
+                {
+                    result.SpeechSilenceReason = result.ToxicityFiltered
+                        ? SpeechSilenceReasons.Toxicity
+                        : SpeechSilenceReasons.UserFilter;
+                }
+            }
             TranslationReady?.Invoke(result);
         }
         catch (OperationCanceledException)

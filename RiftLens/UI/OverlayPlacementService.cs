@@ -17,7 +17,7 @@ public static class OverlayPlacementService
             return custom;
         }
 
-        var capture = settings.CaptureRegion.ToRectangle();
+        var capture = settings.CaptureRegion.Resolve();
         var screen = Screen.FromRectangle(capture).WorkingArea;
         var placements = BuildCandidates(capture, desiredSize);
         if (settings.OverlayPlacement == OverlayPlacement.Auto && lockedAutoPlacement is not null)
@@ -43,7 +43,7 @@ public static class OverlayPlacementService
 
     public static OverlayPlacement ResolveAutoPlacement(AppSettings settings, Size desiredSize)
     {
-        var capture = settings.CaptureRegion.ToRectangle();
+        var capture = settings.CaptureRegion.Resolve();
         var screen = Screen.FromRectangle(capture).WorkingArea;
         return BuildCandidates(capture, desiredSize)
             .Select(candidate => new

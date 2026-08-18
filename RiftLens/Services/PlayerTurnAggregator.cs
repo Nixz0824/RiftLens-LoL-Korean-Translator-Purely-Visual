@@ -18,6 +18,8 @@ public sealed class PlayerTurnAggregator
 
     public bool HasPending => _contents.Count > 0;
 
+    public string LastContent => _contents.Count > 0 ? _contents[^1] : string.Empty;
+
     public PlayerSpeechTurn? Add(ClassifiedGameMessage message)
     {
         if (message.Kind != GameMessageKind.PlayerChat)

@@ -31,6 +31,37 @@ public static class FinalSpeechPolicy
         };
     }
 
+    public static string? DescribeSilence(TranslationResult result, AppSettings settings)
+    {
+        if (settings.OutputMode == OutputMode.OverlayOnly)
+        {
+            return SpeechSilenceReasons.OverlayOnly;
+        }
+
+        if (!string.IsNullOrWhiteSpace(result.SpeechSilenceReason))
+        {
+            return result.SpeechSilenceReason;
+        }
+
+        if (result.ToxicityFiltered)
+        {
+            return SpeechSilenceReasons.Toxicity;
+        }
+
+        if (result.SourceKind == TranslationSourceKind.PlayerChat
+            && ContainsDeterministicNonPlayerContent(result))
+        {
+            return SpeechSilenceReasons.HudLeak;
+        }
+
+        if (!result.ShouldSpeak || string.IsNullOrWhiteSpace(result.SpokenSummary))
+        {
+            return SpeechSilenceReasons.UserFilter;
+        }
+
+        return null;
+    }
+
     /// <summary>
     /// Fail closed when a fixed LoL HUD/ping feed accidentally reaches the AI
     /// player-chat path. Re-routing the already generated AI sentence would
