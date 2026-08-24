@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Text.Json;
 using RiftLens.Models;
 using RiftLens.Services;
 
@@ -26,6 +27,8 @@ public sealed class MainForm : Form
     private bool _ocrReady;
     private bool _ocrInitializing;
     private string? _ocrError;
+    private readonly SemaphoreSlim _historySaveLock = new(1, 1);
+    private string? _historySavePath;
 
     private readonly Panel _contentHost = new() { Dock = DockStyle.Fill, BackColor = UiTheme.Canvas };
     private readonly SidebarNavButton _homeNav = new(SidebarGlyph.Home, "主界面");
@@ -109,11 +112,11 @@ public sealed class MainForm : Form
     {
         Text = "RiftLens · 韩服屏幕翻译";
         FormBorderStyle = FormBorderStyle.None;
-        Padding = new Padding(1);
+        Padding = Padding.Empty;
         MinimumSize = new Size(1040, 680);
         Size = new Size(1240, 810);
         StartPosition = FormStartPosition.CenterScreen;
-        BackColor = UiTheme.Border;
+        BackColor = Color.FromArgb(239, 237, 236);
         Font = UiTheme.Font(9);
         AutoScaleMode = AutoScaleMode.Dpi;
         Icon = CreateBrandIcon();
@@ -128,8 +131,6 @@ public sealed class MainForm : Form
         _overlay.TranslationPositioned += bounds => _overlayControl.ShowNear(bounds);
         _overlayControl.TogglePauseRequested += TogglePause;
         _overlayControl.VolumeChanged += volume => ApplySpeechVolume(volume, persist: true);
-        _overlayControl.MuteRequested += () => { _speech.Clear(); _overlay.HideImmediately(); };
-        _overlayControl.ReselectRequested += async () => await SelectRegionAsync(false);
         _overlayControl.ShowMainWindowRequested += ShowMainWindow;
         _overlayControl.StopRequested += async () => await StopListeningAsync();
         _overlayControl.PositionChanged += point =>
@@ -197,7 +198,14 @@ public sealed class MainForm : Form
                 ToggleMaximize();
                 break;
             case SpatialAction.Close:
-                Close();
+                if (_settings.CloseToTray)
+                {
+                    HideToTray();
+                }
+                else
+                {
+                    Close();
+                }
                 break;
             case SpatialAction.BeginWindowDrag:
                 if (WindowState == FormWindowState.Normal)
@@ -247,7 +255,14 @@ public sealed class MainForm : Form
             case SpatialAction.RestoreDefaults:
                 var capture = _settings.CaptureRegion;
                 var display = _settings.DisplayRegion;
-                _settings = new AppSettings { CaptureRegion = capture, DisplayRegion = display };
+                _settings = new AppSettings
+                {
+                    CaptureRegion = capture,
+                    DisplayRegion = display,
+                    OnboardingCompleted = _settings.OnboardingCompleted,
+                    InterfacePalette = _settings.InterfacePalette,
+                    CustomThemeColor = _settings.CustomThemeColor
+                };
                 ApplyNativeLanguage();
                 ApplySettingsToControls();
                 await _settingsStore.SaveAsync(_settings);
@@ -410,6 +425,33 @@ public sealed class MainForm : Form
                     "已切换为中文；后续译文与播报将使用中文。",
                     "Switched to English. New translations and speech will use English."));
                 break;
+            case SpatialAction.InterfacePaletteChanged when value is string palette:
+                _settings.InterfacePalette = NormalizeInterfacePalette(palette);
+                _workspace.InterfacePalette = _settings.InterfacePalette;
+                _overlayControl.SetTheme(_settings.InterfacePalette, _settings.CustomThemeColor);
+                await _settingsStore.SaveAsync(_settings);
+                break;
+            case SpatialAction.CustomThemeColorChanged when value is string customColor:
+                _settings.InterfacePalette = "custom";
+                _settings.CustomThemeColor = NormalizeThemeColor(customColor);
+                _workspace.InterfacePalette = _settings.InterfacePalette;
+                _workspace.CustomThemeColor = _settings.CustomThemeColor;
+                _overlayControl.SetTheme(_settings.InterfacePalette, _settings.CustomThemeColor);
+                await _settingsStore.SaveAsync(_settings);
+                break;
+            case SpatialAction.OnboardingCompleted when value is bool onboardingCompleted:
+                _settings.OnboardingCompleted = onboardingCompleted;
+                _workspace.OnboardingCompleted = onboardingCompleted;
+                await _settingsStore.SaveAsync(_settings);
+                break;
+            case SpatialAction.SaveTranslationHistoryChanged when value is bool saveHistory:
+                _settings.SaveTranslationHistory = saveHistory;
+                _workspace.SaveTranslationHistory = saveHistory;
+                await _settingsStore.SaveAsync(_settings);
+                SetStatus(saveHistory
+                    ? L("本地翻译记录保存已开启。记录只写入当前用户的 RiftLens 本地目录。", "Local history saving is on. Records stay in the current user's RiftLens data folder.")
+                    : L("本地翻译记录保存已关闭。", "Local history saving is off."));
+                break;
             case SpatialAction.ToggleAutoSpeech when value is bool autoSpeech:
                 _workspace.AutoSpeech = autoSpeech;
                 SelectValue(_outputMode, autoSpeech ? OutputMode.OverlayAndVoice : OutputMode.OverlayOnly);
@@ -441,6 +483,7 @@ public sealed class MainForm : Form
         _clientReminders.Checked = _settings.ClientReminderEnabled;
         _otherSystemEvents.Checked = _settings.OtherSystemEventEnabled;
         _minimizeAfterStart.Checked = _settings.MinimizeAfterStart;
+        _overlayControl.SetTheme(_settings.InterfacePalette, _settings.CustomThemeColor);
         _overlayControl.SetPreferredPosition(
             _settings.FloatingControlX,
             _settings.FloatingControlY);
@@ -2126,7 +2169,7 @@ public sealed class MainForm : Form
         _workspace.RecentTranslation = _recentTranslation.Text;
         _workspace.RecentMeta = _recentMeta.Text;
         _workspace.RecentSilenceReason = result.SpeechSilenceReason;
-        _workspace.AddHistory(new SpatialHistoryItem(
+        var historyItem = new SpatialHistoryItem(
             DateTime.Now,
             result.RawText,
             _recentTranslation.Text,
@@ -2146,7 +2189,12 @@ public sealed class MainForm : Form
                 TranslationSourceKind.Unknown => L("未分类 · 仅显示", "Unclassified · Display only"),
                 _ => string.Empty
             },
-            LocalSpeechPlanner.FormatReason(result.SpeechSilenceReason, _settings.Language)));
+            LocalSpeechPlanner.FormatReason(result.SpeechSilenceReason, _settings.Language));
+        _workspace.AddHistory(historyItem);
+        if (_settings.SaveTranslationHistory)
+        {
+            _ = AppendLocalHistoryAsync(historyItem);
+        }
 
         var entry = BuildHistoryRecordCard(result, speaker);
         _historyList.SuspendLayout();
@@ -2227,7 +2275,7 @@ public sealed class MainForm : Form
             ? _settings.CaptureRegion.ToString()
             : L("尚未框选需要识别的文字区域", "No text recognition region selected");
         _workspace.ModelName = _settings.ApiModel;
-        _workspace.AppVersion = Application.ProductVersion;
+        _workspace.AppVersion = DisplayVersion;
         _workspace.ActivePresetIndex = _settings.ActivePresetIndex;
         _workspace.PresetNames = _settings.Presets.Select(preset => preset.Name).ToArray();
         _regionBadge.SetStatus(regionReady ? "已完成" : "需要设置", regionReady);
@@ -2344,6 +2392,74 @@ public sealed class MainForm : Form
             OverlayPlacement.Right => "位置：识别区域右侧",
             _ => "位置：自动选择并在本次运行中锁定"
         };
+    }
+
+    private async Task AppendLocalHistoryAsync(SpatialHistoryItem item)
+    {
+        await _historySaveLock.WaitAsync();
+        try
+        {
+            if (!_settings.SaveTranslationHistory)
+            {
+                return;
+            }
+            if (string.IsNullOrWhiteSpace(_historySavePath))
+            {
+                var directory = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "RiftLens",
+                    "history");
+                Directory.CreateDirectory(directory);
+                _historySavePath = Path.Combine(
+                    directory,
+                    $"RiftLens-history-{DateTime.Now:yyyyMMdd-HHmmss}.jsonl");
+            }
+            var line = JsonSerializer.Serialize(new
+            {
+                time = item.Time,
+                original = item.Original,
+                translation = item.Translation,
+                spoken = item.Spoken,
+                priority = item.Priority,
+                kind = item.Kind,
+                silenceReason = item.SilenceReason
+            });
+            await File.AppendAllTextAsync(_historySavePath, line + Environment.NewLine);
+        }
+        catch (Exception exception)
+        {
+            SafeUi(() => SetStatus(L(
+                "保存本地翻译记录失败：",
+                "Failed to save local translation history: ") + exception.Message));
+        }
+        finally
+        {
+            _historySaveLock.Release();
+        }
+    }
+
+    private static string NormalizeInterfacePalette(string? value) =>
+        value?.Trim().ToLowerInvariant() switch
+        {
+            "mono" => "mono",
+            "pearl" => "pearl",
+            "coral" => "coral",
+            "blue" => "blue",
+            "teal" => "teal",
+            "sage" => "sage",
+            "sand" => "sand",
+            "custom" => "custom",
+            _ => "porcelain"
+        };
+
+    private static string NormalizeThemeColor(string? value)
+    {
+        var normalized = value?.Trim() ?? string.Empty;
+        return normalized.Length == 7
+            && normalized[0] == '#'
+            && normalized.Skip(1).All(Uri.IsHexDigit)
+            ? normalized.ToLowerInvariant()
+            : "#6f7f91";
     }
 
     private void ReadControlsIntoSettings()
@@ -2522,7 +2638,7 @@ public sealed class MainForm : Form
         _maximizeWindow.AccessibleName = maximized
             ? L("还原窗口", "Restore window")
             : L("最大化", "Maximize");
-        Padding = maximized ? Padding.Empty : new Padding(1);
+        Padding = Padding.Empty;
         ApplyWindowCorners();
     }
 
@@ -2536,21 +2652,22 @@ public sealed class MainForm : Form
         var rounded = WindowState == FormWindowState.Normal;
         var cornerPreference = rounded ? 2 : 1; // DWMWCP_ROUND / DWMWCP_DONOTROUND
         _ = DwmSetWindowAttribute(Handle, DwmWindowCornerPreference, ref cornerPreference, sizeof(int));
-
+        // A WinForms Region is a 1-bit clipping mask and produces jagged black
+        // corner pixels when combined with DWM and the WebUI's inner radius.
+        // Let Windows own the outer window shape and keep CSS responsible only
+        // for the inner application surface.
         var previousRegion = Region;
-        if (!rounded || ClientSize.Width < 40 || ClientSize.Height < 40)
-        {
-            Region = null;
-            previousRegion?.Dispose();
-            return;
-        }
-
-        var radius = Math.Max(16, DeviceDpi * 18 / 96);
-        using var path = UiTheme.RoundedPath(
-            new Rectangle(0, 0, ClientSize.Width, ClientSize.Height),
-            radius);
-        Region = new Region(path);
+        Region = null;
         previousRegion?.Dispose();
+    }
+
+    private static string DisplayVersion
+    {
+        get
+        {
+            var version = typeof(MainForm).Assembly.GetName().Version;
+            return version is null ? "2.2.0" : version.ToString(3);
+        }
     }
 
     private void FitToWorkingArea()
@@ -2599,10 +2716,13 @@ public sealed class MainForm : Form
 
     private void OnFormClosing(object? sender, FormClosingEventArgs e)
     {
-        if (!_exiting && e.CloseReason == CloseReason.UserClosing && _coordinator is not null && _settings.CloseToTray)
+        if (!_exiting
+            && _settings.CloseToTray
+            && e.CloseReason is not CloseReason.WindowsShutDown
+            && e.CloseReason is not CloseReason.TaskManagerClosing)
         {
             e.Cancel = true;
-            Hide();
+            HideToTray();
             return;
         }
         _overlay.HideImmediately();
@@ -2707,6 +2827,12 @@ public sealed class MainForm : Form
         Show();
         WindowState = FormWindowState.Normal;
         Activate();
+    }
+
+    private void HideToTray()
+    {
+        _trayIcon.Visible = true;
+        Hide();
     }
 
     private void ApplySpeechVolume(int volume, bool persist)

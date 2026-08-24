@@ -1,141 +1,120 @@
 (() => {
   "use strict";
 
-  addEventListener("load", () => {
-  const language = new URLSearchParams(location.search).get("testLanguage") || "zh-CN";
-  const messages = window.__riftLensMessages || [];
-  const result = document.createElement("pre");
-  result.id = "interaction-test-result";
-  result.dataset.status = "running";
-  result.textContent = "RUNNING";
-  document.body.append(result);
+  addEventListener("load", async () => {
+    const params = new URLSearchParams(location.search);
+    const language = params.get("testLanguage") || "zh-CN";
+    const onboardingMode = params.get("testOnboarding") === "true";
+    const messages = window.__riftLensMessages || [];
+    const result = document.createElement("pre");
+    result.id = "interaction-test-result";
+    result.dataset.status = "running";
+    result.textContent = "RUNNING";
+    document.body.append(result);
 
-  function verify(condition, message) {
-    if (!condition) throw new Error(message);
-  }
-
-  function click(selector) {
-    const element = document.querySelector(selector);
-    verify(element, `Missing control: ${selector}`);
-    element.click();
-    return element;
-  }
-
-  function last(action) {
-    return [...messages].reverse().find(message => message.action === action);
-  }
-
-  function expectMessage(action, payload) {
-    const item = last(action);
-    verify(item, `No message posted for ${action}`);
-    if (arguments.length === 2) {
-      verify(JSON.stringify(item.payload) === JSON.stringify(payload), `Wrong payload for ${action}`);
+    const delay = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
+    function verify(condition, message) { if (!condition) throw new Error(message); }
+    function click(selector) { const element = document.querySelector(selector); verify(element, `Missing control: ${selector}`); element.click(); return element; }
+    function last(action) { return [...messages].reverse().find(message => message.action === action); }
+    function expectMessage(action, payload) {
+      const item = last(action); verify(item, `No message posted for ${action}`);
+      if (arguments.length === 2) verify(JSON.stringify(item.payload) === JSON.stringify(payload), `Wrong payload for ${action}`);
     }
-  }
-
-  try {
-    verify(document.documentElement.lang === language, `Failed to initialize ${language}`);
-    for (const target of ["history", "voice", "settings", "home"]) {
-      click(`.sidebar [data-nav="${target}"]`);
-      verify(document.querySelector(`#page-${target}`).classList.contains("active"), `Navigation failed: ${target}`);
-      expectMessage("navigate", target);
+    function changeToggle(id, action) {
+      const input = document.querySelector(`#${id}`); verify(input, `Missing toggle: ${id}`);
+      input.checked = !input.checked; input.dispatchEvent(new Event("change", { bubbles: true })); expectMessage(action, input.checked);
     }
 
-    const actions = [...new Set([...document.querySelectorAll("[data-action]")].map(element => element.dataset.action))];
-    document.querySelectorAll("[data-action]").forEach(element => element.click());
-    actions.forEach(action => verify(messages.some(message => message.action === action), `Action failed: ${action}`));
-    verify(last("toggleEvaluationRecording"), "Real-evaluation capture action is missing");
-    window.__riftLensHostMessage({ data: { type: "state", data: { evaluationRecording: true } } });
-    verify(document.querySelector("#evaluation-recording").classList.contains("recording"),
-      "Real-evaluation capture lacks an active state");
-    verify(document.querySelector("#evaluation-recording span").textContent.includes(
-      language === "en-US" ? "Stop and save" : "停止并保存"),
-      "Real-evaluation capture active copy is not localized");
-    window.__riftLensHostMessage({ data: { type: "state", data: { evaluationRecording: false } } });
+    try {
+      if (onboardingMode) {
+        verify(!document.querySelector("#welcome-screen").hidden, "Welcome screen did not open");
+        click("#welcome-continue");
+        await delay(380);
+        verify(!document.querySelector("#guide-screen").hidden, "First-run guide did not open");
+        click("#guide-continue");
+        await delay(310);
+        verify(!document.querySelector("#home-screen").hidden, "Guide did not continue to Home");
+        expectMessage("onboardingCompleted", true);
+        result.dataset.status = "pass";
+        result.textContent = `PASS onboarding flow`;
+        return;
+      }
 
-    click('.sidebar [data-nav="settings"]');
-    verify(document.querySelector(".always-state").textContent.trim().length > 0, "Always-on player-chat state is missing");
-    verify(document.querySelector(".settings-card:nth-child(2) .card-note").textContent.includes(language === "en-US" ? "Colour" : "颜色"),
-      "Structure-and-colour classification note is missing");
-    click('#output-mode button[data-value="1"]');
-    verify(document.querySelector('#output-mode button[data-value="1"]').classList.contains("active"), "Output mode lacks immediate feedback");
-    expectMessage("outputModeChanged", 1);
+      verify(document.documentElement.lang === language, `Failed to initialize ${language}`);
+      verify(!document.querySelector("#home-screen").hidden, "Home screen is not visible");
+      verify(document.querySelectorAll("#history-rows tr").length === 2, "History rows were not rendered");
 
-    const placement = document.querySelector("#overlay-placement");
-    placement.value = "4";
-    placement.dispatchEvent(new Event("change", { bubbles: true }));
-    verify(placement.value === "4", "Display-position select did not change");
-    expectMessage("overlayPlacementChanged", 4);
+      const homeScreenStyle = getComputedStyle(document.querySelector(".home-screen"));
+      const homeShellStyle = getComputedStyle(document.querySelector(".home-shell"));
+      const leftStackStyle = getComputedStyle(document.querySelector(".left-stack"));
+      verify(homeScreenStyle.paddingTop === "0px", "Home still has an outer presentation layer");
+      verify(homeShellStyle.borderTopLeftRadius === "0px", "Home shell still has a nested outer radius");
+      verify(leftStackStyle.display === "flex", "Left cards are not using content-driven sizing");
+      const clippedCard = [...document.querySelectorAll(".left-stack > .home-card")]
+        .find(card => card.scrollHeight > card.clientHeight + 1);
+      verify(!clippedCard, `Left card content is clipped in ${language}`);
 
-    const toggles = [
-      ["auto-speech", "toggleAutoSpeech"],
-      ["urgent-player-speech", "urgentPlayerSpeechChanged"],
-      ["important-player-speech", "importantPlayerSpeechChanged"],
-      ["neutral-player-speech", "neutralPlayerSpeechChanged"],
-      ["tactical-signals", "tacticalSignalsChanged"], ["kill-events", "killEventsChanged"],
-      ["objective-events", "objectiveEventsChanged"], ["client-reminders", "clientRemindersChanged"],
-      ["other-system-events", "otherSystemEventsChanged"],
-      ["keep-emotion", "keepEmotionChanged"], ["change-only", "changeOnlyChanged"],
-      ["settings-emotion", "keepEmotionChanged"],
-      ["floating-button", "floatingButtonChanged"], ["low-usage", "lowUsageChanged"],
-      ["minimize-after-start", "minimizeAfterStartChanged"], ["close-to-tray", "closeToTrayChanged"]
-    ];
-    toggles.forEach(([id, action]) => {
-      const input = document.querySelector(`#${id}`);
-      input.checked = !input.checked;
-      input.dispatchEvent(new Event("change", { bubbles: true }));
-      expectMessage(action, input.checked);
-    });
+      click("#settings-button");
+      verify(!document.querySelector("#settings-popover").hidden, "Settings popover did not open");
+      click(".history-card");
+      await delay(210);
+      verify(document.querySelector("#settings-popover").hidden, "Settings popover did not close after an outside click");
+      verify(document.querySelector("#settings-button").getAttribute("aria-expanded") === "false", "Settings trigger stayed expanded after an outside click");
+      click("#settings-button");
+      verify(!document.querySelector("#settings-popover").hidden, "Settings popover did not reopen");
+      click('[data-palette="mono"]');
+      expectMessage("interfacePaletteChanged", "mono");
+      verify(document.body.dataset.palette === "mono", "Palette did not update immediately");
 
-    [
-      ["global-volume", "volumeChanged", 44], ["voice-volume", "volumeChanged", 47],
-      ["overlay-opacity", "overlayOpacityChanged", 62], ["speech-rate", "speechRateChanged", 3]
-    ].forEach(([id, action, value]) => {
-      const input = document.querySelector(`#${id}`);
-      input.value = String(value);
-      input.dispatchEvent(new Event("input", { bubbles: true }));
-      input.dispatchEvent(new Event("change", { bubbles: true }));
-      expectMessage(action, value);
-    });
+      const custom = document.querySelector("#custom-theme-color");
+      custom.value = "#345678";
+      custom.dispatchEvent(new Event("input", { bubbles: true }));
+      custom.dispatchEvent(new Event("change", { bubbles: true }));
+      expectMessage("customThemeColorChanged", "#345678");
+      verify(document.body.dataset.palette === "custom", "Custom palette did not update card surfaces");
 
-    click('.sidebar [data-nav="voice"]');
-    verify(document.querySelector('#objective-events').closest("label").textContent.includes(
-        language === "en-US" ? "Map objectives & structures" : "地图资源与建筑"),
-      "Map-objective and structure switch copy is out of sync");
-    const systemHelp = document.querySelector(".system-type-heading .help");
-    verify(systemHelp && systemHelp.dataset.tip.includes(
-      language === "en-US" ? "does not control player-typed tactical chat" : "不控制玩家手动输入的战术聊天"),
-      "System Ping and player tactical-chat boundary is missing");
-    const help = click(".help");
-    verify(help.getAttribute("aria-expanded") === "true", "Help button did not expand");
-    verify(document.querySelector("#tooltip").classList.contains("show"), "Help tooltip did not appear");
-    help.click();
-    verify(help.getAttribute("aria-expanded") === "false", "Help button did not collapse");
+      [["minimize-after-start","minimizeAfterStartChanged"],["close-to-tray","closeToTrayChanged"],["floating-button","floatingButtonChanged"]]
+        .forEach(([id, action]) => changeToggle(id, action));
 
-    click('.sidebar [data-nav="home"]');
-    document.querySelector("#api-key").value = "test-api-key-placeholder";
-    click("#save-api");
-    expectMessage("saveApiKey", { apiKey: "test-api-key-placeholder" });
-    click("#reveal-key");
-    verify(document.querySelector("#api-key").type === "text", "API key visibility button failed");
+      click("#more-settings-button");
+      verify(!document.querySelector("#advanced-popover").hidden, "Advanced settings did not open");
+      click('#output-mode button[data-value="1"]'); expectMessage("outputModeChanged", 1);
+      const placement = document.querySelector("#overlay-placement"); placement.value = "4"; placement.dispatchEvent(new Event("change", { bubbles: true })); expectMessage("overlayPlacementChanged", 4);
+      const opacity = document.querySelector("#overlay-opacity"); opacity.value = "62"; opacity.dispatchEvent(new Event("input", { bubbles: true })); opacity.dispatchEvent(new Event("change", { bubbles: true })); expectMessage("overlayOpacityChanged", 62);
+      [["urgent-player-speech","urgentPlayerSpeechChanged"],["important-player-speech","importantPlayerSpeechChanged"],["neutral-player-speech","neutralPlayerSpeechChanged"],["kill-events","killEventsChanged"],["objective-events","objectiveEventsChanged"],["client-reminders","clientRemindersChanged"],["other-system-events","otherSystemEventsChanged"],["keep-emotion","keepEmotionChanged"],["change-only","changeOnlyChanged"],["low-usage","lowUsageChanged"]]
+        .forEach(([id, action]) => changeToggle(id, action));
 
-    click('.sidebar [data-nav="settings"]');
-    const honestReadOnlyStates = [...document.querySelectorAll(".static-value, .unavailable-note, .bundled-state, .fixed-label")]
-      .every(element => !["BUTTON", "INPUT", "SELECT"].includes(element.tagName) && !element.hasAttribute("tabindex"));
-    verify(honestReadOnlyStates, "A fixed capability still looks operable");
+      click(".history-card");
+      await delay(210);
+      verify(document.querySelector("#advanced-popover").hidden, "Advanced settings did not close after an outside click");
 
-    const otherLanguage = language === "en-US" ? "zh-CN" : "en-US";
-    click(`[data-language="${otherLanguage}"]`);
-    verify(document.documentElement.lang === otherLanguage, "Language switch failed");
-    expectMessage("languageChanged", otherLanguage);
-    click(`[data-language="${language}"]`);
-    verify(document.documentElement.lang === language, "Language switch-back failed");
+      changeToggle("auto-speech", "toggleAutoSpeech");
+      changeToggle("tactical-signals", "tacticalSignalsChanged");
+      const volume = document.querySelector("#voice-volume"); volume.value = "44"; volume.dispatchEvent(new Event("input", { bubbles: true })); volume.dispatchEvent(new Event("change", { bubbles: true })); expectMessage("volumeChanged", 44);
+      const rate = document.querySelector("#speech-rate"); rate.value = "3"; rate.dispatchEvent(new Event("input", { bubbles: true })); rate.dispatchEvent(new Event("change", { bubbles: true })); expectMessage("speechRateChanged", 3);
 
-    result.dataset.status = "pass";
-    result.textContent = `PASS ${language} interactions`;
-  } catch (error) {
-    result.dataset.status = "fail";
-    result.textContent = `${language}: ${error.message}`;
-  }
+      document.querySelector("#api-key").value = "test-api-key-placeholder";
+      click("#save-api"); expectMessage("saveApiKey", { apiKey: "test-api-key-placeholder" });
+      click("#reveal-key"); verify(document.querySelector("#api-key").type === "text", "API key visibility failed");
+      click("#primary-action"); expectMessage("togglePrimary");
+      click("#local-save-button"); expectMessage("saveTranslationHistoryChanged", true);
+
+      click("#history-menu-button"); verify(!document.querySelector("#history-menu").hidden, "History actions did not open");
+      click('#history-menu [data-action="exportDiagnostics"]'); expectMessage("exportDiagnostics");
+      click('#history-menu [data-action="toggleEvaluationRecording"]'); expectMessage("toggleEvaluationRecording");
+
+      const otherLanguage = language === "en-US" ? "zh-CN" : "en-US";
+      click("#language-button");
+      verify(document.documentElement.lang === otherLanguage, "Full language switch failed");
+      expectMessage("languageChanged", otherLanguage);
+      verify(document.querySelector(".history-card h2").textContent.includes(otherLanguage === "en-US" ? "Translation" : "翻译"), "History heading did not localize");
+      click("#language-button"); verify(document.documentElement.lang === language, "Language switch-back failed");
+
+      result.dataset.status = "pass";
+      result.textContent = `PASS ${language} interactions`;
+    } catch (error) {
+      result.dataset.status = "fail";
+      result.textContent = `${language}: ${error.message}`;
+    }
   }, { once: true });
 })();

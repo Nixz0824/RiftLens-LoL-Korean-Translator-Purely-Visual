@@ -749,7 +749,7 @@ await CheckAsync("设置持久化", async () =>
     Require(loaded.OutputMode == OutputMode.VoiceOnly, "输出模式未保存");
     Require(loaded.SpeechVolume == 42, "语音音量未保存");
     Require(loaded.OcrScale == 3, "旧版 OCR 放大倍数未迁移到聊天优化值");
-    Require(loaded.SchemaVersion == 9, "旧版设置未迁移到窗口相对框选版本");
+    Require(loaded.SchemaVersion == 10, "旧版设置未迁移到新版界面设置版本");
     Require(!loaded.TacticalSignalEnabled
         && !loaded.KillEventEnabled
         && !loaded.ObjectiveEventEnabled
@@ -769,6 +769,10 @@ await CheckAsync("设置持久化", async () =>
     loaded.ObjectiveEventEnabled = true;
     loaded.SpeakImportantPlayerChat = false;
     loaded.SpeakNeutralPlayerChat = true;
+    loaded.OnboardingCompleted = true;
+    loaded.InterfacePalette = "mono";
+    loaded.CustomThemeColor = "#345678";
+    loaded.SaveTranslationHistory = true;
     await store.SaveAsync(loaded);
     var reloaded = await store.LoadAsync();
     Require(reloaded.Language == AppLanguage.English, "英文语言设置未持久化");
@@ -780,6 +784,11 @@ await CheckAsync("设置持久化", async () =>
         && !reloaded.SpeakImportantPlayerChat
         && reloaded.SpeakNeutralPlayerChat,
         "玩家三档播报开关未独立持久化");
+    Require(reloaded.OnboardingCompleted
+        && reloaded.InterfacePalette == "mono"
+        && reloaded.CustomThemeColor == "#345678"
+        && reloaded.SaveTranslationHistory,
+        "首次引导、界面配色或本地历史保存设置未持久化");
 });
 
 await CheckAsync("玩家分级播报与隐私化语音", () =>

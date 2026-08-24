@@ -4,6 +4,38 @@ All notable user-facing changes will be documented here. The project follows a l
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-08-24
+
+### Added
+
+- A new light, single-page desktop interface based on the maintainer's Figma layout, with a product welcome screen on every launch and a one-time three-step introduction for first use.
+- Eight complete light-interface palettes plus a custom colour picker. Cards, controls, sliders, and the native floating control share the selected accent and surface colours.
+- Optional local translation-history saving. It is off by default and writes JSONL only under the current user's RiftLens local-data directory after the user enables it.
+- Chinese and English interaction coverage for onboarding, palette changes, settings, history saving, and content-driven card layout.
+
+### Changed
+
+- The WebUI now fills the native window directly instead of nesting a second rounded page inside an outer canvas. Windows DWM owns the antialiased outer corners.
+- The home screen combines API connection, voice controls, system information, translation history, and quick actions in one formal workspace. Detailed runtime and speech options remain in the settings popover.
+- Chinese and English cards use content-driven heights instead of separate fixed row sizes; shorter Chinese copy no longer leaves large empty card areas, while longer English copy can grow without clipping.
+- Settings and advanced settings close when the user clicks elsewhere in the application, while internal clicks and the colour picker remain usable.
+- The floating control was simplified to pause/resume, volume, and drag. Its compact and expanded surfaces now follow the selected main-interface palette.
+- The window close control honours “close to tray” directly, and the form-closing safeguard covers ordinary close paths without intercepting Windows shutdown or Task Manager termination.
+- Settings schema is now `10` for onboarding state, interface palette, custom colour, and optional local-history saving.
+
+### Fixed
+
+- Removed the duplicate native loading page that appeared before the product-owned welcome screen.
+- Removed jagged double rounding caused by combining a WinForms clipping region, DWM corners, and an inner WebUI radius.
+- Fixed high-DPI clipping in the voice and system-information cards, long build metadata in the displayed version, compressed update buttons, and English text crowding.
+- Fixed the floating volume row's vertical alignment, transparent-window percentage rendering, speaker/track collision, and duplicate action icons.
+- Closing the WebUI window with close-to-tray enabled now hides the main window while keeping the process and tray entry alive.
+
+### Privacy
+
+- The pure-visual and BYOK boundaries are unchanged: no game-memory access, injection, packet capture, input simulation, automatic chat sending, bundled key, or key written to settings/README.
+- Release notes and packages contain no local evaluation captures, chat logs, annotations, machine paths, API keys, or personal test data.
+
 ## [2.1.0] - 2026-08-18
 
 Implementation brief: `docs/2.1-PLAN.md`.
@@ -82,4 +114,4 @@ Implementation brief: `docs/2.1-PLAN.md`.
 
 ## Release policy
 
-RiftLens 2.1.0 is the current public MVP release. It passes the repository's automated Windows checks, but it remains a personal early-stage project: real-match OCR, client wording, antivirus reputation, and unusual Windows/HUD configurations will continue to need community testing.
+RiftLens 2.2.0 is the current public MVP release. It passes the repository's automated Windows checks, but it remains a personal early-stage project: real-match OCR, client wording, antivirus reputation, and unusual Windows/HUD configurations will continue to need community testing.

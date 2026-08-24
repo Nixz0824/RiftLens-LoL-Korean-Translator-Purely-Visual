@@ -143,7 +143,7 @@ public sealed class ScreenRegion
 
 public sealed class AppSettings
 {
-    public int SchemaVersion { get; set; } = 9;
+    public int SchemaVersion { get; set; } = 10;
     public AppLanguage Language { get; set; } = AppLanguage.Chinese;
     public ScreenRegion CaptureRegion { get; set; } = new();
     public ScreenRegion DisplayRegion { get; set; } = new();
@@ -185,6 +185,10 @@ public sealed class AppSettings
     public int? FloatingControlY { get; set; }
     public bool MinimizeAfterStart { get; set; } = true;
     public bool CloseToTray { get; set; } = true;
+    public bool OnboardingCompleted { get; set; }
+    public string InterfacePalette { get; set; } = "porcelain";
+    public string CustomThemeColor { get; set; } = "#6f7f91";
+    public bool SaveTranslationHistory { get; set; }
     public int ActivePresetIndex { get; set; } = -1;
     public List<CapturePreset> Presets { get; set; } = new();
 

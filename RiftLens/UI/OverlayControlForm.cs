@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
+using System.Drawing.Text;
 using System.Runtime.InteropServices;
 using RiftLens.Models;
 
@@ -14,8 +15,12 @@ namespace RiftLens.UI;
 public sealed class OverlayControlForm : Form
 {
     private const int CollapsedWidth = 48;
-    private const int ExpandedWidth = 318;
+    private const int ExpandedWidth = 232;
     private const int ControlHeight = 48;
+    private const int ContentCenterY = 23;
+    private const int VolumeSpeakerOriginX = CollapsedWidth + 13;
+    private const int SpeakerGlyphRightOffset = 23;
+    private const int SpeakerToTrackGap = 8;
     private const int ExpandDurationMs = 170;
     private const int WsExNoActivate = 0x08000000;
     private const int WsExToolWindow = 0x00000080;
@@ -27,10 +32,9 @@ public sealed class OverlayControlForm : Form
     private readonly ToolStripMenuItem _pauseItem;
     private readonly ToolStripMenuItem _volumeMenu;
     private readonly ToolStripMenuItem _volumeMuteItem;
-    private readonly ToolStripMenuItem _muteItem;
-    private readonly ToolStripMenuItem _reselectItem;
     private readonly ToolStripMenuItem _showItem;
     private readonly ToolStripMenuItem _stopItem;
+    private readonly ContextMenuStrip _menu;
     private readonly ToolTip _toolTip = new();
     private readonly System.Windows.Forms.Timer _collapseTimer = new() { Interval = 520 };
     private readonly System.Windows.Forms.Timer _waveTimer = new() { Interval = 80 };
@@ -52,11 +56,10 @@ public sealed class OverlayControlForm : Form
     private bool _hasAnchor;
     private byte _surfaceOpacity = 235;
     private AppLanguage _language = AppLanguage.Chinese;
+    private FloatingPalette _palette = FloatingPalette.Create("porcelain", "#6f7f91");
 
     public event Action? TogglePauseRequested;
     public event Action<int>? VolumeChanged;
-    public event Action? MuteRequested;
-    public event Action? ReselectRequested;
     public event Action? ShowMainWindowRequested;
     public event Action? StopRequested;
     public event Action<Point>? PositionChanged;
@@ -74,13 +77,13 @@ public sealed class OverlayControlForm : Form
         DoubleBuffered = true;
         Cursor = Cursors.Hand;
         AccessibleName = "RiftLens 翻译控制：正在运行，音量 65%";
-        AccessibleDescription = "点击声波可暂停或继续翻译。悬停时展开音量滑条；也可滚动鼠标滚轮调整音量，右键查看更多操作。";
+        AccessibleDescription = "点击声波可暂停或继续翻译。悬停后可调音量并拖动悬浮球位置，右键可显示主窗口或停止翻译。";
 
-        var menu = new ContextMenuStrip
+        _menu = new ContextMenuStrip
         {
             Font = UiTheme.Font(9),
-            BackColor = UiTheme.GlassBright,
-            ForeColor = UiTheme.Text,
+            BackColor = _palette.Paper,
+            ForeColor = _palette.Ink,
             ShowImageMargin = false,
             Padding = new Padding(6)
         };
@@ -95,18 +98,14 @@ public sealed class OverlayControlForm : Form
         _volumeMenu.DropDownItems.Add(new ToolStripSeparator());
         _volumeMuteItem = new ToolStripMenuItem("静音", null, (_, _) => RequestVolume(0));
         _volumeMenu.DropDownItems.Add(_volumeMuteItem);
-        _muteItem = new ToolStripMenuItem("立即静音并隐藏译文", null, (_, _) => MuteRequested?.Invoke());
-        _reselectItem = new ToolStripMenuItem("重新框选识别区", null, (_, _) => ReselectRequested?.Invoke());
         _showItem = new ToolStripMenuItem("显示主窗口", null, (_, _) => ShowMainWindowRequested?.Invoke());
         _stopItem = new ToolStripMenuItem("停止翻译", null, (_, _) => StopRequested?.Invoke());
-        menu.Items.Add(_pauseItem);
-        menu.Items.Add(_volumeMenu);
-        menu.Items.Add(_muteItem);
-        menu.Items.Add(_reselectItem);
-        menu.Items.Add(_showItem);
-        menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add(_stopItem);
-        ContextMenuStrip = menu;
+        _menu.Items.Add(_pauseItem);
+        _menu.Items.Add(_volumeMenu);
+        _menu.Items.Add(_showItem);
+        _menu.Items.Add(new ToolStripSeparator());
+        _menu.Items.Add(_stopItem);
+        ContextMenuStrip = _menu;
 
         MouseEnter += (_, _) =>
         {
@@ -168,18 +167,6 @@ public sealed class OverlayControlForm : Form
             {
                 _draggingVolume = true;
                 SetVolumeFromX(args.X);
-                return;
-            }
-
-            if (IsMuteBounds(args.Location))
-            {
-                MuteRequested?.Invoke();
-                return;
-            }
-
-            if (IsReselectBounds(args.Location))
-            {
-                ReselectRequested?.Invoke();
                 return;
             }
 
@@ -262,7 +249,6 @@ public sealed class OverlayControlForm : Form
         if (Width > CollapsedWidth + 2)
         {
             DrawVolumeControl(graphics);
-            DrawActionGlyphs(graphics);
             DrawDragHandle(graphics);
         }
     }
@@ -298,12 +284,20 @@ public sealed class OverlayControlForm : Form
         _volumeMenu.Text = $"{L("播报音量", "Speech volume")} · {_volume}%";
         _volumeMenu.AccessibleName = L("播报音量", "Speech volume");
         _volumeMuteItem.Text = L("静音", "Mute");
-        _muteItem.Text = L("立即静音并隐藏译文", "Mute now and hide translation");
-        _reselectItem.Text = L("重新框选识别区", "Reselect recognition region");
         _showItem.Text = L("显示主窗口", "Show main window");
         _stopItem.Text = L("停止翻译", "Stop translation");
         UpdateAccessibleText();
         UpdateToolTip();
+    }
+
+    public void SetTheme(string? interfacePalette, string? customColor)
+    {
+        _palette = FloatingPalette.Create(interfacePalette, customColor);
+        _menu.BackColor = _palette.Paper;
+        _menu.ForeColor = _palette.Ink;
+        _volumeMenu.DropDown.BackColor = _palette.Paper;
+        _volumeMenu.DropDown.ForeColor = _palette.Ink;
+        RefreshSurface();
     }
 
     public void ShowNear(Rectangle anchor)
@@ -342,6 +336,7 @@ public sealed class OverlayControlForm : Form
             _waveTimer.Dispose();
             _sizeTimer.Dispose();
             _toolTip.Dispose();
+            _menu.Dispose();
         }
         base.Dispose(disposing);
     }
@@ -352,41 +347,47 @@ public sealed class OverlayControlForm : Form
         using var shadowPath = UiTheme.RoundedPath(
             new Rectangle(bounds.X, bounds.Y + 2, bounds.Width, bounds.Height),
             UiTheme.RadiusXl + 2);
-        using var shadow = new SolidBrush(Color.FromArgb(38, 23, 48, 61));
+        using var shadow = new SolidBrush(Color.FromArgb(32, _palette.Ink));
         graphics.FillPath(shadow, shadowPath);
 
         using var outerPath = UiTheme.RoundedPath(bounds, UiTheme.RadiusXl + 2);
-        using var fill = new SolidBrush(_hovered
-            ? Color.FromArgb(252, 249, 252, 251)
-            : Color.FromArgb(249, 243, 248, 247));
-        using var border = new Pen(Color.FromArgb(118, UiTheme.FloatBorder), 1f);
+        using var fill = new SolidBrush(Color.FromArgb(
+            _hovered ? 254 : 250,
+            _hovered ? Mix(_palette.Paper, _palette.Accent, 0.035d) : _palette.Paper));
+        using var border = new Pen(Color.FromArgb(142, _palette.Border), 1f);
         graphics.FillPath(fill, outerPath);
         graphics.DrawPath(border, outerPath);
 
         using var highlightPath = UiTheme.RoundedPath(
             new Rectangle(5, 3, Math.Max(1, Width - 11), Math.Max(1, Height - 9)),
             UiTheme.RadiusXl + 1);
-        using var highlight = new Pen(Color.FromArgb(178, Color.White), 1f);
+        using var highlight = new Pen(Color.FromArgb(150, Color.White), 1f);
         graphics.DrawPath(highlight, highlightPath);
     }
 
     private void DrawPrimaryControl(Graphics graphics)
     {
         var primaryBounds = new Rectangle(4, 4, CollapsedWidth - 8, ControlHeight - 9);
-        if (_hovered)
-        {
-            using var hoverPath = UiTheme.RoundedPath(primaryBounds, UiTheme.RadiusLg);
-            using var hover = new SolidBrush(Color.FromArgb(20, UiTheme.Mint));
-            graphics.FillPath(hover, hoverPath);
-        }
+        var orbBounds = new Rectangle(
+            primaryBounds.Left + (primaryBounds.Width - 32) / 2,
+            primaryBounds.Top + (primaryBounds.Height - 32) / 2,
+            32,
+            32);
+        using var orbPath = UiTheme.RoundedPath(orbBounds, 16);
+        using var orbFill = new SolidBrush(_hovered
+            ? Mix(_palette.AccentSoft, _palette.Paper, 0.18d)
+            : _palette.AccentSoft);
+        using var orbBorder = new Pen(Color.FromArgb(_hovered ? 190 : 135, _palette.Accent), 1f);
+        graphics.FillPath(orbFill, orbPath);
+        graphics.DrawPath(orbBorder, orbPath);
 
         if (_paused)
         {
-            DrawPlayGlyph(graphics, primaryBounds);
+            DrawPlayGlyph(graphics, orbBounds);
             return;
         }
 
-        DrawSoundWave(graphics, primaryBounds);
+        DrawSoundWave(graphics, orbBounds);
     }
 
     private void DrawSoundWave(Graphics graphics, Rectangle bounds)
@@ -403,7 +404,7 @@ public sealed class OverlayControlForm : Form
                 : 0.72f + 0.28f * MathF.Sin(phase + index * 0.92f);
             var height = Math.Max(5f, baseHeights[index] * modulation);
             var alpha = 170 + index * 20;
-            using var pen = new Pen(Color.FromArgb(Math.Min(255, alpha), UiTheme.Mint), 2.1f)
+            using var pen = new Pen(Color.FromArgb(Math.Min(255, alpha), _palette.Accent), 2.1f)
             {
                 StartCap = LineCap.Round,
                 EndCap = LineCap.Round
@@ -413,7 +414,7 @@ public sealed class OverlayControlForm : Form
         }
     }
 
-    private static void DrawPlayGlyph(Graphics graphics, Rectangle bounds)
+    private void DrawPlayGlyph(Graphics graphics, Rectangle bounds)
     {
         var centerX = bounds.Left + bounds.Width / 2f;
         var centerY = bounds.Top + bounds.Height / 2f;
@@ -423,9 +424,9 @@ public sealed class OverlayControlForm : Form
             new PointF(centerX - 4, centerY + 6),
             new PointF(centerX + 6, centerY)
         };
-        using var soft = new SolidBrush(Color.FromArgb(34, UiTheme.Mint));
+        using var soft = new SolidBrush(Color.FromArgb(42, _palette.Accent));
         graphics.FillEllipse(soft, centerX - 12, centerY - 12, 24, 24);
-        using var brush = new SolidBrush(UiTheme.MintDeep);
+        using var brush = new SolidBrush(_palette.AccentStrong);
         graphics.FillPolygon(brush, triangle);
     }
 
@@ -436,13 +437,13 @@ public sealed class OverlayControlForm : Form
 
         var alpha = (int)(expansion * 255);
         var dividerX = CollapsedWidth + 7;
-        using (var divider = new Pen(Color.FromArgb((int)(alpha * 0.5f), UiTheme.Border), 1f))
-            graphics.DrawLine(divider, dividerX, 10, dividerX, ControlHeight - 10);
+        using (var divider = new Pen(Color.FromArgb((int)(alpha * 0.5f), _palette.Border), 1f))
+            graphics.DrawLine(divider, dividerX, ContentCenterY - 14, dividerX, ContentCenterY + 14);
 
-        DrawSpeakerGlyph(graphics, new Point(CollapsedWidth + 13, 12), _volume == 0, alpha);
+        DrawSpeakerGlyph(graphics, new Point(VolumeSpeakerOriginX, ContentCenterY - 9), _volume == 0, alpha);
 
         var track = SliderTrackBounds;
-        using (var trackPen = new Pen(Color.FromArgb((int)(alpha * 0.7f), UiTheme.Border), 4f)
+        using (var trackPen = new Pen(Color.FromArgb((int)(alpha * 0.78f), _palette.SurfaceStrong), 4f)
         {
             StartCap = LineCap.Round,
             EndCap = LineCap.Round
@@ -452,7 +453,7 @@ public sealed class OverlayControlForm : Form
         }
 
         var filledWidth = Math.Max(0f, track.Width * _volume / 100f);
-        using (var valuePen = new Pen(Color.FromArgb(alpha, UiTheme.Mint), 4f)
+        using (var valuePen = new Pen(Color.FromArgb(alpha, _palette.Accent), 4f)
         {
             StartCap = LineCap.Round,
             EndCap = LineCap.Round
@@ -463,66 +464,35 @@ public sealed class OverlayControlForm : Form
         }
 
         var knobX = track.Left + filledWidth;
-        using (var knobShadow = new SolidBrush(Color.FromArgb((int)(alpha * 0.13f), UiTheme.Text)))
+        using (var knobShadow = new SolidBrush(Color.FromArgb((int)(alpha * 0.13f), _palette.Ink)))
             graphics.FillEllipse(knobShadow, knobX - 7, track.Top + track.Height / 2f - 6, 14, 14);
-        using (var knob = new SolidBrush(Color.FromArgb(alpha, Color.White)))
+        using (var knob = new SolidBrush(Color.FromArgb(alpha, _palette.Paper)))
             graphics.FillEllipse(knob, knobX - 5, track.Top + track.Height / 2f - 5, 10, 10);
-        using (var ring = new Pen(Color.FromArgb((int)(alpha * 0.38f), UiTheme.Border), 1f))
+        using (var ring = new Pen(Color.FromArgb((int)(alpha * 0.52f), _palette.Accent), 1f))
             graphics.DrawEllipse(ring, knobX - 5, track.Top + track.Height / 2f - 5, 10, 10);
 
-        var textColor = Color.FromArgb(alpha, UiTheme.Text);
-        TextRenderer.DrawText(
-            graphics,
-            $"{_volume}%",
-            UiTheme.Caption(8.5f, FontStyle.Bold),
-            new Rectangle(CollapsedWidth + 126, 5, 34, ControlHeight - 10),
-            textColor,
-            TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
-    }
-
-    private void DrawActionGlyphs(Graphics graphics)
-    {
-        var expansion = Math.Clamp((Width - CollapsedWidth) / (float)(ExpandedWidth - CollapsedWidth), 0f, 1f);
-        if (expansion < 0.72f)
+        var previousTextRendering = graphics.TextRenderingHint;
+        graphics.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
+        using var textFont = UiTheme.Caption(9f, FontStyle.Regular);
+        using var textBrush = new SolidBrush(Color.FromArgb(alpha, _palette.Ink));
+        using var textFormat = new StringFormat
         {
-            return;
-        }
-
-        var alpha = (int)Math.Round((expansion - 0.72f) / 0.28f * 255);
-        DrawRoundButton(graphics, MuteBounds, alpha);
-        DrawRoundButton(graphics, ReselectBounds, alpha);
-        DrawSpeakerGlyph(graphics, new Point(MuteBounds.Left + 4, MuteBounds.Top + 5), _volume == 0, alpha);
-        DrawScanGlyph(graphics, ReselectBounds, alpha);
-    }
-
-    private static void DrawRoundButton(Graphics graphics, Rectangle bounds, int alpha)
-    {
-        using var fill = new SolidBrush(Color.FromArgb((int)(alpha * 0.12f), UiTheme.Mint));
-        using var path = UiTheme.RoundedPath(bounds, 8);
-        graphics.FillPath(fill, path);
-    }
-
-    private static void DrawScanGlyph(Graphics graphics, Rectangle bounds, int alpha)
-    {
-        using var pen = new Pen(Color.FromArgb(alpha, UiTheme.Text), 1.55f)
-        {
-            StartCap = LineCap.Round,
-            EndCap = LineCap.Round
+            Alignment = StringAlignment.Center,
+            LineAlignment = StringAlignment.Center,
+            FormatFlags = StringFormatFlags.NoWrap
         };
-        var inset = Rectangle.Inflate(bounds, -7, -7);
-        graphics.DrawLine(pen, inset.Left, inset.Top + 5, inset.Left, inset.Top);
-        graphics.DrawLine(pen, inset.Left, inset.Top, inset.Left + 5, inset.Top);
-        graphics.DrawLine(pen, inset.Right, inset.Top + 5, inset.Right, inset.Top);
-        graphics.DrawLine(pen, inset.Right, inset.Top, inset.Right - 5, inset.Top);
-        graphics.DrawLine(pen, inset.Left, inset.Bottom - 5, inset.Left, inset.Bottom);
-        graphics.DrawLine(pen, inset.Left, inset.Bottom, inset.Left + 5, inset.Bottom);
-        graphics.DrawLine(pen, inset.Right, inset.Bottom - 5, inset.Right, inset.Bottom);
-        graphics.DrawLine(pen, inset.Right, inset.Bottom, inset.Right - 5, inset.Bottom);
+        graphics.DrawString(
+            $"{_volume}%",
+            textFont,
+            textBrush,
+            new RectangleF(CollapsedWidth + 124, ContentCenterY - 19, 42, 38),
+            textFormat);
+        graphics.TextRenderingHint = previousTextRendering;
     }
 
-    private static void DrawSpeakerGlyph(Graphics graphics, Point origin, bool muted, int alpha)
+    private void DrawSpeakerGlyph(Graphics graphics, Point origin, bool muted, int alpha)
     {
-        using var pen = new Pen(Color.FromArgb(alpha, UiTheme.Text), 1.55f)
+        using var pen = new Pen(Color.FromArgb(alpha, _palette.InkMuted), 1.55f)
         {
             StartCap = LineCap.Round,
             EndCap = LineCap.Round,
@@ -561,11 +531,11 @@ public sealed class OverlayControlForm : Form
         var alpha = (int)Math.Round((expansion - 0.88f) / 0.12f * 255);
         var bounds = DragHandleBounds;
         using var backgroundPath = UiTheme.RoundedPath(bounds, 6);
-        using var background = new SolidBrush(Color.FromArgb((int)(alpha * 0.16f), Color.White));
+        using var background = new SolidBrush(Color.FromArgb((int)(alpha * 0.88f), _palette.AccentSoft));
         graphics.FillPath(background, backgroundPath);
-        using var outline = new Pen(Color.FromArgb((int)(alpha * 0.28f), UiTheme.Mint), 1f);
+        using var outline = new Pen(Color.FromArgb((int)(alpha * 0.48f), _palette.Accent), 1f);
         graphics.DrawPath(outline, backgroundPath);
-        using var dot = new SolidBrush(Color.FromArgb((int)(alpha * 0.72f), UiTheme.MintDeep));
+        using var dot = new SolidBrush(Color.FromArgb((int)(alpha * 0.78f), _palette.AccentStrong));
         for (var row = 0; row < 3; row++)
         {
             for (var column = 0; column < 2; column++)
@@ -580,21 +550,17 @@ public sealed class OverlayControlForm : Form
         }
     }
 
-    private Rectangle SliderTrackBounds => new(CollapsedWidth + 36, 17, 88, 14);
-    private Rectangle MuteBounds => new(ExpandedWidth - 86, 10, 28, 28);
-    private Rectangle ReselectBounds => new(ExpandedWidth - 54, 10, 28, 28);
+    private Rectangle SliderTrackBounds => new(
+        VolumeSpeakerOriginX + SpeakerGlyphRightOffset + SpeakerToTrackGap,
+        ContentCenterY - 7,
+        80,
+        14);
     private Rectangle DragHandleBounds => new(10, ControlHeight - 17, 15, 13);
 
     private bool IsPrimaryBounds(Point point) => point.X < CollapsedWidth;
 
     private bool IsSliderBounds(Point point) =>
         Width > CollapsedWidth + 20 && Rectangle.Inflate(SliderTrackBounds, 4, 10).Contains(point);
-
-    private bool IsMuteBounds(Point point) =>
-        Width >= ExpandedWidth - 8 && MuteBounds.Contains(point);
-
-    private bool IsReselectBounds(Point point) =>
-        Width >= ExpandedWidth - 8 && ReselectBounds.Contains(point);
 
     private bool IsDragHandleBounds(Point point) =>
         Width >= ExpandedWidth - 2 && Rectangle.Inflate(DragHandleBounds, 2, 2).Contains(point);
@@ -707,8 +673,8 @@ public sealed class OverlayControlForm : Form
             ? $"RiftLens translation control: {(_paused ? "paused" : "running")}, volume {_volume}%"
             : $"RiftLens 翻译控制：{(_paused ? "已暂停" : "正在运行")}，音量 {_volume}%";
         AccessibleDescription = L(
-            "点击声波可暂停或继续翻译。悬停时展开音量滑条；也可滚动鼠标滚轮调整音量，右键查看更多操作。",
-            "Select the wave to pause or resume. Hover to reveal volume, use the mouse wheel to adjust it, or right-click for more actions.");
+            "点击声波可暂停或继续翻译。悬停后可调音量并拖动悬浮球位置，右键可显示主窗口或停止翻译。",
+            "Select the wave to pause or resume. Hover to adjust volume or drag the control; right-click to show the main window or stop translation.");
     }
 
     private void UpdateToolTip()
@@ -755,6 +721,104 @@ public sealed class OverlayControlForm : Form
             DrawSurface(graphics);
         }
         LayeredWindowSurface.Update(this, bitmap, _surfaceOpacity);
+    }
+
+    private static Color Mix(Color from, Color to, double amount)
+    {
+        var ratio = Math.Clamp(amount, 0d, 1d);
+        return Color.FromArgb(
+            (int)Math.Round(from.R + (to.R - from.R) * ratio),
+            (int)Math.Round(from.G + (to.G - from.G) * ratio),
+            (int)Math.Round(from.B + (to.B - from.B) * ratio));
+    }
+
+    private readonly record struct FloatingPalette(
+        Color Paper,
+        Color Surface,
+        Color SurfaceStrong,
+        Color Accent,
+        Color AccentStrong,
+        Color AccentSoft,
+        Color Ink,
+        Color InkMuted,
+        Color Border)
+    {
+        public static FloatingPalette Create(string? name, string? customColor)
+        {
+            return name?.Trim().ToLowerInvariant() switch
+            {
+                "mono" => Build("#ffffff", "#e5e5e5", "#d2d2d2", "#171717", "#000000", "#e2e2e2", "#111111", "#555555"),
+                "pearl" => Build("#ffffff", "#f0efec", "#e5e3df", "#7a7f8a", "#5f6570", "#e7e8eb", "#202126", "#62646a"),
+                "coral" => Build("#fffaf7", "#eedfd9", "#e2ccc4", "#e56e61", "#c75449", "#f5dfda", "#302522", "#715f59"),
+                "blue" => Build("#fbfcfc", "#dfe8ec", "#cedce2", "#3f6f86", "#315d72", "#d9e8ee", "#1f2b31", "#5e6b71"),
+                "teal" => Build("#fbfdfc", "#dce8e4", "#cadbd6", "#3e817d", "#2e6966", "#d9ebe8", "#20312f", "#5d706c"),
+                "sage" => Build("#fcfcf8", "#e3e5d9", "#d4d8c8", "#7b8068", "#626950", "#e1e4d8", "#2b2f26", "#666d5d"),
+                "sand" => Build("#fffdf8", "#e8dfd0", "#d9cdbb", "#a7654d", "#8b4e38", "#eedfd7", "#332c24", "#74685a"),
+                "custom" => BuildCustom(Parse(customColor, "#6f7f91")),
+                _ => Build("#fbfaf9", "#e8e3e2", "#d9d2d1", "#e95a5f", "#c94850", "#f3dfe0", "#262426", "#676164")
+            };
+        }
+
+        private static FloatingPalette Build(
+            string paper,
+            string surface,
+            string surfaceStrong,
+            string accent,
+            string accentStrong,
+            string accentSoft,
+            string ink,
+            string inkMuted)
+        {
+            var parsedPaper = Parse(paper, "#fbfaf9");
+            var parsedSurface = Parse(surface, "#e8e3e2");
+            var parsedSurfaceStrong = Parse(surfaceStrong, "#d9d2d1");
+            var parsedAccent = Parse(accent, "#e95a5f");
+            var parsedInk = Parse(ink, "#262426");
+            return new FloatingPalette(
+                parsedPaper,
+                parsedSurface,
+                parsedSurfaceStrong,
+                parsedAccent,
+                Parse(accentStrong, "#c94850"),
+                Parse(accentSoft, "#f3dfe0"),
+                parsedInk,
+                Parse(inkMuted, "#676164"),
+                Mix(parsedSurfaceStrong, parsedInk, 0.17d));
+        }
+
+        private static FloatingPalette BuildCustom(Color accent)
+        {
+            var white = Color.White;
+            var black = Color.Black;
+            return new FloatingPalette(
+                Mix(accent, white, 0.97d),
+                Mix(accent, white, 0.79d),
+                Mix(accent, white, 0.66d),
+                accent,
+                Mix(accent, black, 0.20d),
+                Mix(accent, white, 0.78d),
+                Mix(accent, black, 0.70d),
+                Mix(accent, Color.FromArgb(49, 49, 49), 0.55d),
+                Mix(Mix(accent, white, 0.66d), Mix(accent, black, 0.70d), 0.17d));
+        }
+
+        private static Color Parse(string? value, string fallback)
+        {
+            try
+            {
+                var normalized = value?.Trim() ?? string.Empty;
+                if (normalized.Length == 7
+                    && normalized[0] == '#'
+                    && normalized.Skip(1).All(Uri.IsHexDigit))
+                {
+                    return ColorTranslator.FromHtml(normalized);
+                }
+            }
+            catch
+            {
+            }
+            return ColorTranslator.FromHtml(fallback);
+        }
     }
 
     [DllImport("user32.dll")]

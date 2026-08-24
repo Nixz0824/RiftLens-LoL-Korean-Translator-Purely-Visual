@@ -59,6 +59,10 @@ internal enum SpatialAction
     OverlayOpacityChanged,
     OverlayPlacementChanged,
     LanguageChanged,
+    InterfacePaletteChanged,
+    CustomThemeColorChanged,
+    OnboardingCompleted,
+    SaveTranslationHistoryChanged,
     ApplyPreset,
     SpeechPresetChanged
 }
