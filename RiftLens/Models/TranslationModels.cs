@@ -194,7 +194,8 @@ public sealed record ClassifiedGameMessage(
     GameSemanticEvent? SemanticEvent = null,
     GameSystemEvent? SystemEvent = null,
     double ClassificationConfidence = 0,
-    string EvaluationLineId = "");
+    string EvaluationLineId = "",
+    string RecognitionEngine = "");
 
 public sealed record PlayerSpeechTurn(
     string SpeakerKey,
@@ -203,7 +204,8 @@ public sealed record PlayerSpeechTurn(
     IReadOnlyList<string> Contents,
     DateTimeOffset LastUpdatedAt,
     string SpeakerHeroId = "",
-    IReadOnlyList<string>? EvaluationLineIds = null);
+    IReadOnlyList<string>? EvaluationLineIds = null,
+    string RecognitionEngine = "");
 
 public sealed record HeroMention(
     string Id,
@@ -211,7 +213,9 @@ public sealed record HeroMention(
     string KoreanName,
     string ChineseOfficial,
     string ChinesePersonal,
-    string SpokenName);
+    string SpokenName,
+    string ChineseTraditionalName = "",
+    string ChineseTraditionalTitle = "");
 
 public sealed record TranslationRequest(
     IReadOnlyList<string> Lines,
@@ -224,6 +228,7 @@ public sealed record TranslationRequest(
 
 public sealed class TranslationResult
 {
+    public string RecognitionEngine { get; set; } = string.Empty;
     public TranslationSourceKind SourceKind { get; set; } = TranslationSourceKind.PlayerChat;
     public bool ShouldSpeak { get; set; }
     [System.Text.Json.Serialization.JsonIgnore]

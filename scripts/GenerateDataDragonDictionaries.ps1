@@ -24,15 +24,17 @@ function Add-Term(
     [string] $Category,
     [string] $Korean,
     [string] $Chinese,
+    [string] $ChineseTraditional,
     [string] $English
 ) {
     if ([string]::IsNullOrWhiteSpace($Korean) `
         -or [string]::IsNullOrWhiteSpace($Chinese) `
+        -or [string]::IsNullOrWhiteSpace($ChineseTraditional) `
         -or [string]::IsNullOrWhiteSpace($English)) {
         return
     }
 
-    $dedupeKey = "$Category`n$Korean`n$Chinese`n$English"
+    $dedupeKey = "$Category`n$Korean`n$Chinese`n$ChineseTraditional`n$English"
     if (-not $Seen.Add($dedupeKey)) {
         return
     }
@@ -42,12 +44,14 @@ function Add-Term(
         category = $Category
         korean = $Korean
         chinese = $Chinese
+        chineseTraditional = $ChineseTraditional
         english = $English
     })
 }
 
 $koChampions = Read-DragonJson 'ko_KR' 'championFull.json'
 $zhChampions = Read-DragonJson 'zh_CN' 'championFull.json'
+$twChampions = Read-DragonJson 'zh_TW' 'championFull.json'
 $enChampions = Read-DragonJson 'en_US' 'championFull.json'
 $version = [string] $koChampions.version
 
@@ -62,12 +66,15 @@ if (Test-Path -LiteralPath $existingHeroPath -PathType Leaf) {
 
 $heroRows = [System.Collections.Generic.List[object]]::new()
 foreach ($id in @($koChampions.data.Keys | Sort-Object)) {
-    if (-not $zhChampions.data.ContainsKey($id) -or -not $enChampions.data.ContainsKey($id)) {
+    if (-not $zhChampions.data.ContainsKey($id) `
+        -or -not $twChampions.data.ContainsKey($id) `
+        -or -not $enChampions.data.ContainsKey($id)) {
         continue
     }
 
     $ko = $koChampions.data[$id]
     $zh = $zhChampions.data[$id]
+    $tw = $twChampions.data[$id]
     $en = $enChampions.data[$id]
     $aliases = @()
     if ($existingHeroes.ContainsKey($id)) {
@@ -81,6 +88,8 @@ foreach ($id in @($koChampions.data.Keys | Sort-Object)) {
         koreanTitle = [string] $ko.title
         chineseOfficial = [string] $zh.name
         chinesePersonal = [string] $zh.title
+        chineseTraditionalName = [string] $tw.name
+        chineseTraditionalTitle = [string] $tw.title
         englishName = [string] $en.name
         chineseAliases = $aliases
     })
@@ -98,15 +107,18 @@ $terms = [System.Collections.Generic.List[object]]::new()
 $seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
 
 foreach ($id in @($koChampions.data.Keys | Sort-Object)) {
-    if (-not $zhChampions.data.ContainsKey($id) -or -not $enChampions.data.ContainsKey($id)) {
+    if (-not $zhChampions.data.ContainsKey($id) `
+        -or -not $twChampions.data.ContainsKey($id) `
+        -or -not $enChampions.data.ContainsKey($id)) {
         continue
     }
 
     $ko = $koChampions.data[$id]
     $zh = $zhChampions.data[$id]
+    $tw = $twChampions.data[$id]
     $en = $enChampions.data[$id]
     Add-Term $terms $seen "$id`:P" 'championAbility' `
-        ([string] $ko.passive.name) ([string] $zh.passive.name) ([string] $en.passive.name)
+        ([string] $ko.passive.name) ([string] $zh.passive.name) ([string] $tw.passive.name) ([string] $en.passive.name)
 
     $spellCount = [Math]::Min($ko.spells.Count, [Math]::Min($zh.spells.Count, $en.spells.Count))
     for ($index = 0; $index -lt $spellCount; $index++) {
@@ -114,16 +126,19 @@ foreach ($id in @($koChampions.data.Keys | Sort-Object)) {
         Add-Term $terms $seen "$id`:$slot" 'championAbility' `
             ([string] $ko.spells[$index].name) `
             ([string] $zh.spells[$index].name) `
+            ([string] $tw.spells[$index].name) `
             ([string] $en.spells[$index].name)
     }
 }
 
 $koSummoners = Read-DragonJson 'ko_KR' 'summoner.json'
 $zhSummoners = Read-DragonJson 'zh_CN' 'summoner.json'
+$twSummoners = Read-DragonJson 'zh_TW' 'summoner.json'
 $enSummoners = Read-DragonJson 'en_US' 'summoner.json'
 foreach ($id in @($koSummoners.data.Keys | Sort-Object)) {
     if ($id -like '*Placeholder*' `
         -or -not $zhSummoners.data.ContainsKey($id) `
+        -or -not $twSummoners.data.ContainsKey($id) `
         -or -not $enSummoners.data.ContainsKey($id)) {
         continue
     }
@@ -131,46 +146,61 @@ foreach ($id in @($koSummoners.data.Keys | Sort-Object)) {
     Add-Term $terms $seen $id 'summonerSpell' `
         ([string] $koSummoners.data[$id].name) `
         ([string] $zhSummoners.data[$id].name) `
+        ([string] $twSummoners.data[$id].name) `
         ([string] $enSummoners.data[$id].name)
 }
 
 $koItems = Read-DragonJson 'ko_KR' 'item.json'
 $zhItems = Read-DragonJson 'zh_CN' 'item.json'
+$twItems = Read-DragonJson 'zh_TW' 'item.json'
 $enItems = Read-DragonJson 'en_US' 'item.json'
 foreach ($id in @($koItems.data.Keys | Sort-Object)) {
-    if (-not $zhItems.data.ContainsKey($id) -or -not $enItems.data.ContainsKey($id)) {
+    if (-not $zhItems.data.ContainsKey($id) `
+        -or -not $twItems.data.ContainsKey($id) `
+        -or -not $enItems.data.ContainsKey($id)) {
         continue
     }
 
     Add-Term $terms $seen "item:$id" 'item' `
         ([string] $koItems.data[$id].name) `
         ([string] $zhItems.data[$id].name) `
+        ([string] $twItems.data[$id].name) `
         ([string] $enItems.data[$id].name)
 }
 
 $koRunes = @(Read-DragonJson 'ko_KR' 'runesReforged.json')
 $zhRunes = @(Read-DragonJson 'zh_CN' 'runesReforged.json')
+$twRunes = @(Read-DragonJson 'zh_TW' 'runesReforged.json')
 $enRunes = @(Read-DragonJson 'en_US' 'runesReforged.json')
 $zhRunesById = @{}
+$twRunesById = @{}
 $enRunesById = @{}
 foreach ($style in $zhRunes) { $zhRunesById[[string] $style.id] = $style }
+foreach ($style in $twRunes) { $twRunesById[[string] $style.id] = $style }
 foreach ($style in $enRunes) { $enRunesById[[string] $style.id] = $style }
 
 foreach ($koStyle in $koRunes) {
     $styleId = [string] $koStyle.id
-    if (-not $zhRunesById.ContainsKey($styleId) -or -not $enRunesById.ContainsKey($styleId)) {
+    if (-not $zhRunesById.ContainsKey($styleId) `
+        -or -not $twRunesById.ContainsKey($styleId) `
+        -or -not $enRunesById.ContainsKey($styleId)) {
         continue
     }
 
     $zhStyle = $zhRunesById[$styleId]
+    $twStyle = $twRunesById[$styleId]
     $enStyle = $enRunesById[$styleId]
     Add-Term $terms $seen "runeStyle:$styleId" 'rune' `
-        ([string] $koStyle.name) ([string] $zhStyle.name) ([string] $enStyle.name)
+        ([string] $koStyle.name) ([string] $zhStyle.name) ([string] $twStyle.name) ([string] $enStyle.name)
 
     $zhById = @{}
+    $twById = @{}
     $enById = @{}
     foreach ($slot in $zhStyle.slots) {
         foreach ($rune in $slot.runes) { $zhById[[string] $rune.id] = $rune }
+    }
+    foreach ($slot in $twStyle.slots) {
+        foreach ($rune in $slot.runes) { $twById[[string] $rune.id] = $rune }
     }
     foreach ($slot in $enStyle.slots) {
         foreach ($rune in $slot.runes) { $enById[[string] $rune.id] = $rune }
@@ -179,13 +209,16 @@ foreach ($koStyle in $koRunes) {
     foreach ($slot in $koStyle.slots) {
         foreach ($koRune in $slot.runes) {
             $runeId = [string] $koRune.id
-            if (-not $zhById.ContainsKey($runeId) -or -not $enById.ContainsKey($runeId)) {
+            if (-not $zhById.ContainsKey($runeId) `
+                -or -not $twById.ContainsKey($runeId) `
+                -or -not $enById.ContainsKey($runeId)) {
                 continue
             }
 
             Add-Term $terms $seen "rune:$runeId" 'rune' `
                 ([string] $koRune.name) `
                 ([string] $zhById[$runeId].name) `
+                ([string] $twById[$runeId].name) `
                 ([string] $enById[$runeId].name)
         }
     }

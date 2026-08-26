@@ -22,13 +22,18 @@ public sealed partial class ChatMessageClassifier
 
         var normalized = NormalizeLine(line);
 
+        if (NonGameDateTimeStatRegex().IsMatch(normalized))
+        {
+            return Unknown(normalized, colorEvidence);
+        }
+
         // The "(champion):" shape is shared by real player chat and a small set
         // of client-generated ping/HUD-share lines. Parse those deterministic
         // payloads first so a marker or cooldown cannot become an inferred action.
         var playerWithHero = PlayerWithHeroRegex().Match(normalized);
         if (playerWithHero.Success && !IsReservedSpeaker(playerWithHero.Groups["speaker"].Value))
         {
-            if (TryPlayerFeed(normalized, playerWithHero, colorEvidence, includeHero: true, out var feed))
+            if (TryPlayerFeed(normalized, playerWithHero, colorEvidence, includeHero: true, speakItemInspect: true, out var feed))
             {
                 return feed;
             }
@@ -40,11 +45,16 @@ public sealed partial class ChatMessageClassifier
         var channelPlayer = ChannelPlayerRegex().Match(normalized);
         if (channelPlayer.Success && !IsReservedSpeaker(channelPlayer.Groups["speaker"].Value))
         {
-            if (TryPlayerFeed(normalized, channelPlayer, colorEvidence, includeHero: false, out var feed))
+            if (TryPlayerFeed(normalized, channelPlayer, colorEvidence, includeHero: false, speakItemInspect: true, out var feed))
             {
                 return feed;
             }
             return Player(normalized, channelPlayer, colorEvidence, includeHero: false);
+        }
+
+        if (TrySpeakerHeroPayload(normalized, colorEvidence, out var generatedPayload))
+        {
+            return generatedPayload;
         }
 
         // OCR sometimes drops parentheses or the channel label. Recover the
@@ -133,7 +143,10 @@ public sealed partial class ChatMessageClassifier
 
     private static string NormalizeLine(string line)
     {
-        var normalized = Regex.Replace(line.Trim(), @"\s+", " ")
+        var normalized = Regex.Replace(
+                OfficialPhraseNormalizer.Normalize(line).Trim(),
+                @"\s+",
+                " ")
             .Normalize(NormalizationForm.FormKC);
         return MessageDeduplicator.StripGameTimestamp(normalized);
     }
@@ -170,6 +183,7 @@ public sealed partial class ChatMessageClassifier
         Match match,
         OcrColorEvidence? colorEvidence,
         bool includeHero,
+        bool speakItemInspect,
         out ClassifiedGameMessage message)
     {
         var content = match.Groups["content"].Value.Trim();
@@ -177,6 +191,19 @@ public sealed partial class ChatMessageClassifier
         {
             message = Unknown(normalized, colorEvidence);
             return false;
+        }
+
+        // Chat-colon item-bar clicks are teammate communication. Colon-less
+        // generated HUD shares stay on the tactical path.
+        if (speakItemInspect
+            && string.Equals(semanticEvent.Status, "item_marker", StringComparison.Ordinal))
+        {
+            message = Player(normalized, match, colorEvidence, includeHero) with
+            {
+                SemanticEvent = semanticEvent,
+                ClassificationConfidence = semanticEvent.Confidence
+            };
+            return true;
         }
 
         var speaker = match.Groups["speaker"].Value.Trim();
@@ -203,6 +230,45 @@ public sealed partial class ChatMessageClassifier
             SemanticEvent: semanticEvent,
             ClassificationConfidence: semanticEvent.Confidence);
         return true;
+    }
+
+    private static bool TrySpeakerHeroPayload(
+        string normalized,
+        OcrColorEvidence? colorEvidence,
+        out ClassifiedGameMessage message)
+    {
+        var match = SpeakerHeroPayloadRegex().Match(normalized);
+        if (!match.Success || IsReservedSpeaker(match.Groups["speaker"].Value))
+        {
+            message = Unknown(normalized, colorEvidence);
+            return false;
+        }
+
+        var content = match.Groups["content"].Value.Trim();
+        if (OfficialPhraseNormalizer.IsTruncatedGeneratedPayload(content))
+        {
+            message = Unknown(normalized, colorEvidence);
+            return true;
+        }
+
+        if (TryPlayerFeed(normalized, match, colorEvidence, includeHero: true, speakItemInspect: false, out message))
+        {
+            return true;
+        }
+
+        if (SystemMessageCatalog.TryClassify(
+                normalized,
+                out var kind,
+                out var priority,
+                out var systemEvent)
+            || SystemMessageCatalog.TryClassify(content, out kind, out priority, out systemEvent))
+        {
+            message = SystemMessage(kind, normalized, priority, colorEvidence, systemEvent);
+            return true;
+        }
+
+        message = Unknown(normalized, colorEvidence);
+        return false;
     }
 
     private static ClassifiedGameMessage SystemMessage(
@@ -294,8 +360,23 @@ public sealed partial class ChatMessageClassifier
     private static partial Regex ColorBackedPlayerRegex();
 
     [GeneratedRegex(
-        @"^\s*(?<speaker>[^\(\[（]{1,64})\s*[\(\[（]\s*(?<hero>[^\)\]）]{1,36})[\)\]）]\s*님?\s*(?:이|가)?(?:\s|(?=[\p{L}]))",
+        @"^\s*(?<speaker>[^\(\[（]{1,64})\s*[\(\[（]\s*(?<hero>[^\)\]）]{1,36})[\)\]）]\s*"
+        + @"(?:님?\s*(?:이|가)?(?:\s|(?=[\p{L}]))|"
+        + @"(?=(?:要求队友|发出信号|已把|已购买|购买了|已击杀|击杀了|打野任务|已使用|使用了|标记了|已达到|已将目标定|正在防守)))",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex GeneratedFeedSpeakerRegex();
+
+    [GeneratedRegex(
+        @"^\s*(?:\[(?:팀|전체|파티|所有人|队伍|团队|组队|All|Team|Party)\]\s*)?"
+        + @"(?<speaker>[^:：\r\n\(\[（]{1,64}?)\s*[\(\[（]\s*"
+        + @"(?<hero>[^:：\r\n\)\]）]{1,36})\s*[\)\]）]\s*"
+        + @"(?<content>\S.*)$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex SpeakerHeroPayloadRegex();
+
+    [GeneratedRegex(
+        @"^\s*\d{1,2}\s*[-/.]\s*\d{1,2}\s+\d{1,2}\s*[:：]\s*\d{2}\s*(?:胜|负|勝|負)\s*\d+\s*/\s*\d+\s*/\s*\d+",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex NonGameDateTimeStatRegex();
 
 }

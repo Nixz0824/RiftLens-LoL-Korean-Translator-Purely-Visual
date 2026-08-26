@@ -110,6 +110,19 @@ public sealed class SettingsStore
                 settings.SaveTranslationHistory = false;
                 settings.SchemaVersion = 10;
             }
+            if (settings.SchemaVersion < 11)
+            {
+                // v11 adds an opt-in experimental DeepSeek Vision OCR path.
+                // Existing users stay on local OCR and no screenshot is sent
+                // unless the user explicitly selects Vision and consents.
+                settings.RecognitionMode = RecognitionPipelineMode.LocalOcr;
+                settings.VisionPrivacyConsent = false;
+                settings.SchemaVersion = 11;
+            }
+            if (!Enum.IsDefined(settings.RecognitionMode))
+            {
+                settings.RecognitionMode = RecognitionPipelineMode.LocalOcr;
+            }
             var supportedPalettes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
                 "porcelain", "mono", "pearl", "coral", "blue", "teal", "sage", "sand", "custom"

@@ -48,8 +48,9 @@ function runLanguage(language, onboarding = false) {
         language: ${JSON.stringify(language)}, onboardingCompleted: ${JSON.stringify(!onboarding)},
         interfacePalette: "porcelain", customThemeColor: "#6f7f91",
         regionReady: true, displayRegionReady: true, ocrReady: true, aiReady: true,
-        modelName: "deepseek-v4-flash", appVersion: "2.2.0", volume: 65, speechRate: 1,
+        modelName: "deepseek-v4-flash", appVersion: "2.3.0", volume: 65, speechRate: 1,
         outputModeIndex: 2, autoSpeech: true, tacticalSignals: false,
+        recognitionMode: 0, visionPrivacyConsent: false,
         minimizeAfterStart: true, closeToTray: true, floatingButton: true,
         history: ${JSON.stringify([
           { time: "2026-08-23T14:03:00+08:00", original: "레오나: 탑 조심", translation: language === "en-US" ? "Leona: Careful top" : "蕾欧娜：上路小心", spoken: true },
@@ -84,7 +85,11 @@ function runLanguage(language, onboarding = false) {
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(result.stderr || `Edge exited with code ${result.status}`);
   const status = /<pre id="interaction-test-result" data-status="([^"]+)">([^<]*)<\/pre>/.exec(result.stdout);
-  if (!status) throw new Error(`${language}: the interaction harness did not return a result`);
+  if (!status) {
+    const stdoutTail = (result.stdout || "").slice(-1200).replace(/\s+/g, " ");
+    const stderrTail = (result.stderr || "").slice(-600).replace(/\s+/g, " ");
+    throw new Error(`${language}: the interaction harness did not return a result | stdout=${stdoutTail} | stderr=${stderrTail}`);
+  }
   if (status[1] !== "pass") throw new Error(status[2]);
   return status[2];
 }

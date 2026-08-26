@@ -167,10 +167,19 @@ public sealed class NaturalSpeechService : IDisposable
                 try
                 {
                     Interlocked.Exchange(ref _purgeRequested, 0);
-                    var spoken = item.PreferNeural
+                    var neuralRequested = item.PreferNeural;
+                    var spoken = neuralRequested
                         && DateTimeOffset.UtcNow >= _onlineDisabledUntil
                         && TrySpeakNeural(item);
                     if (spoken || Interlocked.Exchange(ref _purgeRequested, 0) == 1)
+                    {
+                        continue;
+                    }
+
+                    // Chinese neural speech is voice-locked to Xiaoxiao. A
+                    // transient online failure must not silently change the
+                    // speaker to a Windows SAPI voice with a different timbre.
+                    if (!ShouldFallbackToInstalledVoice(neuralRequested, item.Language))
                     {
                         continue;
                     }
@@ -268,10 +277,12 @@ public sealed class NaturalSpeechService : IDisposable
         }
         catch
         {
-            _onlineDisabledUntil = DateTimeOffset.UtcNow.AddMinutes(3);
+            _onlineDisabledUntil = item.Language == AppLanguage.Chinese
+                ? DateTimeOffset.UtcNow.AddSeconds(20)
+                : DateTimeOffset.UtcNow.AddMinutes(3);
             ReportFallbackOnce(item.Language == AppLanguage.English
                 ? "Jenny is unavailable. Switched quietly to a local English voice."
-                : "晓晓暂时不可用，已无打扰切换到本地中文语音。");
+                : "晓晓暂时不可用，本条播报已跳过；不会切换其他音色，将在 20 秒后重试。");
             return false;
         }
         finally
@@ -446,6 +457,9 @@ public sealed class NaturalSpeechService : IDisposable
             return false;
         }
     }
+
+    public static bool ShouldFallbackToInstalledVoice(bool preferNeural, AppLanguage language) =>
+        !preferNeural || language == AppLanguage.English;
 
     private static void TrySelectVoice(dynamic voice, AppLanguage requestedLanguage)
     {

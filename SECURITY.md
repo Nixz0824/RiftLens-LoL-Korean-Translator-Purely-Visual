@@ -25,7 +25,7 @@ Never include any of the following in a report:
 
 - API keys are intended to stay in Windows Credential Manager under `RiftLens/TranslationApi`.
 - `%LOCALAPPDATA%\RiftLens\settings.json` must never contain an API key.
-- Screenshots remain local and in memory unless the user explicitly starts the documented real-evaluation capture and chooses a local folder.
+- Screenshots remain local and in memory unless the user explicitly starts the documented real-evaluation capture, or selects DeepSeek V4 Vision experimental mode and consents to sending only the selected crop.
 - The app must not read game memory, inject code, simulate input, or automatically send chat.
 - Third-party AI and speech providers remain outside this project's security and privacy boundary.
 

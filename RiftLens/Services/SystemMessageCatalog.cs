@@ -16,15 +16,19 @@ public static class SystemMessageCatalog
 
     private const string Objective =
         @"(?:장로\s*드래곤|드래곤|용|내셔\s*남작|바론|협곡의\s*전령|전령|공허\s*유충|유충|"
-        + @"远古巨龙|远古龙|巨龙|小龙|元素龙|纳什男爵|男爵|峡谷先锋|虚空巢虫|巢虫|"
+        + @"远古巨龙|远古龙|巨龙|小龙|元素龙|[\p{L}]{1,8}亚龙|纳什男爵|男爵|峡谷先锋|虚空巢虫|巢虫|"
         + @"elder\s+dragon|(?:elemental\s+)?dragon|drake|baron\s+nashor|baron|rift\s+herald|void\s*grubs?)";
 
     private static readonly IReadOnlyList<SystemRule> CurrentRules = new[]
     {
         Exact("combat.first_blood", GameMessageKind.KillEvent, GameSystemEventType.FirstBlood, 3,
             @"(?:선취점|첫\s*번째\s*킬|第一滴血|first\s+blood)"),
+        Rule("combat.first_blood_feed", GameMessageKind.KillEvent, GameSystemEventType.FirstBlood, 3,
+            @"^.{0,96}?(?:刚刚)?(?:拿下了|拿到了)?第一滴血[.!！。]?\s*$"),
         Exact("combat.double_kill", GameMessageKind.KillEvent, GameSystemEventType.DoubleKill, 2,
             @"(?:더블\s*킬|双杀|double\s+kill)"),
+        Rule("combat.double_kill_feed", GameMessageKind.KillEvent, GameSystemEventType.DoubleKill, 2,
+            @"^.{0,120}?完成了一次双杀[.!！。]?\s*$"),
         Exact("combat.triple_kill", GameMessageKind.KillEvent, GameSystemEventType.TripleKill, 3,
             @"(?:트리플\s*킬|三杀|triple\s+kill)"),
         Exact("combat.quadra_kill", GameMessageKind.KillEvent, GameSystemEventType.QuadraKill, 3,
@@ -39,13 +43,13 @@ public static class SystemMessageCatalog
         Rule("combat.spree_legendary", GameMessageKind.KillEvent, GameSystemEventType.Legendary, 3,
             @"^(?:전설의\s+.+?님|.+?(?:已经超越神了|\bis\s+legendary))\s*[.!！]?$"),
         Rule("combat.spree_godlike", GameMessageKind.KillEvent, GameSystemEventType.Godlike, 3,
-            @"^(?:전장의\s*화신\s+.+?님|.+?(?:已经接近神了|\bis\s+godlike))\s*[.!！]?$"),
+            @"^(?:전장의\s*화신\s+.+?님|.+?(?:已经接近神(?:了|的境界(?:啦)?)|\bis\s+godlike))\s*[.!！]?$"),
         Rule("combat.spree_dominating", GameMessageKind.KillEvent, GameSystemEventType.Dominating, 2,
             @"^(?:전장의\s*지배자\s+.+?님|.+?(?:已经主宰比赛了|\bis\s+dominating))\s*[.!！]?$"),
         Rule("combat.spree_unstoppable", GameMessageKind.KillEvent, GameSystemEventType.Unstoppable, 2,
-            @"^.+?(?:님을\s*도저히\s*막을\s*수\s*없습니다|已经无人能挡了|\bis\s+unstoppable)\s*[.!！]?$"),
+            @"^.+?(?:님을\s*도저히\s*막을\s*수\s*없습니다|已经无人能挡(?:了)?|\bis\s+unstoppable)\s*[.!！]?$"),
         Rule("combat.spree_rampage", GameMessageKind.KillEvent, GameSystemEventType.Rampage, 2,
-            @"^.+?(?:님이\s*미쳐\s*날뛰고\s*있습니다|已经接近暴走了|\bis\s+on\s+a\s+rampage)\s*[.!！]?$"),
+            @"^.+?(?:님이\s*미쳐\s*날뛰고\s*있습니다|已经(?:接近)?暴走了|\bis\s+on\s+a\s+rampage)\s*[.!！]?$"),
         Rule("combat.spree_killing", GameMessageKind.KillEvent, GameSystemEventType.KillingSpree, 2,
             @"^.+?(?:님이\s*학살\s*중입니다|正在大杀特杀|\bis\s+on\s+a\s+killing\s+spree)\s*[.!！]?$"),
         Rule("combat.execution", GameMessageKind.KillEvent, GameSystemEventType.Execution, 1,
@@ -69,7 +73,7 @@ public static class SystemMessageCatalog
         Rule("objective.spawn", GameMessageKind.ObjectiveEvent, GameSystemEventType.ObjectiveSpawn, 2,
             $@"^(?:the\s+)?(?<objective>{Objective})(?:이|가)?\s*(?:생성되었습니다|등장했습니다|공허에서\s*솟아올랐습니다|已经登场|已从虚空中现身|已经刷新|已刷新|has\s+spawned|have\s+spawned|has\s+emerged\s+from\s+the\s+void)[.!！]?$"),
         Rule("objective.slain", GameMessageKind.ObjectiveEvent, GameSystemEventType.ObjectiveSlain, 3,
-            $@"^(?<subject>.{{1,96}}?)(?:이|가|은|는|军团|team)?\s*(?:已经|刚刚|has)?\s*(?:처치했습니다|击杀了|消灭了|slain|defeated)\s*(?:the\s+)?(?<objective>{Objective})[.!！]?$|^(?<subject>.{{1,96}}?)(?:이|가)\s*(?<objective>{Objective})(?:을|를)\s*처치했습니다[.!！]?$"),
+            $@"^(?<subject>.{{1,96}}?)(?:이|가|은|는|军团|team)?\s*(?:已经|刚刚|has)?\s*(?:처치했습니다|已?击杀(?:了)?|消灭了|slain|defeated)\s*(?:the\s+)?(?<objective>{Objective})[.!！]?$|^(?<subject>.{{1,96}}?)(?:이|가)\s*(?<objective>{Objective})(?:을|를)\s*처치했습니다[.!！]?$"),
         Rule("objective.herald_captured", GameMessageKind.ObjectiveEvent, GameSystemEventType.HeraldCaptured, 2,
             @"^.{1,96}?(?:협곡의\s*전령을\s*획득|已捕获(?:了)?峡谷先锋|has\s+captured\s+rift\s+herald)[.!！]?$"),
         Rule("objective.terrain", GameMessageKind.ObjectiveEvent, GameSystemEventType.TerrainTransform, 1,
@@ -120,7 +124,9 @@ public static class SystemMessageCatalog
         Rule("special.sylas_ultimate_stolen", GameMessageKind.OtherSystemEvent, GameSystemEventType.ChampionSpecialEvent, 1,
             @"^.{1,64}?(?:이|가).{1,64}?의\s*궁극기를\s*강탈했습니다[.!！]?$"),
         Rule("special.lane_quest_completed", GameMessageKind.OtherSystemEvent, GameSystemEventType.ChampionSpecialEvent, 1,
-            @"^.{1,96}?[\(（].{1,36}?[\)）]\s*(?:상단|중단|하단)\s*퀘스트\s*완료[.!！]?$"),
+            @"^.{1,96}?[\(（].{1,36}?[\)）]\s*(?:상단|중단|하단)\s*퀘스트\s*완료[.!！]?$|^.{1,96}?[\(（].{1,36}?[\)）]\s*(?:上路|中路|下路|野区|打野|守卫)任务完成[.!！]?$"),
+        Rule("special.epic_monster_milestone", GameMessageKind.OtherSystemEvent, GameSystemEventType.ChampionSpecialEvent, 1,
+            @"^.{1,96}?已达到.*(?:击杀|已击杀).*史诗野怪.*新?里程碑?\s*[:：]?\s*[\d.,，]*[.!！]?$"),
 
         Rule("wellness.play_time", GameMessageKind.ClientReminder, GameSystemEventType.WellnessReminder, 1,
             @"^.*(?:(?:게임|플레이).*(?:시간|휴식|건강)|(?:游戏|游玩|连续游戏).*(?:时间|小时|休息|健康|防沉迷)|(?:play|gaming).*(?:hours?|break|healthy|wellness)).*$")
@@ -228,7 +234,7 @@ public static class SystemMessageCatalog
     private static string Normalize(string value)
     {
         var normalized = Regex.Replace(
-                (value ?? string.Empty)
+                ChineseTextNormalizer.ToSimplifiedCharacters(value)
                     .Normalize(NormalizationForm.FormKC)
                     .Trim(),
                 @"\s+",
@@ -237,12 +243,18 @@ public static class SystemMessageCatalog
             .Trim(' ', '°', '·', '•');
         normalized = Regex.Replace(
             normalized,
+            @"\s+([.!！。])$",
+            "$1",
+            RegexOptions.CultureInvariant);
+        normalized = Regex.Replace(
+            normalized,
             @"(?<=[\u3400-\u9FFF])\s+(?=[\u3400-\u9FFF])",
             string.Empty,
             RegexOptions.CultureInvariant);
         return normalized
             .Replace('別', '别')
-            .Replace('毀', '毁');
+            .Replace('毀', '毁')
+            .Replace(',', '，');
     }
 
     private sealed record SystemRule(

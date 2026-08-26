@@ -11,7 +11,7 @@ namespace RiftLens.Services;
 /// generated from matching Data Dragon IDs, while manual rows cover common
 /// player shorthand that does not exist in Riot's structured data.
 /// </summary>
-public static class GameTermGlossary
+public static partial class GameTermGlossary
 {
     private static readonly Lazy<GlossaryIndex> Index = new(LoadIndex);
 
@@ -76,6 +76,192 @@ public static class GameTermGlossary
         return result.ToString();
     }
 
+    /// <summary>
+    /// Repairs unique one-character Hangul OCR errors. This must only be used
+    /// inside already-identified deterministic HUD/feed fields, never across
+    /// unrestricted player-authored chat.
+    /// </summary>
+    public static string RepairKoreanOcrTokens(string line)
+    {
+        if (string.IsNullOrWhiteSpace(line))
+        {
+            return line ?? string.Empty;
+        }
+
+        return KoreanTokenRegex().Replace(line, match =>
+        {
+            var token = match.Value;
+            if (!Index.Value.KoreanOcrTermsByLength.TryGetValue(token.Length, out var candidates)
+                || candidates.Contains(token, StringComparer.Ordinal))
+            {
+                return token;
+            }
+
+            var nearest = candidates
+                .Select(candidate => new { Candidate = candidate, Distance = EditDistance(token, candidate) })
+                .Where(item => item.Distance <= 1)
+                .OrderBy(item => item.Distance)
+                .ThenBy(item => item.Candidate, StringComparer.Ordinal)
+                .ToArray();
+            if (nearest.Length == 0)
+            {
+                return token;
+            }
+
+            var bestDistance = nearest[0].Distance;
+            var best = nearest
+                .Where(item => item.Distance == bestDistance)
+                .Select(item => item.Candidate)
+                .Distinct(StringComparer.Ordinal)
+                .Take(2)
+                .ToArray();
+            return best.Length == 1 ? best[0] : token;
+        });
+    }
+
+    public static bool TryResolveOfficialSuffix(
+        string value,
+        string category,
+        out string subject,
+        out GameTermResolution resolution) =>
+        TryResolveOfficialSuffix(value, category, requireBoundary: true, out subject, out resolution);
+
+    public static bool TryResolveOfficialSuffix(
+        string value,
+        string category,
+        bool requireBoundary,
+        out string subject,
+        out GameTermResolution resolution)
+    {
+        var normalized = NormalizeText(value);
+        foreach (var candidate in Index.Value.OfficialAliases)
+        {
+            if (!string.Equals(candidate.Category, category, StringComparison.OrdinalIgnoreCase)
+                || normalized.Length <= candidate.Source.Length
+                || !normalized.EndsWith(candidate.Source, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var boundary = normalized.Length - candidate.Source.Length;
+            if (requireBoundary
+                && boundary > 0
+                && !char.IsWhiteSpace(normalized[boundary - 1])
+                && normalized[boundary - 1] is not '-' and not ':' and not '：')
+            {
+                continue;
+            }
+
+            if (!requireBoundary && candidate.Source.Length < 3)
+            {
+                continue;
+            }
+
+            subject = normalized[..boundary].Trim(' ', '-', ':', '：');
+            if (string.IsNullOrWhiteSpace(subject))
+            {
+                continue;
+            }
+
+            resolution = new GameTermResolution(
+                candidate.Id,
+                candidate.Category,
+                candidate.Chinese,
+                candidate.English);
+            return true;
+        }
+
+        subject = string.Empty;
+        resolution = GameTermResolution.Empty;
+        return false;
+    }
+
+    /// <summary>
+    /// Resolves a concatenated OCR suffix that is one Hangul/Han edit away from
+    /// exactly one official term in the requested category.
+    /// </summary>
+    public static bool TryResolveNearMissOfficialSuffix(
+        string value,
+        string category,
+        out string subject,
+        out GameTermResolution resolution)
+    {
+        var normalized = NormalizeText(value);
+        var matches = new List<(OfficialAlias Alias, int Distance, string Prefix)>();
+        foreach (var candidate in Index.Value.OfficialAliases)
+        {
+            if (!string.Equals(candidate.Category, category, StringComparison.OrdinalIgnoreCase)
+                || candidate.Source.Length < 4
+                || normalized.Length <= candidate.Source.Length)
+            {
+                continue;
+            }
+
+            var prefixLength = normalized.Length - candidate.Source.Length;
+            var suffix = normalized[prefixLength..];
+            var distance = EditDistance(suffix, candidate.Source);
+            if (distance != 1)
+            {
+                continue;
+            }
+
+            var prefix = normalized[..prefixLength].Trim(' ', '-', ':', '：');
+            if (prefix.Length < 2)
+            {
+                continue;
+            }
+
+            matches.Add((candidate, distance, prefix));
+        }
+
+        var unique = matches
+            .GroupBy(item => item.Alias.Id, StringComparer.OrdinalIgnoreCase)
+            .Take(2)
+            .ToArray();
+        if (unique.Length != 1)
+        {
+            subject = string.Empty;
+            resolution = GameTermResolution.Empty;
+            return false;
+        }
+
+        var best = unique[0].OrderBy(item => item.Alias.Source.Length).First();
+        subject = best.Prefix;
+        resolution = new GameTermResolution(
+            best.Alias.Id,
+            best.Alias.Category,
+            best.Alias.Chinese,
+            best.Alias.English);
+        return true;
+    }
+
+    public static bool TryCanonicalizeSummonerSpellToken(string? token, out string korean)
+    {
+        korean = string.Empty;
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return false;
+        }
+
+        var compact = NormalizeText(token).Replace(" ", string.Empty);
+        korean = compact switch
+        {
+            "점멸" or "정멸" or "점렬" or "접멸" or "점별" or "점열" or "접렬" or "정렬" or "첨열"
+                or "flash" or "플" => "점멸",
+            "순간이동" or "충간이용" or "순간이용" or "순간이옹" or "teleport" or "텔포" or "텔" => "순간이동",
+            "강력순간이동" or "강력충간이용" or "unleashedteleport" => "강력 순간이동",
+            "유체화" or "ghost" => "유체화",
+            "점화" or "ignite" => "점화",
+            "회복" or "heal" => "회복",
+            "탈진" or "exhaust" => "탈진",
+            "방어막" or "barrier" => "방어막",
+            "정화" or "cleanse" => "정화",
+            "강타" or "smite" => "강타",
+            _ => string.Empty
+        };
+        return korean.Length > 0;
+    }
+
     private static GlossaryIndex LoadIndex()
     {
         GameTermCatalog? catalog = null;
@@ -123,10 +309,42 @@ public static class GameTermGlossary
                     .OrderByDescending(replacement => replacement.Source.Length)
                     .ThenByDescending(replacement => replacement.Priority)
                     .ToArray());
+        var koreanOcrTermsByLength = catalog.Terms
+            .Select(term => term.Korean)
+            .Concat(ManualTerms.SelectMany(term => term.Aliases))
+            .Select(NormalizeText)
+            .Where(term => term.Length is >= 2 and <= 12
+                && !term.Any(char.IsWhiteSpace)
+                && term.All(IsHangul))
+            .Distinct(StringComparer.Ordinal)
+            .GroupBy(term => term.Length)
+            .ToDictionary(
+                group => group.Key,
+                group => (IReadOnlyList<string>)group.OrderBy(value => value, StringComparer.Ordinal).ToArray());
+        var officialAliases = catalog.Terms
+            .SelectMany(term => new[]
+            {
+                term.Korean,
+                term.Chinese,
+                term.ChineseTraditional,
+                term.English
+            }.Where(alias => !string.IsNullOrWhiteSpace(alias)).Select(alias => new OfficialAlias(
+                NormalizeText(alias),
+                term.Id,
+                term.Category,
+                term.Chinese,
+                term.English)))
+            .GroupBy(alias => alias.Source, StringComparer.OrdinalIgnoreCase)
+            .Where(group => group.Select(alias => alias.Id).Distinct(StringComparer.OrdinalIgnoreCase).Count() == 1)
+            .Select(group => group.First())
+            .OrderByDescending(alias => alias.Source.Length)
+            .ToArray();
         return new GlossaryIndex(
             catalog.Version,
             catalog.Terms.Count,
-            byFirstCharacter);
+            byFirstCharacter,
+            koreanOcrTermsByLength,
+            officialAliases);
     }
 
     private static void AddOfficialAliases(
@@ -134,7 +352,13 @@ public static class GameTermGlossary
         ISet<string> ambiguousOfficialAliases,
         GameTermEntry term)
     {
-        foreach (var alias in new[] { term.Korean, term.Chinese, term.English })
+        foreach (var alias in new[]
+                 {
+                     term.Korean,
+                     term.Chinese,
+                     term.ChineseTraditional,
+                     term.English
+                 })
         {
             AddReplacement(
                 replacements,
@@ -240,6 +464,16 @@ public static class GameTermGlossary
 
         if (!ContainsAsciiLetter(candidate.Source))
         {
+            var meaningfulLength = candidate.Source.Count(char.IsLetterOrDigit);
+            if (meaningfulLength == 1
+                && index > 0
+                && SameScript(source[index - 1], candidate.Source[0]))
+            {
+                // One-syllable Korean/Chinese game shorthand may start an
+                // agglutinative phrase (용앞, 궁없), but must not match inside
+                // an unrelated word ending such as 세용.
+                return false;
+            }
             return true;
         }
 
@@ -252,9 +486,34 @@ public static class GameTermGlossary
     private static bool ContainsAsciiLetter(string value) =>
         value.Any(character => character is >= 'A' and <= 'Z' or >= 'a' and <= 'z');
 
+    private static bool SameScript(char left, char right) =>
+        left is >= '\uAC00' and <= '\uD7A3' && right is >= '\uAC00' and <= '\uD7A3'
+        || left is >= '\u3400' and <= '\u9FFF' && right is >= '\u3400' and <= '\u9FFF';
+
+    private static bool IsHangul(char character) =>
+        character is >= '\uAC00' and <= '\uD7A3';
+
+    private static int EditDistance(string left, string right)
+    {
+        var previous = Enumerable.Range(0, right.Length + 1).ToArray();
+        for (var row = 1; row <= left.Length; row++)
+        {
+            var current = new int[right.Length + 1];
+            current[0] = row;
+            for (var column = 1; column <= right.Length; column++)
+            {
+                current[column] = Math.Min(
+                    Math.Min(previous[column] + 1, current[column - 1] + 1),
+                    previous[column - 1] + (left[row - 1] == right[column - 1] ? 0 : 1));
+            }
+            previous = current;
+        }
+        return previous[right.Length];
+    }
+
     private static string NormalizeText(string value) =>
         Regex.Replace(
-                value
+                ChineseTextNormalizer.ToSimplifiedCharacters(value)
                     .Normalize(NormalizationForm.FormKC)
                     .Replace('’', '\'')
                     .Replace('‘', '\'')
@@ -392,5 +651,26 @@ public static class GameTermGlossary
     private sealed record GlossaryIndex(
         string Version,
         int OfficialTermCount,
-        IReadOnlyDictionary<char, IReadOnlyList<Replacement>> ByFirstCharacter);
+        IReadOnlyDictionary<char, IReadOnlyList<Replacement>> ByFirstCharacter,
+        IReadOnlyDictionary<int, IReadOnlyList<string>> KoreanOcrTermsByLength,
+        IReadOnlyList<OfficialAlias> OfficialAliases);
+
+    private sealed record OfficialAlias(
+        string Source,
+        string Id,
+        string Category,
+        string Chinese,
+        string English);
+
+    [GeneratedRegex("[가-힣]{2,12}", RegexOptions.CultureInvariant)]
+    private static partial Regex KoreanTokenRegex();
+}
+
+public sealed record GameTermResolution(
+    string Id,
+    string Category,
+    string Chinese,
+    string English)
+{
+    public static GameTermResolution Empty { get; } = new("", "", "", "");
 }

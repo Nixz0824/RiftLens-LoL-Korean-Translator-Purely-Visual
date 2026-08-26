@@ -21,19 +21,24 @@ public static partial class GameSemanticEventParser
             || TryParseDamagedCooldownFragment(normalized, out semanticEvent)
             || TryParseSkillUnlearned(normalized, out semanticEvent)
             || TryParseHudResource(normalized, out semanticEvent)
+            || TryParseGoldShare(normalized, out semanticEvent)
             || TryParseWardCharges(normalized, out semanticEvent)
+            || TryParseItemCharges(normalized, out semanticEvent)
             || TryParseWardPurchase(normalized, out semanticEvent)
             || TryParseItemGoldNeed(normalized, out semanticEvent)
             || TryParseAbilityStateShare(normalized, out semanticEvent)
+            || TryParseSummonerSpellSwap(normalized, out semanticEvent)
             || TryParseExplicitAbilityUse(normalized, out semanticEvent)
             || TryParseStructureStatus(normalized, out semanticEvent)
             || TryParseGeneratedTargetFragment(normalized, out semanticEvent)
             || TryParseObjectiveFragment(normalized, out semanticEvent)
             || TryParseSummonerSpellMarker(normalized, out semanticEvent)
             || TryParseAbilityMarker(normalized, out semanticEvent)
+            || TryParseOfficialItemMarker(normalized, out semanticEvent)
             || TryParseCountdown(normalized, out semanticEvent)
             || TryParseStatus(normalized, out semanticEvent)
             || TryParseExplicitSignal(normalized, out semanticEvent)
+            || TryParseChineseMarkedTarget(normalized, out semanticEvent)
             || TryParseMarker(normalized, out semanticEvent))
         {
             return true;
@@ -48,16 +53,20 @@ public static partial class GameSemanticEventParser
         var normalized = Normalize(line);
         if (TryParseEmbeddedHudShare(normalized, out semanticEvent)
             || TryParseExplicitSignal(normalized, out semanticEvent)
+            || TryParseChineseMarkedTarget(normalized, out semanticEvent)
             || TryParseMarker(normalized, out semanticEvent)
             || TryParseObjectiveRespawn(normalized, out semanticEvent)
             || TryParseSkillCooldown(normalized, out semanticEvent)
             || TryParseDamagedCooldownFragment(normalized, out semanticEvent)
             || TryParseSkillUnlearned(normalized, out semanticEvent)
             || TryParseHudResource(normalized, out semanticEvent)
+            || TryParseGoldShare(normalized, out semanticEvent)
             || TryParseWardCharges(normalized, out semanticEvent)
+            || TryParseItemCharges(normalized, out semanticEvent)
             || TryParseWardPurchase(normalized, out semanticEvent)
             || TryParseItemGoldNeed(normalized, out semanticEvent)
             || TryParseAbilityStateShare(normalized, out semanticEvent)
+            || TryParseSummonerSpellSwap(normalized, out semanticEvent)
             || TryParseExplicitAbilityUse(normalized, out semanticEvent)
             || TryParseStructureStatus(normalized, out semanticEvent)
             || TryParseGeneratedTargetFragment(normalized, out semanticEvent)
@@ -99,11 +108,19 @@ public static partial class GameSemanticEventParser
                     FormatEnglishHudMarker(resolvedSpeaker, subject, semanticEvent.Target, "summoner spell"),
                 SemanticSpeechAct.Marker when semanticEvent.Status == "ability" =>
                     FormatEnglishHudMarker(resolvedSpeaker, subject, semanticEvent.Target, "ability"),
+                SemanticSpeechAct.Information when semanticEvent.Status == "item_marker" =>
+                    FormatEnglishItemInspect(resolvedSpeaker, subject, semanticEvent.Target),
                 SemanticSpeechAct.Marker when hasKnownInitiator =>
                     $"{resolvedSpeaker} marked {DefaultSubject(subject, "that location")}.",
                 SemanticSpeechAct.Marker => $"{DefaultSubject(subject, "A location")} was marked.",
                 SemanticSpeechAct.Information when semanticEvent.Status == "resource_percent" =>
                     hasKnownInitiator ? $"{resolvedSpeaker}: {subject}." : $"{subject}.",
+                SemanticSpeechAct.Information when semanticEvent.Status == "gold_share" =>
+                    hasKnownInitiator ? $"{resolvedSpeaker}: {subject}." : $"{subject}.",
+                SemanticSpeechAct.Information when semanticEvent.Status == "item_charges" =>
+                    hasKnownInitiator
+                        ? $"{resolvedSpeaker}'s {subject} has {semanticEvent.Target} stack remaining."
+                        : $"{subject} has {semanticEvent.Target} stack remaining.",
                 SemanticSpeechAct.Information when semanticEvent.Status == "ward_charges" =>
                     hasKnownInitiator
                         ? $"{resolvedSpeaker}'s {subject} has {semanticEvent.Target} charge remaining."
@@ -122,8 +139,12 @@ public static partial class GameSemanticEventParser
                         : "A Control Ward is available for purchase.",
                 SemanticSpeechAct.Information when semanticEvent.Status == "ability_used" =>
                     $"{DefaultSubject(subject, "A champion")} used {semanticEvent.Target}.",
-                SemanticSpeechAct.Information when semanticEvent.Status == "summoner_spell_used" =>
-                    $"{DefaultSubject(subject, "A champion")} used {LocalizeSubject(semanticEvent.Target, language)}.",
+            SemanticSpeechAct.Information when semanticEvent.Status == "summoner_spell_used" =>
+                $"{DefaultSubject(subject, "A champion")} used {LocalizeSubject(semanticEvent.Target, language)}.",
+            SemanticSpeechAct.Information when semanticEvent.Status == "summoner_spell_swap" =>
+                hasKnownInitiator
+                    ? $"{resolvedSpeaker} swapped {LocalizeSubject(semanticEvent.Subject, language)} for {LocalizeSubject(semanticEvent.Target, language)}."
+                    : $"{LocalizeSubject(semanticEvent.Subject, language)} was swapped for {LocalizeSubject(semanticEvent.Target, language)}.",
                 SemanticSpeechAct.Information when semanticEvent.Status == "structure_status" =>
                     hasKnownInitiator
                         ? $"{resolvedSpeaker} marked {subject}."
@@ -187,11 +208,19 @@ public static partial class GameSemanticEventParser
                 FormatChineseHudMarker(resolvedSpeaker, subject, semanticEvent.Target, "召唤师技能"),
             SemanticSpeechAct.Marker when semanticEvent.Status == "ability" =>
                 FormatChineseHudMarker(resolvedSpeaker, subject, semanticEvent.Target, "技能"),
+            SemanticSpeechAct.Information when semanticEvent.Status == "item_marker" =>
+                FormatChineseItemInspect(resolvedSpeaker, subject, semanticEvent.Target),
             SemanticSpeechAct.Marker when hasKnownInitiator =>
                 $"{resolvedSpeaker}标记了{DefaultSubject(subject, "该位置")}",
             SemanticSpeechAct.Marker => $"已标记{DefaultSubject(subject, "该位置")}",
             SemanticSpeechAct.Information when semanticEvent.Status == "resource_percent" =>
                 hasKnownInitiator ? $"{resolvedSpeaker}{subject}" : subject,
+            SemanticSpeechAct.Information when semanticEvent.Status == "gold_share" =>
+                hasKnownInitiator ? $"{resolvedSpeaker}：{subject}" : subject,
+            SemanticSpeechAct.Information when semanticEvent.Status == "item_charges" =>
+                hasKnownInitiator
+                    ? $"{resolvedSpeaker}的{subject}还有{semanticEvent.Target}层充能"
+                    : $"{subject}还有{semanticEvent.Target}层充能",
             SemanticSpeechAct.Information when semanticEvent.Status == "ward_charges" =>
                 hasKnownInitiator
                     ? $"{resolvedSpeaker}的{subject}还有{semanticEvent.Target}次充能"
@@ -205,9 +234,13 @@ public static partial class GameSemanticEventParser
             SemanticSpeechAct.Information when semanticEvent.Status == "ward_purchase_available" =>
                 hasKnownInitiator ? $"{resolvedSpeaker}可以购买控制守卫" : "控制守卫可以购买",
             SemanticSpeechAct.Information when semanticEvent.Status == "ability_used" =>
-                $"{DefaultSubject(subject, "英雄")}使用了{semanticEvent.Target}",
+                $"{DefaultSubject(subject, "英雄")}使用了{LocalizeSubject(semanticEvent.Target, language)}",
             SemanticSpeechAct.Information when semanticEvent.Status == "summoner_spell_used" =>
                 $"{DefaultSubject(subject, "英雄")}使用了{LocalizeSubject(semanticEvent.Target, language)}",
+            SemanticSpeechAct.Information when semanticEvent.Status == "summoner_spell_swap" =>
+                hasKnownInitiator
+                    ? $"{resolvedSpeaker}把{LocalizeSubject(semanticEvent.Subject, language)}换成{LocalizeSubject(semanticEvent.Target, language)}"
+                    : $"{LocalizeSubject(semanticEvent.Subject, language)}已换成{LocalizeSubject(semanticEvent.Target, language)}",
             SemanticSpeechAct.Information when semanticEvent.Status == "structure_status" =>
                 hasKnownInitiator ? $"{resolvedSpeaker}标记了{subject}" : $"已标记{subject}",
             SemanticSpeechAct.Request when semanticEvent.Status == "retreat" =>
@@ -404,6 +437,57 @@ public static partial class GameSemanticEventParser
         return false;
     }
 
+    private static bool TryParseGoldShare(
+        string normalized,
+        out GameSemanticEvent semanticEvent)
+    {
+        var match = GoldShareRegex().Match(normalized);
+        if (match.Success)
+        {
+            var unit = match.Groups["unit"].Value;
+            var amount = match.Groups["value"].Value;
+            var subject = unit.Contains("골드", StringComparison.OrdinalIgnoreCase)
+                || unit.Contains("gold", StringComparison.OrdinalIgnoreCase)
+                ? $"{amount} gold"
+                : $"{amount}金币";
+            semanticEvent = new GameSemanticEvent(
+                SemanticSourceType.HudShare,
+                SemanticSpeechAct.Information,
+                Subject: subject,
+                Status: "gold_share",
+                Modality: SemanticModality.Asserted,
+                Confidence: 0.97,
+                Evidence: match.Value);
+            return true;
+        }
+
+        semanticEvent = Unknown(normalized);
+        return false;
+    }
+
+    private static bool TryParseItemCharges(
+        string normalized,
+        out GameSemanticEvent semanticEvent)
+    {
+        var match = ItemChargeRegex().Match(normalized);
+        if (match.Success)
+        {
+            semanticEvent = new GameSemanticEvent(
+                SemanticSourceType.HudShare,
+                SemanticSpeechAct.Information,
+                Subject: CleanSubject(match.Groups["subject"].Value),
+                Target: match.Groups["count"].Value,
+                Status: "item_charges",
+                Modality: SemanticModality.Asserted,
+                Confidence: 0.98,
+                Evidence: match.Value);
+            return true;
+        }
+
+        semanticEvent = Unknown(normalized);
+        return false;
+    }
+
     private static bool TryParseWardCharges(
         string normalized,
         out GameSemanticEvent semanticEvent)
@@ -446,9 +530,10 @@ public static partial class GameSemanticEventParser
         }
 
         var purchase = WardPurchaseRegex().Match(normalized);
-        if (purchase.Success)
+        var chinesePurchase = ChineseWardPurchasedRegex().Match(normalized);
+        if (purchase.Success || chinesePurchase.Success)
         {
-            var completed = purchase.Groups["completed"].Success;
+            var completed = chinesePurchase.Success || purchase.Groups["completed"].Success;
             semanticEvent = new GameSemanticEvent(
                 SemanticSourceType.HudShare,
                 completed ? SemanticSpeechAct.Information : SemanticSpeechAct.Noise,
@@ -456,7 +541,7 @@ public static partial class GameSemanticEventParser
                 Status: completed ? "ward_purchased" : "fixed_feed_fragment",
                 Modality: completed ? SemanticModality.Asserted : SemanticModality.Possible,
                 Confidence: completed ? 0.99 : 0.82,
-                Evidence: purchase.Value);
+                Evidence: chinesePurchase.Success ? chinesePurchase.Value : purchase.Value);
             return true;
         }
 
@@ -520,6 +605,10 @@ public static partial class GameSemanticEventParser
         out GameSemanticEvent semanticEvent)
     {
         var ability = AbilityUsedRegex().Match(normalized);
+        if (!ability.Success)
+        {
+            ability = ChineseAbilityUsedRegex().Match(normalized);
+        }
         if (ability.Success)
         {
             var key = ability.Groups["ability"].Value.ToUpperInvariant();
@@ -537,6 +626,10 @@ public static partial class GameSemanticEventParser
         }
 
         var spell = SummonerSpellUsedRegex().Match(normalized);
+        if (!spell.Success)
+        {
+            spell = ChineseSummonerSpellUsedRegex().Match(normalized);
+        }
         if (spell.Success)
         {
             semanticEvent = new GameSemanticEvent(
@@ -555,21 +648,106 @@ public static partial class GameSemanticEventParser
         return false;
     }
 
+    private static bool TryParseSummonerSpellSwap(
+        string normalized,
+        out GameSemanticEvent semanticEvent)
+    {
+        var match = ChineseSummonerSpellSwapRegex().Match(normalized);
+        if (!match.Success)
+        {
+            semanticEvent = Unknown(normalized);
+            return false;
+        }
+
+        semanticEvent = new GameSemanticEvent(
+            SemanticSourceType.HudShare,
+            SemanticSpeechAct.Information,
+            Subject: CleanSubject(match.Groups["from"].Value),
+            Target: CleanSubject(match.Groups["to"].Value),
+            Status: "summoner_spell_swap",
+            Modality: SemanticModality.Asserted,
+            Confidence: 0.99,
+            Evidence: match.Value);
+        return true;
+    }
+
+    private static bool TryParseOfficialItemMarker(
+        string normalized,
+        out GameSemanticEvent semanticEvent)
+    {
+        if (!GameTermGlossary.TryResolveOfficialSuffix(
+                normalized,
+                "item",
+                requireBoundary: true,
+                out var subject,
+                out var item)
+            && !GameTermGlossary.TryResolveOfficialSuffix(
+                normalized,
+                "item",
+                requireBoundary: false,
+                out subject,
+                out item)
+            && !GameTermGlossary.TryResolveNearMissOfficialSuffix(
+                normalized,
+                "item",
+                out subject,
+                out item))
+        {
+            semanticEvent = Unknown(normalized);
+            return false;
+        }
+
+        subject = CleanSubject(subject);
+        if (subject.Length is < 2 or > 24
+            || PlayerCalloutParser.IsLaneToken(subject)
+            || ContainsAny(subject, "买了", "购买", "구입", "구매", "bought", "purchased"))
+        {
+            semanticEvent = Unknown(normalized);
+            return false;
+        }
+
+        semanticEvent = new GameSemanticEvent(
+            SemanticSourceType.HudShare,
+            SemanticSpeechAct.Information,
+            Subject: subject,
+            Target: item.Chinese,
+            Status: "item_marker",
+            Modality: SemanticModality.Marked,
+            Confidence: 0.99,
+            Evidence: normalized);
+        return true;
+    }
+
     private static bool TryParseStructureStatus(
         string normalized,
         out GameSemanticEvent semanticEvent)
     {
-        var match = StructureStatusRegex().Match(normalized);
-        if (match.Success)
+        var korean = StructureStatusRegex().Match(normalized);
+        if (korean.Success)
         {
             semanticEvent = new GameSemanticEvent(
                 SemanticSourceType.HudShare,
                 SemanticSpeechAct.Information,
-                Subject: CleanSubject(match.Groups["subject"].Value),
+                Subject: CleanSubject(korean.Groups["subject"].Value),
                 Status: "structure_status",
                 Modality: SemanticModality.Marked,
                 Confidence: 0.96,
-                Evidence: match.Value);
+                Evidence: korean.Value);
+            return true;
+        }
+
+        var chinese = ChineseStructureStatusRegex().Match(normalized);
+        if (chinese.Success)
+        {
+            var defending = chinese.Groups["action"].Value.Contains("防守", StringComparison.Ordinal);
+            semanticEvent = new GameSemanticEvent(
+                SemanticSourceType.HudShare,
+                defending ? SemanticSpeechAct.Information : SemanticSpeechAct.Marker,
+                Subject: CleanSubject(chinese.Groups["subject"].Value),
+                Status: defending ? "structure_status" : "marked_objective",
+                Modality: SemanticModality.Marked,
+                Confidence: 0.96,
+                Evidence: chinese.Value);
             return true;
         }
 
@@ -628,11 +806,17 @@ public static partial class GameSemanticEventParser
         var match = SummonerSpellMarkerRegex().Match(normalized);
         if (match.Success && LooksLikeHudMarkerSubject(match.Groups["subject"].Value))
         {
+            var spell = CleanSubject(match.Groups["spell"].Value);
+            if (GameTermGlossary.TryCanonicalizeSummonerSpellToken(spell, out var canonical))
+            {
+                spell = canonical;
+            }
+
             semanticEvent = new GameSemanticEvent(
                 SemanticSourceType.HudShare,
                 SemanticSpeechAct.Marker,
                 Subject: CleanSubject(match.Groups["subject"].Value),
-                Target: CleanSubject(match.Groups["spell"].Value),
+                Target: spell,
                 Status: "summoner_spell",
                 Modality: SemanticModality.Marked,
                 Confidence: 0.98,
@@ -728,14 +912,15 @@ public static partial class GameSemanticEventParser
         var hasSignalFrame = SignalFrameRegex().IsMatch(normalized);
         if (hasSignalFrame && ContainsAny(normalized, "후퇴", "撤退", "retreat", "fall back")
             || IsExact(normalized, "후퇴", "撤退", "retreat", "fall back")
-            || EndsWithAny(normalized, "모두 돌아가라고 신호를 보냄", "示意所有人后撤", "signals everyone to get back"))
+            || EndsWithAny(normalized, "모두 돌아가라고 신호를 보냄", "示意所有人后撤", "signals everyone to get back")
+            || ContainsAny(normalized, "示意") && ContainsAny(normalized, "往后撤"))
         {
             semanticEvent = Signal(SemanticSpeechAct.Request, "retreat", normalized, 0.98);
             return true;
         }
         if (hasSignalFrame && ContainsAny(normalized, "도움", "지원", "协助", "支援", "assist", "help")
             || IsExact(normalized, "도움 요청", "지원 요청", "请求协助", "请求支援", "assist me", "need help")
-            || EndsWithAny(normalized, "지원 요청을 보냄", "正在请求协助", "is asking for assistance"))
+            || EndsWithAny(normalized, "지원 요청을 보냄", "正在请求协助", "要求队友尽速支援", "要求队友雷速支援", "is asking for assistance"))
         {
             semanticEvent = Signal(SemanticSpeechAct.Request, "assist", normalized, 0.98);
             return true;
@@ -747,9 +932,9 @@ public static partial class GameSemanticEventParser
             semanticEvent = Signal(SemanticSpeechAct.Warning, "missing", normalized, 0.98);
             return true;
         }
-        if (hasSignalFrame && ContainsAny(normalized, "위험", "조심", "危险", "小心", "danger", "be careful")
+        if (hasSignalFrame && ContainsAny(normalized, "위험", "조심", "危险", "小心", "警惕", "danger", "be careful")
             || IsExact(normalized, "위험", "조심", "危险", "小心", "danger", "be careful")
-            || EndsWithAny(normalized, "위험 신호를 보냄", "发出信号，请谨慎行事", "signals to be cautious"))
+            || EndsWithAny(normalized, "위험 신호를 보냄", "发出信号，请谨慎行事", "发出信号，请谨慎行事!", "signals to be cautious"))
         {
             semanticEvent = Signal(SemanticSpeechAct.Warning, "danger", normalized, 0.98);
             return true;
@@ -775,9 +960,9 @@ public static partial class GameSemanticEventParser
             semanticEvent = Signal(SemanticSpeechAct.Plan, "push", normalized, 0.97);
             return true;
         }
-        if (hasSignalFrame && ContainsAny(normalized, "적 와드를 확인", "敌方在这有视野", "enemy has vision here")
-            || IsExact(normalized, "적 와드 확인", "敌方在这有视野", "enemy has vision here")
-            || EndsWithAny(normalized, "적 와드를 확인하고 신호를 보냄", "示意敌方在这有视野", "signals enemy has vision here"))
+        if (hasSignalFrame && ContainsAny(normalized, "적 와드를 확인", "敌方在这有视野", "敌人在这有视野", "敌人有此处的视野", "enemy has vision here")
+            || IsExact(normalized, "적 와드 확인", "敌方在这有视野", "敌人在这有视野", "enemy has vision here")
+            || EndsWithAny(normalized, "적 와드를 확인하고 신호를 보냄", "示意敌方在这有视野", "示意敌人在这有视野", "signals enemy has vision here"))
         {
             semanticEvent = Signal(SemanticSpeechAct.Information, "enemy_vision", normalized, 0.98);
             return true;
@@ -825,6 +1010,28 @@ public static partial class GameSemanticEventParser
             Confidence: 0.95,
             Evidence: match.Value);
         return true;
+    }
+
+    private static bool TryParseChineseMarkedTarget(
+        string normalized,
+        out GameSemanticEvent semanticEvent)
+    {
+        var match = ChineseMarkedTargetRegex().Match(normalized);
+        if (!match.Success)
+        {
+            semanticEvent = Unknown(normalized);
+            return false;
+        }
+
+        var target = CleanSubject(match.Groups["target"].Value);
+        semanticEvent = new GameSemanticEvent(
+            SemanticSourceType.TacticalPing,
+            SemanticSpeechAct.Marker,
+            Subject: target,
+            Modality: SemanticModality.Marked,
+            Confidence: 0.98,
+            Evidence: match.Value);
+        return !string.IsNullOrWhiteSpace(target);
     }
 
     private static GameSemanticEvent Signal(
@@ -876,6 +1083,24 @@ public static partial class GameSemanticEventParser
         return string.IsNullOrWhiteSpace(speaker)
             ? $"已标记{marked}"
             : $"{speaker}标记了{marked}";
+    }
+
+    private static string FormatChineseItemInspect(string speaker, string subject, string item)
+    {
+        var hero = DefaultSubject(subject, "对面");
+        var purchased = DefaultSubject(LocalizeSubject(item, AppLanguage.Chinese), "装备");
+        return string.IsNullOrWhiteSpace(speaker)
+            ? $"{hero}买了{purchased}"
+            : $"{speaker}说{hero}买了{purchased}";
+    }
+
+    private static string FormatEnglishItemInspect(string speaker, string subject, string item)
+    {
+        var hero = DefaultSubject(subject, "the enemy");
+        var purchased = DefaultSubject(LocalizeSubject(item, AppLanguage.English), "an item");
+        return string.IsNullOrWhiteSpace(speaker)
+            ? $"{hero} bought {purchased}."
+            : $"{speaker} said {hero} bought {purchased}.";
     }
 
     private static string FormatEnglishHudMarker(
@@ -1058,7 +1283,8 @@ public static partial class GameSemanticEventParser
             return false;
         }
 
-        if (ContainsAny(normalized, "等", "我的", "需要", "用了", "没有", "请"))
+        if (ContainsAny(normalized, "等", "我的", "需要", "用了", "没有", "请")
+            || PlayerCalloutParser.IsLaneToken(normalized))
         {
             return false;
         }
@@ -1074,11 +1300,12 @@ public static partial class GameSemanticEventParser
 
     private static string Normalize(string value) =>
         Regex.Replace(
-                (value ?? string.Empty)
+                ChineseTextNormalizer.ToSimplifiedCharacters(value)
                     .Normalize(NormalizationForm.FormKC)
                     .Replace('−', '-')
                     .Replace('–', '-')
-                    .Replace('—', '-'),
+                    .Replace('—', '-')
+                    .Replace(',', '，'),
                 @"\s+",
                 " ",
                 RegexOptions.CultureInvariant)
@@ -1097,11 +1324,11 @@ public static partial class GameSemanticEventParser
     private static partial Regex EmbeddedHudShareRegex();
 
     [GeneratedRegex(
-        @"^(?<subject>(?:내셔\s*남작|바론|장로\s*드래곤|바람의\s*드래곤|화염의\s*드래곤|대지의\s*드래곤|바다의\s*드래곤|화학공학\s*드래곤|마법공학\s*드래곤|드래곤|용|협곡의\s*전령|공허\s*유충|"
+        @"^(?<subject>(?:내셔\s*남작|바론|장로\s*(?:드래곤|드레이크)|바람(?:의|입)?\s*(?:드래곤|드레이크|드래몬|드래콤)|화염의\s*(?:드래곤|드레이크)|대지의\s*(?:드래곤|드레이크)|바다의\s*(?:드래곤|드레이크)|화학공학\s*(?:드래곤|드레이크)|마법공학\s*(?:드래곤|드레이크)|(?:드래곤|드레이크|드래몬|드래콤)|용|협곡의\s*전령|공허\s*유충|"
         + @"纳什男爵|男爵|远古巨龙|小龙|巨龙|峡谷先锋|虚空巢虫|"
         + @"baron(?:\s+nashor)?|elder\s+dragon|dragon|drake|rift\s+herald|void\s+grubs?))\s*[-:：]?\s*"
         + @"(?:(?<minutes>[0-9OolI|]{1,2})\s*[:：.]\s*(?<seconds>[0-9OolI|]{1,2})|(?<flat>[0-9OolI|]{1,3}))\s*"
-        + @"(?:초|秒|s(?:ec(?:ond)?s?)?)?\s*(?:후|后|in)?\s*(?:재생성|刷新|重生|respawns?|respawning)\s*[.!。/]?$",
+        + @"(?:초|秒|s(?:ec(?:ond)?s?)?)?\s*(?:후|后|in)?\s*(?:재생성|재생정|刷新|重生|respawns?|respawning)\s*[.!。/]?$",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex ObjectiveRespawnRegex();
 
@@ -1142,11 +1369,26 @@ public static partial class GameSemanticEventParser
     private static partial Regex WardPurchaseAvailableRegex();
 
     [GeneratedRegex(
-        @"^(?:[^\r\n]{1,80}[\(\[（][^\)\]）]{1,36}[\)\]）]\s*님?\s*(?:이|가)?\s*)?"
-        + @"(?:제어\s*와드|控制守卫|control\s*ward)\s*(?:아이템|item)?\s*(?:을|를)?\s*"
-        + @"(?:(?<completed>구입했습니다|购买了|purchased))?\s*[.!。/]?$",
+        @"^(?:[^\r\n]{1,80}[\(\[（][^\)\]）]{1,36}[\)\]）]\s*)?(?:님?\s*(?:이|가)\s*)?"
+        + @"(?:(?:제어|져야|재어)\s*)?(?:와드|ward)\s*(?:아이템|item)?\s*(?:을|를)?\s*"
+        + @"(?:(?<completed>구입했습니다|购买了|purchased))\s*[.!。/]?$",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex WardPurchaseRegex();
+
+    [GeneratedRegex(
+        @"^(?:[^\r\n]{1,80}[\(\[（][^\)\]）]{1,36}[\)\]）]\s*)?(?:已购买|购买了)\s*控制守卫(?:物品)?\s*[.!！。/]?$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex ChineseWardPurchasedRegex();
+
+    [GeneratedRegex(
+        @"^(?<value>\d{2,5})\s*(?<unit>金币|골드|gold|金)\s*[.!！。/]?$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex GoldShareRegex();
+
+    [GeneratedRegex(
+        @"^(?<subject>.{1,48}?)\s*[-:：]\s*(?<count>\d{1,2})\s*层充能\s*[.!！。/]?$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex ItemChargeRegex();
 
     [GeneratedRegex(
         @"^(?<subject>.{1,80}?)\s*[-:：]\s*(?<gold>[0-9OolI|]{1,5})\s*(?<unit>골드|콜드|金币|gold)\s*(?:필요|需要|needed|required)\s*[.!。/]?$",
@@ -1165,15 +1407,35 @@ public static partial class GameSemanticEventParser
     private static partial Regex AbilityUsedRegex();
 
     [GeneratedRegex(
+        @"^(?<subject>[^:：\r\n]{1,64}?)\s*(?:已)?使用了?\s*(?<ability>[QWER])\s*[-:：]\s*(?<name>[^:：\r\n]{0,64}?)\s*[.!！。/]?$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex ChineseAbilityUsedRegex();
+
+    [GeneratedRegex(
         @"^(?<subject>[^:：\r\n]{1,64}?)\s*님?\s*(?:이|가)\s*(?<spell>강력\s*순간이동|점멸|유체화|점화|회복|탈진|방어막|정화|강타)\s*사용\s*[.!！。/]?$",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex SummonerSpellUsedRegex();
+
+    [GeneratedRegex(
+        @"^(?<subject>[^:：\r\n]{1,64}?)\s*(?:已)?使用了?\s*(?<spell>解封的传送|传送|闪现|幽灵疾步|引燃|点燃|治疗术?|治疗|虚弱|屏障|净化|惩戒)\s*[.!！。/]?$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex ChineseSummonerSpellUsedRegex();
+
+    [GeneratedRegex(
+        @"^.{1,96}?\s*已把\s*(?<from>解封的传送|传送|闪现|幽灵疾步|引燃|点燃|治疗术?|治疗|虚弱|屏障|净化|惩戒)\s*换成\s*(?<to>解封的传送|传送|闪现|幽灵疾步|引燃|点燃|治疗术?|治疗|虚弱|屏障|净化|惩戒)\s*[.!！。/]?$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex ChineseSummonerSpellSwapRegex();
 
     [GeneratedRegex(
         @"^(?:[^\r\n]{1,80}[\(\[（][^\)\]）]{1,36}[\)\]）]\s*님?\s*(?:이|가)?\s*)?"
         + @"(?<subject>(?:억제기|외곽)?\s*포탑\s*[\(（]방패\s*\d\s*/\s*\d[\)）]\s*(?:보호\s*중|지목))\s*[.!！。/]?$",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex StructureStatusRegex();
+
+    [GeneratedRegex(
+        @"^(?:[^\r\n]{0,80}[\(\[（][^\)\]）]{1,36}[\)\]）]\s*)?(?<action>正在防守|已将目标定为)\s*(?<subject>.{1,48}?)(?:\s*[\(（](?:镀层\s*\d\s*/\s*\d|\d{1,3}%)[\)）])?\s*[.!！。/]?$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex ChineseStructureStatusRegex();
 
     [GeneratedRegex(
         @"^[^:：\r\n]{1,80}[\(\[（][^\)\]）]{1,36}[\)\]）]\s*님?\s*(?:이|가)\s*"
@@ -1187,7 +1449,7 @@ public static partial class GameSemanticEventParser
     private static partial Regex ObjectiveFragmentRegex();
 
     [GeneratedRegex(
-        @"^(?<subject>[\p{L}\p{N}_'’·. ]{1,48}?)(?<spell>강력\s*순간이동|점멸|유체화|점화|회복|탈진|방어막|정화|강타|"
+        @"^(?<subject>[\p{L}\p{N}_'’·. ]{1,48}?)(?<spell>강력\s*(?:순간이동|충간이용)|순간이동|충간이용|점멸|정멸|점렬|접멸|점별|점열|접렬|정렬|첨열|유체화|점화|회복|탈진|방어막|정화|강타|"
         + @"解封的传送|传送|闪现|幽灵疾步|引燃|治疗术?|虚弱|屏障|净化|惩戒|"
         + @"unleashed\s+teleport|teleport|flash|ghost|ignite|heal|exhaust|barrier|cleanse|smite)\s*[.!。/]?$",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
@@ -1214,11 +1476,16 @@ public static partial class GameSemanticEventParser
     [GeneratedRegex(
         @"(?:신호\s*[:：]\s*(?<target>[^:：]{1,80})|"
         + @"(?<target>[^:：]{1,80}?)(?:에게|에)?\s*(?:신호를\s*보냄|핑(?:을)?\s*찍(?:음|었음))|"
-        + @"(?:.+?님이\s+)?(?<target>[^:：]{1,80}?)\s*지목|"
+        + @"(?:.+?님이\s+)?(?<target>[^:：]{1,80}?)\s*(?:지목|저격)|"
         + @"(?:信号\s*[:：]\s*(?<target>[^:：]{1,80})|(?:标记了|向)\s*(?<target>[^:：]{1,80}?)(?:发出|发送)?(?:了)?(?:信号|ping))|"
         + @"(?:pinged|marked|signals?)\s+(?<target>[^:：]{1,80}))",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex MarkerRegex();
+
+    [GeneratedRegex(
+        @"^.{1,80}[\(（][^\)）]{1,36}[\)）]\s*(?:标记了|已将目标定为)\s*(?<target>\S.{0,120})$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex ChineseMarkedTargetRegex();
 
     [GeneratedRegex(
         @"^(?:(?:.+?\s+)?(?:signals?\s+that|pinged|marked)\s+|"

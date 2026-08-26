@@ -14,13 +14,25 @@ public sealed class CaptureCoordinator : IAsyncDisposable
     private readonly ChatMessageClassifier _classifier = new();
     private readonly HeroDictionary _heroes;
     private readonly PlayerHeroSessionTracker _playerHeroes;
+    private readonly TacticalSpeechLimiter _speechLimiter = new();
+    private readonly VisionOcrPostProcessor _visionPostProcessor;
     private readonly ITranslationService _translator;
+    private readonly IVisionOcrService? _visionOcr;
     private readonly Channel<ClassifiedGameMessage> _messages = Channel.CreateBounded<ClassifiedGameMessage>(new BoundedChannelOptions(24)
     {
         FullMode = BoundedChannelFullMode.DropOldest,
         SingleReader = true,
-        SingleWriter = true
+        SingleWriter = false
     });
+    private readonly object _pipelineLock = new();
+    private readonly object _visionScheduleLock = new();
+    private Bitmap? _pendingVisionBitmap;
+    private OcrDocument? _pendingVisionLocalDocument;
+    private DateTimeOffset _pendingVisionCapturedAt;
+    private ClassifiedGameMessage[] _pendingHeldPlayerChat = Array.Empty<ClassifiedGameMessage>();
+    private int _pendingVisionGeneration;
+    private int _visionWorkerRunning;
+    private Task? _visionWorkerTask;
 
     private CancellationTokenSource? _cancellation;
     private Task? _captureTask;
@@ -29,6 +41,8 @@ public sealed class CaptureCoordinator : IAsyncDisposable
     private int _stateGeneration;
     private int _evaluationFrameSequence;
     private int _evaluationCaptureEnabled;
+    private int _visionFallbackAnnounced;
+    private int _visionUploadBlockedAnnounced;
     private DateTimeOffset _lastEvaluationPeriodicSampleAt = DateTimeOffset.MinValue;
 
     public event Action<string>? StatusChanged;
@@ -52,12 +66,18 @@ public sealed class CaptureCoordinator : IAsyncDisposable
         }
     }
 
-    public CaptureCoordinator(AppSettings settings, HeroDictionary heroes, ITranslationService translator)
+    public CaptureCoordinator(
+        AppSettings settings,
+        HeroDictionary heroes,
+        ITranslationService translator,
+        IVisionOcrService? visionOcr = null)
     {
         _settings = settings;
         _heroes = heroes;
         _playerHeroes = new PlayerHeroSessionTracker(heroes);
+        _visionPostProcessor = new VisionOcrPostProcessor(heroes);
         _translator = translator;
+        _visionOcr = visionOcr;
     }
 
     public void Start()
@@ -78,6 +98,9 @@ public sealed class CaptureCoordinator : IAsyncDisposable
         _deduplicator.Reset();
         _playerHeroes.Reset();
         _evaluationFrameSequence = 0;
+        Interlocked.Exchange(ref _visionFallbackAnnounced, 0);
+        Interlocked.Exchange(ref _visionUploadBlockedAnnounced, 0);
+        DropPendingVision();
         _lastEvaluationPeriodicSampleAt = DateTimeOffset.MinValue;
         ClearPendingMessages();
         Interlocked.Increment(ref _stateGeneration);
@@ -85,9 +108,13 @@ public sealed class CaptureCoordinator : IAsyncDisposable
         _cancellation = new CancellationTokenSource();
         _captureTask = CaptureLoopAsync(_cancellation.Token);
         _translationTask = TranslationLoopAsync(_cancellation.Token);
-        StatusChanged?.Invoke(L(
-            "正在监听；首次识别用于建立基线，不会播报旧消息。",
-            "Listening. The first scan builds a baseline and will not read old messages."));
+        StatusChanged?.Invoke(UsesVisionOcr
+            ? L(
+                "正在使用 DeepSeek V4 Vision 实验识别；首次结果只建立基线，不播报旧消息。",
+                "Using experimental DeepSeek V4 Vision recognition. The first result only builds a baseline.")
+            : L(
+                "正在使用本地 OCR；首次识别用于建立基线，不会播报旧消息。",
+                "Using local OCR. The first scan builds a baseline and will not read old messages."));
     }
 
     public void SetPaused(bool paused)
@@ -105,6 +132,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
 
         Interlocked.Increment(ref _stateGeneration);
         ClearPendingMessages();
+        DropPendingVision();
         if (paused)
         {
             StatusChanged?.Invoke(L(
@@ -130,10 +158,14 @@ public sealed class CaptureCoordinator : IAsyncDisposable
 
         Interlocked.Increment(ref _stateGeneration);
         ClearPendingMessages();
+        DropPendingVision();
         _cancellation.Cancel();
         try
         {
-            await Task.WhenAll(_captureTask ?? Task.CompletedTask, _translationTask ?? Task.CompletedTask);
+            await Task.WhenAll(
+                _captureTask ?? Task.CompletedTask,
+                _translationTask ?? Task.CompletedTask,
+                _visionWorkerTask ?? Task.CompletedTask);
         }
         catch (OperationCanceledException)
         {
@@ -144,6 +176,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             _cancellation = null;
             _captureTask = null;
             _translationTask = null;
+            _visionWorkerTask = null;
             StatusChanged?.Invoke(L("监听已停止。", "Listening stopped."));
         }
     }
@@ -151,10 +184,21 @@ public sealed class CaptureCoordinator : IAsyncDisposable
     public async Task<string> CaptureAndRecognizeOnceAsync(CancellationToken cancellationToken = default)
     {
         using var bitmap = _capture.Capture(_settings.CaptureRegion);
+        if (UsesVisionOcr)
+        {
+            return (await RecognizeVisionHybridAsync(bitmap, cancellationToken)).Document.RawText;
+        }
         return await _ocr.RecognizeAsync(bitmap, cancellationToken, _settings.OcrScale);
     }
 
-    public string OcrEngineName => BundledOcrService.DisplayName;
+    public string OcrEngineName => UsesVisionOcr
+        ? "DeepSeek V4 Flash Vision Exp"
+        : BundledOcrService.DisplayName;
+
+    private bool UsesVisionOcr =>
+        _settings.RecognitionMode == RecognitionPipelineMode.DeepSeekVisionExperimental
+        && _settings.VisionPrivacyConsent
+        && _visionOcr is not null;
 
     /// <summary>
     /// 过滤 OCR 噪声：太短/无意义字符/纯符号的行不发送给 AI。
@@ -162,6 +206,27 @@ public sealed class CaptureCoordinator : IAsyncDisposable
     private static bool IsPlausibleGameChat(string line)
     {
         if (string.IsNullOrWhiteSpace(line) || line.Length < 3) return false;
+        if (!line.Any(char.IsLetter)) return false;
+        var simplifiedLine = OfficialPhraseNormalizer.Normalize(line).Trim();
+        if (simplifiedLine is "单/双排积分" or "法师之靴" or "魔法穿透") return false;
+        if (simplifiedLine.Contains("直播设置", StringComparison.Ordinal)
+            || simplifiedLine.Contains("中控台", StringComparison.Ordinal)
+            || simplifiedLine.Contains("素材库", StringComparison.Ordinal)
+            || simplifiedLine.Contains("绿幕直播", StringComparison.Ordinal)
+            || simplifiedLine.Contains("互动工具", StringComparison.Ordinal)
+            || simplifiedLine.Contains("直播流量", StringComparison.Ordinal)
+            || simplifiedLine.Contains("精品母带", StringComparison.Ordinal))
+        {
+            return false;
+        }
+        if (OfficialPhraseNormalizer.IsTruncatedGeneratedPayload(simplifiedLine)) return false;
+        if (System.Text.RegularExpressions.Regex.IsMatch(
+                simplifiedLine,
+                @"^\s*\d{1,2}\s*[-/.]\s*\d{1,2}\s+\d{1,2}\s*[:：]\s*\d{2}\s*(?:胜|负)\s*\d+\s*/\s*\d+\s*/\s*\d+",
+                System.Text.RegularExpressions.RegexOptions.CultureInvariant))
+        {
+            return false;
+        }
 
         // 统计可读字符（韩文/中文/英文字母/数字）
         var readable = 0;
@@ -203,6 +268,10 @@ public sealed class CaptureCoordinator : IAsyncDisposable
         if (_translator is IDisposable disposable)
         {
             disposable.Dispose();
+        }
+        if (_visionOcr is IDisposable visionDisposable)
+        {
+            visionDisposable.Dispose();
         }
         _ocr.Dispose();
     }
@@ -256,7 +325,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                     var capturedAt = DateTimeOffset.UtcNow;
                     var localPipelineTimer = Stopwatch.StartNew();
                     var ocrTimer = Stopwatch.StartNew();
-                    var document = await _ocr.RecognizeDetailedAsync(
+                    var localDocument = await _ocr.RecognizeDetailedAsync(
                         stableBitmap,
                         cancellationToken,
                         _settings.OcrScale);
@@ -265,62 +334,61 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                     {
                         continue;
                     }
+
                     var frameSequence = Interlocked.Increment(ref _evaluationFrameSequence);
                     var frameId = $"frame-{frameSequence:000000}";
-                    var observed = _deduplicator
-                        .FindNewLineResults(document.RawText)
-                        .Where(line => IsPlausibleGameChat(line.NormalizedText))
-                        .Select((line, index) => new
-                        {
-                            Line = line,
-                            Message = _playerHeroes.Observe(
-                                _classifier.Classify(
-                                    line.NormalizedText,
-                                    FindColorEvidence(document, line.NormalizedText)) with
-                                {
-                                    CapturedAt = capturedAt,
-                                    EvaluationLineId = $"{frameId}/line-{index + 1:00}"
-                                })
-                        })
-                        .ToArray();
+                    var observed = ObserveDocument(
+                        localDocument,
+                        capturedAt,
+                        frameId,
+                        "local-ppocrv5");
                     localPipelineTimer.Stop();
+
+                    var captureKind = "ocr_stable_frame";
+                    var publishNow = observed;
+                    if (UsesVisionOcr)
+                    {
+                        if (VisionUploadGuard.Evaluate(stableBitmap).ShouldBlock)
+                        {
+                            captureKind = "vision_upload_blocked_obstruction";
+                            AnnounceVisionUploadBlocked();
+                        }
+                        else if (VisionDispatchPolicy.NeedsVision(observed.Select(item => item.Message)))
+                        {
+                            captureKind = "vision_scheduled_latest_frame";
+                            publishNow = observed
+                                .Where(item => VisionDispatchPolicy.PublishImmediately(item.Message))
+                                .ToArray();
+                            ScheduleVision(
+                                stableBitmap,
+                                localDocument,
+                                capturedAt,
+                                observed
+                                    .Select(item => item.Message)
+                                    .Where(message => !VisionDispatchPolicy.PublishImmediately(message))
+                                    .ToArray(),
+                                generation);
+                        }
+                        else
+                        {
+                            captureKind = "vision_skipped_local_hud";
+                        }
+                    }
+
                     EmitEvaluationFrame(
                         stableBitmap,
-                        document,
+                        localDocument,
                         capturedAt,
-                        captureKind: "ocr_stable_frame",
+                        captureKind,
                         meaningfulChange: true,
                         ocrElapsedMs: ocrTimer.Elapsed.TotalMilliseconds,
                         localPipelineElapsedMs: localPipelineTimer.Elapsed.TotalMilliseconds,
                         frameId);
-                    foreach (var item in observed)
-                    {
-                        DiagnosticObserved?.Invoke(new MessageDiagnosticObservation(
-                            capturedAt,
-                            item.Line,
-                            item.Message,
-                            item.Message.Kind is GameMessageKind.PlayerChat or GameMessageKind.Unknown
-                                || _settings.IsSystemMessageEnabled(item.Message.Kind),
-                            frameId,
-                            item.Message.EvaluationLineId));
-                    }
-                    var routed = observed
-                        .Select(item => item.Message)
-                        .Where(message => message.Kind is GameMessageKind.PlayerChat or GameMessageKind.Unknown
-                            || _settings.IsSystemMessageEnabled(message.Kind))
-                        .ToArray();
-                    if (routed.Length > 0)
-                    {
-                        var batch = new OcrBatch(
-                            document.RawText,
-                            routed.Select(message => message.RawText).ToArray(),
-                            capturedAt);
-                        OcrRecognized?.Invoke(batch);
-                        foreach (var message in routed)
-                        {
-                            await _messages.Writer.WriteAsync(message, cancellationToken);
-                        }
-                    }
+                    await PublishObservedAsync(
+                        localDocument,
+                        publishNow,
+                        capturedAt,
+                        cancellationToken);
                 }
             }
             catch (OperationCanceledException)
@@ -384,7 +452,6 @@ public sealed class CaptureCoordinator : IAsyncDisposable
         ClassifiedGameMessage? pendingSystemMessage = null;
         var generation = Volatile.Read(ref _stateGeneration);
         var lastPlayerObservedAt = DateTimeOffset.MinValue;
-        var lastSystemMessageSpokenAt = DateTimeOffset.MinValue;
         var partialWaitUsed = false;
 
         while (!cancellationToken.IsCancellationRequested)
@@ -393,6 +460,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             {
                 _ = turns.Flush();
                 pendingSystemMessage = null;
+                _speechLimiter.Reset();
                 generation = Volatile.Read(ref _stateGeneration);
             }
 
@@ -425,14 +493,14 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                     var now = DateTimeOffset.UtcNow;
                     var messageAge = now - pendingSystemMessage.CapturedAt;
                     if (now - lastPlayerObservedAt >= TimeSpan.FromMilliseconds(2200)
-                        && now - lastSystemMessageSpokenAt >= TimeSpan.FromSeconds(4)
+                        && _speechLimiter.CanSpeak(pendingSystemMessage, now)
                         && messageAge <= TimeSpan.FromSeconds(4)
                         && _settings.IsSystemMessageEnabled(pendingSystemMessage.Kind)
                         && !IsPaused
                         && generation == Volatile.Read(ref _stateGeneration))
                     {
                         TranslationReady?.Invoke(CreateSystemResult(pendingSystemMessage));
-                        lastSystemMessageSpokenAt = now;
+                        _speechLimiter.MarkSpoken(pendingSystemMessage, now);
                     }
                     pendingSystemMessage = null;
                 }
@@ -479,7 +547,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             var observedAt = DateTimeOffset.UtcNow;
             if (turns.HasPending
                 || observedAt - lastPlayerObservedAt < TimeSpan.FromMilliseconds(2200)
-                || observedAt - lastSystemMessageSpokenAt < TimeSpan.FromSeconds(4))
+                || !_speechLimiter.CanSpeak(message, observedAt))
             {
                 continue;
             }
@@ -519,14 +587,6 @@ public sealed class CaptureCoordinator : IAsyncDisposable
     {
         try
         {
-            var glossedLines = turn.Contents
-                .Select(line => GameTermGlossary.ReplaceTerms(line, _settings.Language))
-                .ToArray();
-            var mentionSource = glossedLines.Append(turn.SpeakerRaw);
-            var mentions = _heroes.FindMentions(
-                mentionSource,
-                _settings.PreferChampionPersonalName,
-                _settings.Language).ToList();
             var speakerMention = _heroes.FindById(
                     turn.SpeakerHeroId,
                     _settings.PreferChampionPersonalName,
@@ -535,14 +595,67 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                     turn.SpeakerRaw,
                     _settings.PreferChampionPersonalName,
                     _settings.Language);
+            var speakerLabel = speakerMention?.SpokenName
+                ?? (_settings.Language == AppLanguage.English ? "Teammate" : "队友");
+            var remainingContents = new List<string>();
+            if (TryEmitPlayerCallouts(turn, speakerLabel, generation, remainingContents)
+                && remainingContents.Count == 0)
+            {
+                return;
+            }
+
+            var playerLines = remainingContents
+                .Where(line => !NonPlayerContentGate.IsBlockedPlayerPayload(line))
+                .Select(line => _heroes.StabilizeHeroTokens(
+                    line,
+                    turn.SpeakerHeroId,
+                    _settings.Language))
+                .ToArray();
+            if (playerLines.Length == 0
+                || NonPlayerContentGate.ShouldSkipPlayerTranslation(remainingContents.Count > 0
+                    ? remainingContents
+                    : turn.RawLines.Concat(turn.Contents)))
+            {
+                foreach (var raw in turn.RawLines)
+                {
+                    var rerouted = _playerHeroes.Observe(
+                        _classifier.Classify(raw) with
+                        {
+                            CapturedAt = turn.LastUpdatedAt,
+                            RecognitionEngine = turn.RecognitionEngine
+                        });
+                    if (rerouted.Kind is GameMessageKind.PlayerChat or GameMessageKind.Unknown
+                        || !_settings.IsSystemMessageEnabled(rerouted.Kind))
+                    {
+                        continue;
+                    }
+
+                    var now = DateTimeOffset.UtcNow;
+                    if (!_speechLimiter.CanSpeak(rerouted, now))
+                    {
+                        continue;
+                    }
+
+                    TranslationReady?.Invoke(CreateSystemResult(rerouted));
+                    _speechLimiter.MarkSpoken(rerouted, now);
+                }
+                return;
+            }
+
+            var glossedLines = playerLines
+                .Select(line => GameTermGlossary.ReplaceTerms(line, _settings.Language))
+                .ToArray();
+            var mentionSource = glossedLines.Append(turn.SpeakerRaw);
+            var mentions = _heroes.FindMentions(
+                mentionSource,
+                _settings.PreferChampionPersonalName,
+                _settings.Language).ToList();
             if (speakerMention is not null
                 && mentions.All(mention =>
                     !string.Equals(mention.Id, speakerMention.Id, StringComparison.OrdinalIgnoreCase)))
             {
                 mentions.Add(speakerMention);
             }
-            var speakerLabel = speakerMention?.SpokenName
-                ?? (_settings.Language == AppLanguage.English ? "Teammate" : "队友");
             var canonicalLines = _heroes.CanonicalizeLines(glossedLines, mentions);
             var maxSummaryCharacters = Math.Clamp(_settings.MaxSummaryChars, 24, 96);
             if (_settings.Language == AppLanguage.English)
@@ -566,6 +679,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             }
 
             result.SourceKind = TranslationSourceKind.PlayerChat;
+            result.RecognitionEngine = turn.RecognitionEngine;
             result.RoutedMessageKind = GameMessageKind.PlayerChat;
             result.ClassificationConfidence = 1;
             result.ClassificationRuleId = "player.structure";
@@ -606,6 +720,99 @@ public sealed class CaptureCoordinator : IAsyncDisposable
         }
     }
 
+    private bool TryEmitPlayerCallouts(
+        PlayerSpeechTurn turn,
+        string speakerLabel,
+        int generation,
+        List<string> remainingContents)
+    {
+        var formatted = new List<string>();
+        foreach (var line in turn.Contents)
+        {
+            var kind = PlayerCalloutParser.TryFormat(
+                line,
+                _settings.Language,
+                _heroes,
+                _settings.PreferChampionPersonalName,
+                out var displayLine);
+            switch (kind)
+            {
+                case PlayerCalloutKind.Formatted when !string.IsNullOrWhiteSpace(displayLine):
+                    formatted.Add(displayLine);
+                    break;
+                case PlayerCalloutKind.Silence:
+                    break;
+                default:
+                    remainingContents.Add(line);
+                    break;
+            }
+        }
+
+        if (formatted.Count == 0)
+        {
+            return remainingContents.Count == 0;
+        }
+
+        if (IsPaused || generation != Volatile.Read(ref _stateGeneration))
+        {
+            return true;
+        }
+
+        TranslationReady?.Invoke(CreatePlayerCalloutResult(turn, speakerLabel, formatted));
+        return true;
+    }
+
+    private TranslationResult CreatePlayerCalloutResult(
+        PlayerSpeechTurn turn,
+        string speakerLabel,
+        IReadOnlyList<string> displayLines)
+    {
+        var body = string.Join(
+            _settings.Language == AppLanguage.English ? ". " : "。",
+            displayLines);
+        var spoken = _settings.Language == AppLanguage.English
+            ? $"{speakerLabel} said {body}"
+            : $"{speakerLabel}说，{body}";
+        var result = new TranslationResult
+        {
+            RecognitionEngine = turn.RecognitionEngine,
+            SourceKind = TranslationSourceKind.PlayerChat,
+            RoutedMessageKind = GameMessageKind.PlayerChat,
+            ClassificationConfidence = 1,
+            ClassificationRuleId = "player.callout",
+            Speaker = speakerLabel,
+            Intent = "assist",
+            Priority = 2,
+            SourceType = "player_chat",
+            SpeechAct = "information",
+            Modality = "asserted",
+            SemanticConfidence = 1,
+            SemanticValidationPassed = true,
+            Evidence = displayLines[0],
+            DisplayTranslation = _settings.Language == AppLanguage.English
+                ? $"{speakerLabel}: {body}"
+                : $"{speakerLabel}：{body}",
+            DisplayLines = displayLines.ToList(),
+            SpokenSummary = spoken,
+            RawText = string.Join("\n", turn.RawLines),
+            OriginalLines = displayLines.ToList(),
+            EvaluationLineIds = (turn.EvaluationLineIds ?? Array.Empty<string>())
+                .Where(lineId => !string.IsNullOrWhiteSpace(lineId))
+                .Take(8)
+                .ToList(),
+            ShouldSpeak = true,
+            ExpiresAfterMs = 4500
+        };
+        if (!PlayerSpeechPolicy.ShouldSpeak(result, _settings)
+            || string.IsNullOrWhiteSpace(result.SpokenSummary))
+        {
+            result.ShouldSpeak = false;
+            result.SpeechSilenceReason = SpeechSilenceReasons.UserFilter;
+        }
+
+        return result;
+    }
+
     private TranslationResult CreateSystemResult(ClassifiedGameMessage message)
     {
         if (message.Kind != GameMessageKind.TacticalSignal)
@@ -641,6 +848,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                 hasKnownInitiator);
         return new TranslationResult
         {
+            RecognitionEngine = message.RecognitionEngine,
             SourceKind = TranslationSourceKind.TacticalSignal,
             RoutedMessageKind = GameMessageKind.TacticalSignal,
             ClassificationConfidence = message.ClassificationConfidence,
@@ -684,6 +892,10 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             return string.Empty;
         }
 
+        subject = _heroes.CorrectStructuredHeroPrefix(
+            subject,
+            _settings.PreferChampionPersonalName,
+            _settings.Language);
         var localized = GameTermGlossary.ReplaceTerms(subject, _settings.Language);
         var mentions = _heroes.FindMentions(
             new[] { subject },
@@ -726,6 +938,405 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             ?.ColorEvidence;
     }
 
+    private sealed record ObservedLine(DeduplicatedMessageLine Line, ClassifiedGameMessage Message);
+
+    private ObservedLine[] ObserveDocument(
+        OcrDocument document,
+        DateTimeOffset capturedAt,
+        string frameId,
+        string recognitionEngine)
+    {
+        lock (_pipelineLock)
+        {
+            return _deduplicator
+                .FindNewLineResults(document.RawText)
+                .Where(line => IsPlausibleGameChat(line.NormalizedText))
+                .Select((line, index) => new ObservedLine(
+                    line,
+                    _playerHeroes.Observe(
+                        _classifier.Classify(
+                            line.NormalizedText,
+                            FindColorEvidence(document, line.NormalizedText)) with
+                        {
+                            CapturedAt = capturedAt,
+                            EvaluationLineId = $"{frameId}/line-{index + 1:00}",
+                            RecognitionEngine = recognitionEngine
+                        })))
+                .ToArray();
+        }
+    }
+
+    private async Task PublishObservedAsync(
+        OcrDocument document,
+        IReadOnlyList<ObservedLine> observed,
+        DateTimeOffset capturedAt,
+        CancellationToken cancellationToken)
+    {
+        foreach (var item in observed)
+        {
+            DiagnosticObserved?.Invoke(new MessageDiagnosticObservation(
+                capturedAt,
+                item.Line,
+                item.Message,
+                item.Message.Kind is GameMessageKind.PlayerChat or GameMessageKind.Unknown
+                    || _settings.IsSystemMessageEnabled(item.Message.Kind),
+                item.Message.EvaluationLineId.Split('/')[0],
+                item.Message.EvaluationLineId));
+        }
+
+        var routed = observed
+            .Select(item => item.Message)
+            .Where(message => message.Kind is GameMessageKind.PlayerChat or GameMessageKind.Unknown
+                || _settings.IsSystemMessageEnabled(message.Kind))
+            .ToArray();
+        if (routed.Length == 0)
+        {
+            return;
+        }
+
+        OcrRecognized?.Invoke(new OcrBatch(
+            document.RawText,
+            routed.Select(message => message.RawText).ToArray(),
+            capturedAt));
+        foreach (var message in routed)
+        {
+            await _messages.Writer.WriteAsync(message, cancellationToken);
+        }
+    }
+
+    private async Task PublishMessagesAsync(
+        IReadOnlyList<ClassifiedGameMessage> messages,
+        DateTimeOffset capturedAt,
+        CancellationToken cancellationToken)
+    {
+        if (messages.Count == 0)
+        {
+            return;
+        }
+
+        OcrRecognized?.Invoke(new OcrBatch(
+            string.Join(Environment.NewLine, messages.Select(message => message.RawText)),
+            messages.Select(message => message.RawText).ToArray(),
+            capturedAt));
+        foreach (var message in messages)
+        {
+            await _messages.Writer.WriteAsync(message, cancellationToken);
+        }
+    }
+
+    private void ScheduleVision(
+        Bitmap source,
+        OcrDocument localDocument,
+        DateTimeOffset capturedAt,
+        ClassifiedGameMessage[] heldPlayerChat,
+        int generation)
+    {
+        var clone = source.Clone(new Rectangle(Point.Empty, source.Size), source.PixelFormat);
+        lock (_visionScheduleLock)
+        {
+            _pendingVisionBitmap?.Dispose();
+            _pendingVisionBitmap = clone;
+            _pendingVisionLocalDocument = localDocument;
+            _pendingVisionCapturedAt = capturedAt;
+            _pendingHeldPlayerChat = heldPlayerChat;
+            _pendingVisionGeneration = generation;
+        }
+
+        if (Interlocked.CompareExchange(ref _visionWorkerRunning, 1, 0) != 0)
+        {
+            return;
+        }
+
+        var token = _cancellation?.Token ?? CancellationToken.None;
+        _visionWorkerTask = DrainVisionAsync(token);
+    }
+
+    private void DropPendingVision()
+    {
+        lock (_visionScheduleLock)
+        {
+            _pendingVisionBitmap?.Dispose();
+            _pendingVisionBitmap = null;
+            _pendingVisionLocalDocument = null;
+            _pendingHeldPlayerChat = Array.Empty<ClassifiedGameMessage>();
+        }
+    }
+
+    private void AnnounceVisionUploadBlocked()
+    {
+        if (Interlocked.Exchange(ref _visionUploadBlockedAnnounced, 1) == 0)
+        {
+            StatusChanged?.Invoke(L(
+                "检测到框选区域大面积被遮挡，已在本地跳过本帧 Vision 上传。",
+                "A large obstruction covers the selected region. This Vision upload was blocked locally."));
+        }
+    }
+
+    private async Task DrainVisionAsync(CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            Bitmap? frame;
+            OcrDocument? localDocument;
+            DateTimeOffset capturedAt;
+            ClassifiedGameMessage[] held;
+            var workGeneration = 0;
+            lock (_visionScheduleLock)
+            {
+                frame = _pendingVisionBitmap;
+                localDocument = _pendingVisionLocalDocument;
+                capturedAt = _pendingVisionCapturedAt;
+                held = _pendingHeldPlayerChat;
+                workGeneration = _pendingVisionGeneration;
+                _pendingVisionBitmap = null;
+                _pendingVisionLocalDocument = null;
+                _pendingHeldPlayerChat = Array.Empty<ClassifiedGameMessage>();
+            }
+
+            if (frame is null)
+            {
+                Interlocked.Exchange(ref _visionWorkerRunning, 0);
+                lock (_visionScheduleLock)
+                {
+                    if (_pendingVisionBitmap is not null
+                        && Interlocked.CompareExchange(ref _visionWorkerRunning, 1, 0) == 0)
+                    {
+                        continue;
+                    }
+                }
+
+                return;
+            }
+
+            try
+            {
+                using (frame)
+                {
+                    if (IsPaused || workGeneration != Volatile.Read(ref _stateGeneration))
+                    {
+                        continue;
+                    }
+
+                    var hybrid = await RecognizeVisionGivenLocalAsync(
+                        frame,
+                        localDocument,
+                        cancellationToken);
+                    if (IsPaused || workGeneration != Volatile.Read(ref _stateGeneration))
+                    {
+                        continue;
+                    }
+
+                    if (hybrid.UploadBlocked)
+                    {
+                        AnnounceVisionUploadBlocked();
+                        continue;
+                    }
+
+                    if (hybrid.UsedVision)
+                    {
+                        Interlocked.Exchange(ref _visionFallbackAnnounced, 0);
+                        var frameId = $"frame-{Interlocked.Increment(ref _evaluationFrameSequence):000000}";
+                        var observed = ObserveDocument(
+                            hybrid.Document,
+                            capturedAt,
+                            frameId,
+                            DeepSeekVisionOcrService.ModelName + "+local-evidence");
+                        var playerLines = observed
+                            .Where(item => !VisionDispatchPolicy.PublishImmediately(item.Message))
+                            .ToArray();
+                        if (playerLines.Length > 0)
+                        {
+                            await PublishObservedAsync(
+                                hybrid.Document,
+                                playerLines,
+                                capturedAt,
+                                cancellationToken);
+                        }
+                        else
+                        {
+                            await PublishMessagesAsync(held, capturedAt, cancellationToken);
+                        }
+                    }
+                    else
+                    {
+                        if (Interlocked.Exchange(ref _visionFallbackAnnounced, 1) == 0)
+                        {
+                            StatusChanged?.Invoke(L(
+                                $"DeepSeek Vision 暂时不可用，已回退本地 OCR：{hybrid.VisionError}",
+                                $"DeepSeek Vision is temporarily unavailable; using local OCR: {hybrid.VisionError}"));
+                        }
+
+                        await PublishMessagesAsync(held, capturedAt, cancellationToken);
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                StatusChanged?.Invoke(L(
+                    $"Vision 识别暂时失败：{exception.Message}",
+                    $"Vision recognition temporarily failed: {exception.Message}"));
+                try
+                {
+                    await PublishMessagesAsync(held, capturedAt, cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch
+                {
+                }
+            }
+        }
+    }
+
+    private async Task<VisionHybridRecognition> RecognizeVisionGivenLocalAsync(
+        Bitmap bitmap,
+        OcrDocument? localDocument,
+        CancellationToken cancellationToken)
+    {
+        var uploadDecision = VisionUploadGuard.Evaluate(bitmap);
+        if (uploadDecision.ShouldBlock)
+        {
+            return new VisionHybridRecognition(
+                localDocument ?? OcrDocument.FromText(string.Empty),
+                UsedVision: false,
+                UsedLocalEvidence: localDocument is not null,
+                VisionError: string.Empty,
+                UploadBlocked: true,
+                UploadBlockReason: uploadDecision.Reason);
+        }
+
+        using var visionBitmap = VisionFramePreparer.Prepare(bitmap);
+        try
+        {
+            var visionDocument = await _visionOcr!.RecognizeAsync(visionBitmap, cancellationToken);
+            var processed = _visionPostProcessor.Process(bitmap, visionDocument, localDocument);
+            return new VisionHybridRecognition(
+                processed.Document,
+                UsedVision: true,
+                UsedLocalEvidence: localDocument is not null,
+                VisionError: string.Empty,
+                UploadBlocked: false,
+                UploadBlockReason: string.Empty);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            if (localDocument is not null)
+            {
+                return new VisionHybridRecognition(
+                    localDocument,
+                    UsedVision: false,
+                    UsedLocalEvidence: true,
+                    VisionError: exception.Message,
+                    UploadBlocked: false,
+                    UploadBlockReason: string.Empty);
+            }
+
+            throw;
+        }
+    }
+
+    private async Task<VisionHybridRecognition> RecognizeVisionHybridAsync(
+        Bitmap bitmap,
+        CancellationToken cancellationToken)
+    {
+        var uploadDecision = VisionUploadGuard.Evaluate(bitmap);
+        if (uploadDecision.ShouldBlock)
+        {
+            return new VisionHybridRecognition(
+                OcrDocument.FromText(string.Empty),
+                UsedVision: false,
+                UsedLocalEvidence: false,
+                VisionError: string.Empty,
+                UploadBlocked: true,
+                UploadBlockReason: uploadDecision.Reason);
+        }
+
+        using var localBitmap = bitmap.Clone(
+            new Rectangle(Point.Empty, bitmap.Size),
+            System.Drawing.Imaging.PixelFormat.Format24bppRgb);
+        using var visionBitmap = VisionFramePreparer.Prepare(bitmap);
+        var localTask = _ocr.RecognizeDetailedAsync(
+            localBitmap,
+            cancellationToken,
+            _settings.OcrScale);
+        var visionTask = _visionOcr!.RecognizeAsync(visionBitmap, cancellationToken);
+
+        OcrDocument? visionDocument = null;
+        OcrDocument? localDocument = null;
+        Exception? visionError = null;
+        try
+        {
+            visionDocument = await visionTask;
+        }
+        catch (OperationCanceledException)
+        {
+            try
+            {
+                await localTask;
+            }
+            catch
+            {
+                // Both operations share the same cancellation token; wait only
+                // so the cloned bitmap is not disposed while local OCR still reads it.
+            }
+            throw;
+        }
+        catch (Exception exception)
+        {
+            visionError = exception;
+        }
+
+        try
+        {
+            localDocument = await localTask;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch when (visionDocument is not null)
+        {
+            // DeepSeek remains usable if local evidence collection fails.
+        }
+
+        if (visionDocument is not null)
+        {
+            var processed = _visionPostProcessor.Process(bitmap, visionDocument, localDocument);
+            return new VisionHybridRecognition(
+                processed.Document,
+                UsedVision: true,
+                UsedLocalEvidence: localDocument is not null,
+                VisionError: string.Empty,
+                UploadBlocked: false,
+                UploadBlockReason: string.Empty);
+        }
+
+        if (localDocument is not null)
+        {
+            return new VisionHybridRecognition(
+                localDocument,
+                UsedVision: false,
+                UsedLocalEvidence: true,
+                VisionError: visionError?.Message ?? "unknown Vision error",
+                UploadBlocked: false,
+                UploadBlockReason: string.Empty);
+        }
+
+        throw new InvalidOperationException(
+            "DeepSeek Vision and bundled local OCR both failed.",
+            visionError);
+    }
+
     private static string NormalizeForEvidenceMatch(string line) =>
         MessageDeduplicator.StripGameTimestamp(line)
             .Normalize(System.Text.NormalizationForm.FormKC)
@@ -740,6 +1351,14 @@ public sealed class CaptureCoordinator : IAsyncDisposable
 
     private string L(string chinese, string english) =>
         _settings.Language == AppLanguage.English ? english : chinese;
+
+    private sealed record VisionHybridRecognition(
+        OcrDocument Document,
+        bool UsedVision,
+        bool UsedLocalEvidence,
+        string VisionError,
+        bool UploadBlocked,
+        string UploadBlockReason);
 }
 
 public sealed record EvaluationFrameObservation(

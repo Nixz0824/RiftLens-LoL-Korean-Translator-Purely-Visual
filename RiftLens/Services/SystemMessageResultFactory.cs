@@ -20,6 +20,7 @@ public static class SystemMessageResultFactory
         var spoken = SystemMessageTemplates.Format(message, settings.Language);
         return new TranslationResult
         {
+            RecognitionEngine = message.RecognitionEngine,
             SourceKind = TranslationSourceKind.SystemMessage,
             RoutedMessageKind = message.Kind,
             ClassificationConfidence = message.ClassificationConfidence,
@@ -60,6 +61,7 @@ public static class SystemMessageResultFactory
         var label = language == AppLanguage.English ? "Unclassified" : "未分类";
         return new TranslationResult
         {
+            RecognitionEngine = message.RecognitionEngine,
             SourceKind = TranslationSourceKind.Unknown,
             RoutedMessageKind = GameMessageKind.Unknown,
             ClassificationConfidence = message.ClassificationConfidence,

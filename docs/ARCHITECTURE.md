@@ -9,13 +9,19 @@ flowchart LR
     A["User-selected screen region"] --> B["ScreenCaptureService"]
     B --> C["ImageChangeDetector"]
     C --> D["BundledOcrService"]
+    C -->|"explicit Vision consent"| VG["local obstruction preflight"]
+    VG -->|"accepted crop"| DV["DeepSeek Vision literal OCR"]
+    VG -->|"large obstruction"| VB["skip upload"]
     D --> E["PP-OCRv5 Mobile detector"]
     E --> E1["Korean + English recognizer"]
     E --> E2["Chinese + English recognizer"]
     E1 --> E3["word-segment and Unicode-script fusion"]
     E2 --> E3
     D -. "runtime failure or unusable result" .-> T["BitmapPreprocessor + Tesseract fallback"]
-    E3 --> F0["GameTimestampPrefixParser"]
+    E3 --> VH["VisionOcrPostProcessor"]
+    DV --> VH
+    VH --> F0["GameTimestampPrefixParser"]
+    E3 --> F0
     F0 --> F["MessageDeduplicator"]
     T --> F
     F --> G["ChatMessageClassifier"]
@@ -34,7 +40,7 @@ flowchart LR
     K --> M["neural or local speech"]
 ```
 
-Screenshots end at local OCR. The network translation boundary begins only after deduplication and classification. Online speech receives the generated spoken summary, not the screenshot or API key.
+In Local OCR mode, screenshots stay in memory. In consented Vision mode, a JPEG of the selected crop may be uploaded only after a local obstruction check and only when player chat is still unresolved. Translation still receives classified text, not images. Online speech receives the generated spoken summary, not the screenshot or API key.
 
 ## Components
 
@@ -42,8 +48,8 @@ Screenshots end at local OCR. The network translation boundary begins only after
 | --- | --- | --- |
 | Settings | `AppSettings`, `SettingsStore`, `CredentialStore` | Persist ordinary settings to LocalAppData and API keys to Windows Credential Manager |
 | Capture | `ScreenCaptureService`, `CaptureCoordinator` | Sample the selected rectangle, coordinate pause/cancel, and feed the pipeline |
-| OCR | `ImageChangeDetector`, `BundledOcrService`, `PaddleOcrEngine`, `TrilingualOcrFusion`, `TesseractFallbackOcrEngine` | Detect meaningful changes, run a shared text detector, recognize every line/word with Korean-English and Chinese-English models, fuse by confidence and Unicode script, and retain a local fallback |
-| Message logic | `MessageDeduplicator`, `ChatMessageClassifier`, `GameSemanticEventParser`, `PlayerHeroSessionTracker`, `PlayerTurnAggregator` | Remove old scrolling lines, separate deterministic Ping/HUD events from free chat, learn stable player/champion pairs, and aggregate consecutive player messages |
+| OCR | `ImageChangeDetector`, `VisionUploadGuard`, `BundledOcrService`, `PaddleOcrEngine`, `TrilingualOcrFusion`, `DeepSeekVisionOcrService`, `VisionOcrPostProcessor`, `TesseractFallbackOcrEngine` | Detect meaningful changes; block clearly obstructed crops locally before upload; keep local OCR as the default; in explicitly consented Vision mode retain DeepSeek as the primary text source while local OCR supplies geometry, colour, constrained official-field corroboration, and immediate fallback |
+| Message logic | `MessageDeduplicator`, `ChatMessageClassifier`, `GameSemanticEventParser`, `PlayerCalloutParser`, `PlayerHeroSessionTracker`, `PlayerTurnAggregator` | Remove old scrolling lines, separate deterministic Ping/HUD events from free chat, interpret flash-timer slang and item-bar inspects locally, learn stable player/champion pairs, and aggregate consecutive player messages |
 | Diagnostics | `DiagnosticSessionRecorder` | Keep a bounded, redacted trace in memory and write it only when the user explicitly selects Export diagnostics |
 | Translation | `OpenAiCompatibleTranslationService`, `TranslationSemanticGuard`, `HeroDictionary`, `GameTermGlossary` | Align official Korean/Chinese/English terms, keep literal display lines separate from speech summaries, and reject unsupported evidence, number, negation, countdown, or action claims |
 | Speech | `PlayerSpeechPolicy`, `PlayerSpeechTextSanitizer`, `NaturalSpeechService`, `EdgeNeuralSpeechClient`, `SignalMessageTemplates` | Classify player speech into three user-controlled tiers, remove timestamps/player IDs, prioritize urgent audio, synthesize natural speech, and fall back locally |
@@ -80,6 +86,9 @@ Screenshots end at local OCR. The network translation boundary begins only after
 17. A dedicated line-start timestamp parser handles full-width punctuation and evidence-backed OCR damage before speaker parsing. A final speech-only guard removes any valid residual clock prefix before TTS.
 18. Player-authored chat, player-initiated game signals, unattributed game-generated signals, and fixed game-system notices keep distinct source labels. Only player-authored chat uses a “speaker says” framing.
 19. Diagnostic traces are memory-only by default. Explicit export omits screenshots and credentials and replaces recognized player IDs with session aliases.
+20. Riot Data Dragon `zh_TW` champion, ability, summoner-spell, item, and rune aliases share the same stable IDs as Korean, Simplified Chinese, and English. Fuzzy correction is restricted to deterministic HUD fields and must resolve uniquely.
+21. Vision consent alone does not guarantee upload: `VisionUploadGuard` blocks a clearly dominant opaque obstruction locally before JPEG encoding. `VisionDispatchPolicy` then skips HUD-only frames; only unresolved player chat is uploaded, as native-size JPEG, and in-flight work keeps the latest frame.
+22. Player-authored flash-timer slang (`1213mid`, `mid f on`) and colon-form enemy item-bar inspects are formatted locally and spoken as player chat. Colon-less generated HUD item marks stay tactical.
 
 Classification is heuristic because the application sees pixels rather than structured game events. New client/localization patterns should be added as deterministic self-test cases before rules change.
 

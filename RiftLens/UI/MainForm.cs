@@ -452,6 +452,42 @@ public sealed class MainForm : Form
                     ? L("本地翻译记录保存已开启。记录只写入当前用户的 RiftLens 本地目录。", "Local history saving is on. Records stay in the current user's RiftLens data folder.")
                     : L("本地翻译记录保存已关闭。", "Local history saving is off."));
                 break;
+            case SpatialAction.RecognitionModeChanged when value is int recognitionMode:
+                if (_coordinator is not null)
+                {
+                    await StopListeningAsync();
+                }
+                _settings.RecognitionMode = recognitionMode == (int)RecognitionPipelineMode.DeepSeekVisionExperimental
+                    ? RecognitionPipelineMode.DeepSeekVisionExperimental
+                    : RecognitionPipelineMode.LocalOcr;
+                _workspace.RecognitionMode = (int)_settings.RecognitionMode;
+                await _settingsStore.SaveAsync(_settings);
+                UpdateReadiness();
+                SetStatus(_settings.RecognitionMode == RecognitionPipelineMode.DeepSeekVisionExperimental
+                    ? L(
+                        "已选择 DeepSeek V4 Vision 实验识别。启用前请确认截图发送同意项。",
+                        "DeepSeek V4 Vision experimental recognition selected. Confirm screenshot consent before starting.")
+                    : L(
+                        "已切换为本地 PP-OCRv5；框选截图不会发送给视觉模型。",
+                        "Switched to local PP-OCRv5. Selected-region screenshots are not sent to a vision model."));
+                break;
+            case SpatialAction.VisionPrivacyConsentChanged when value is bool visionConsent:
+                if (_coordinator is not null)
+                {
+                    await StopListeningAsync();
+                }
+                _settings.VisionPrivacyConsent = visionConsent;
+                _workspace.VisionPrivacyConsent = visionConsent;
+                await _settingsStore.SaveAsync(_settings);
+                UpdateReadiness();
+                SetStatus(visionConsent
+                    ? L(
+                        "已同意 Vision 实验模式发送框选区域截图；不会发送全屏或读取游戏内存。",
+                        "Vision consent enabled. Only the selected crop may be sent; RiftLens never sends the full screen or reads game memory.")
+                    : L(
+                        "已撤回 Vision 截图发送同意；实验识别将无法启动。",
+                        "Vision screenshot consent withdrawn. Experimental recognition cannot start."));
+                break;
             case SpatialAction.ToggleAutoSpeech when value is bool autoSpeech:
                 _workspace.AutoSpeech = autoSpeech;
                 SelectValue(_outputMode, autoSpeech ? OutputMode.OverlayAndVoice : OutputMode.OverlayOnly);
@@ -1637,7 +1673,17 @@ public sealed class MainForm : Form
             return;
         }
 
-        if (!_ocrReady)
+        var visionMode = _settings.RecognitionMode == RecognitionPipelineMode.DeepSeekVisionExperimental;
+        if (visionMode && !_settings.VisionPrivacyConsent)
+        {
+            ShowPage("advanced");
+            SetStatus(L(
+                "DeepSeek Vision 会发送用户框选区域截图。请先在更多设置中明确同意。",
+                "DeepSeek Vision sends the user-selected crop. Confirm consent in More settings first."));
+            return;
+        }
+
+        if (!visionMode && !_ocrReady)
         {
             SetStatus(_ocrInitializing
                 ? L("本地 OCR 正在后台初始化，请稍等片刻。", "Local OCR is initializing. Please wait a moment.")
@@ -1793,7 +1839,8 @@ public sealed class MainForm : Form
             ReadControlsIntoSettings();
             await _settingsStore.SaveAsync(_settings);
             _heroes ??= await (_heroLoadTask ??= HeroDictionary.LoadAsync());
-            if (!_ocrReady)
+            var visionMode = _settings.RecognitionMode == RecognitionPipelineMode.DeepSeekVisionExperimental;
+            if (!visionMode && !_ocrReady)
             {
                 throw new InvalidOperationException(L(
                     "应用内置 OCR 模型不完整，请重新下载 RiftLens。",
@@ -1808,11 +1855,21 @@ public sealed class MainForm : Form
                     "Securely save an API key first."));
             }
 
+            if (visionMode && !_settings.VisionPrivacyConsent)
+            {
+                throw new InvalidOperationException(L(
+                    "请先同意仅将框选区域截图发送给 DeepSeek Vision。",
+                    "Consent to sending only the selected crop to DeepSeek Vision first."));
+            }
+
             ITranslationService translator = new OpenAiCompatibleTranslationService(
                 _settings.ApiBaseUrl,
                 _settings.ApiModel,
                 key);
-            _coordinator = new CaptureCoordinator(_settings, _heroes, translator);
+            IVisionOcrService? visionOcr = visionMode
+                ? new DeepSeekVisionOcrService(_settings.ApiBaseUrl, key)
+                : null;
+            _coordinator = new CaptureCoordinator(_settings, _heroes, translator, visionOcr);
             _coordinator.EvaluationCaptureEnabled = _evaluationSession?.IsRecording == true;
             _diagnostics.Reset();
             _coordinator.StatusChanged += message => SafeUi(() => SetStatus(message));
@@ -1889,7 +1946,8 @@ public sealed class MainForm : Form
                 ShowPage("home");
                 return;
             }
-            if (!_ocrReady)
+            var visionMode = _settings.RecognitionMode == RecognitionPipelineMode.DeepSeekVisionExperimental;
+            if (!visionMode && !_ocrReady)
             {
                 SetStatus(_ocrInitializing
                     ? L("本地 OCR 正在初始化，请稍等片刻后再试。", "Local OCR is initializing. Try again in a moment.")
@@ -1899,8 +1957,32 @@ public sealed class MainForm : Form
             }
 
             _heroes ??= await (_heroLoadTask ??= HeroDictionary.LoadAsync());
-            await using var coordinator = new CaptureCoordinator(_settings, _heroes, new OcrOnlyTranslationService());
-            SetStatus(L("正在识别当前区域…", "Recognizing the selected region…"));
+            IVisionOcrService? visionOcr = null;
+            if (visionMode)
+            {
+                if (!_settings.VisionPrivacyConsent)
+                {
+                    SetStatus(L(
+                        "请先同意仅将框选区域截图发送给 DeepSeek Vision。",
+                        "Consent to sending only the selected crop to DeepSeek Vision first."));
+                    return;
+                }
+                var key = _credentialStore.ReadApiKey();
+                if (string.IsNullOrWhiteSpace(key))
+                {
+                    SetStatus(L("请先安全保存 API Key。", "Securely save an API key first."));
+                    return;
+                }
+                visionOcr = new DeepSeekVisionOcrService(_settings.ApiBaseUrl, key);
+            }
+            await using var coordinator = new CaptureCoordinator(
+                _settings,
+                _heroes,
+                new OcrOnlyTranslationService(),
+                visionOcr);
+            SetStatus(visionMode
+                ? L("正在调用 DeepSeek Vision 识别当前框选区域…", "Calling DeepSeek Vision for the selected crop…")
+                : L("正在使用本地 OCR 识别当前区域…", "Recognizing the selected region with local OCR…"));
             var text = await coordinator.CaptureAndRecognizeOnceAsync();
             Log(L("OCR 测试", "OCR test"), string.IsNullOrWhiteSpace(text)
                 ? L("没有识别到文字。", "No text was recognized.")
@@ -2189,7 +2271,10 @@ public sealed class MainForm : Form
                 TranslationSourceKind.Unknown => L("未分类 · 仅显示", "Unclassified · Display only"),
                 _ => string.Empty
             },
-            LocalSpeechPlanner.FormatReason(result.SpeechSilenceReason, _settings.Language));
+            result.ShouldSpeak
+                ? L("已加入播报队列", "Queued for speech")
+                : LocalSpeechPlanner.FormatReason(result.SpeechSilenceReason, _settings.Language),
+            result.RecognitionEngine);
         _workspace.AddHistory(historyItem);
         if (_settings.SaveTranslationHistory)
         {
@@ -2264,9 +2349,13 @@ public sealed class MainForm : Form
     {
         var regionReady = _settings.CaptureRegion.IsValid;
         var keyReady = !string.IsNullOrWhiteSpace(_credentialStore.ReadApiKey());
+        var visionMode = _settings.RecognitionMode == RecognitionPipelineMode.DeepSeekVisionExperimental;
+        var recognitionReady = visionMode
+            ? keyReady && _settings.VisionPrivacyConsent
+            : _ocrReady;
         _workspace.RegionReady = regionReady;
         _workspace.DisplayRegionReady = _settings.DisplayRegion.IsValid;
-        _workspace.OcrReady = _ocrReady;
+        _workspace.OcrReady = recognitionReady;
         _workspace.AiReady = keyReady;
         _workspace.IsRunning = _coordinator is not null;
         _workspace.IsPaused = _coordinator?.IsPaused ?? false;
@@ -2274,26 +2363,38 @@ public sealed class MainForm : Form
         _workspace.RegionSummary = regionReady
             ? _settings.CaptureRegion.ToString()
             : L("尚未框选需要识别的文字区域", "No text recognition region selected");
-        _workspace.ModelName = _settings.ApiModel;
+        _workspace.ModelName = visionMode ? DeepSeekVisionOcrService.ModelName : _settings.ApiModel;
+        _workspace.RecognitionMode = (int)_settings.RecognitionMode;
+        _workspace.VisionPrivacyConsent = _settings.VisionPrivacyConsent;
         _workspace.AppVersion = DisplayVersion;
         _workspace.ActivePresetIndex = _settings.ActivePresetIndex;
         _workspace.PresetNames = _settings.Presets.Select(preset => preset.Name).ToArray();
         _regionBadge.SetStatus(regionReady ? "已完成" : "需要设置", regionReady);
-        _ocrBadge.SetStatus(_ocrReady ? "已内置" : _ocrInitializing ? "初始化中" : "文件缺失", _ocrReady);
+        _ocrBadge.SetStatus(visionMode
+            ? recognitionReady ? "Vision 已同意" : "等待同意"
+            : _ocrReady ? "已内置" : _ocrInitializing ? "初始化中" : "文件缺失", recognitionReady);
         _apiBadge.SetStatus(keyReady ? "已连接" : "需要配置", keyReady);
         _regionSummary.Text = regionReady ? _settings.CaptureRegion.ToString() : "尚未框选需要识别的文字区域";
         _outputRegionSummary.Text = _regionSummary.Text;
         _displayRegionSummary.Text = _settings.DisplayRegion.IsValid
             ? _settings.DisplayRegion.ToString()
             : "不设置时会自动选择上、下、左、右";
-        _ocrSummary.Text = _ocrReady
-            ? "韩语与英语模型已随应用内置"
-            : _ocrInitializing
-                ? "OCR 正在后台初始化，主界面可以继续操作"
-                : "OCR 初始化失败：" + (_ocrError ?? "请重新下载");
-        _apiSummary.Text = keyReady ? $"{_settings.ApiModel} · 密钥已安全保存" : "填写 API 地址、模型和 API Key";
+        _ocrSummary.Text = visionMode
+            ? _settings.VisionPrivacyConsent
+                ? "DeepSeek V4 Vision 实验识别；失败时回退本地 OCR"
+                : "Vision 模式需要明确同意发送框选区域截图"
+            : _ocrReady
+                ? "本地 PP-OCRv5 韩中英识别已就绪"
+                : _ocrInitializing
+                    ? "OCR 正在后台初始化，主界面可以继续操作"
+                    : "OCR 初始化失败：" + (_ocrError ?? "请重新下载");
+        _apiSummary.Text = keyReady
+            ? $"{(visionMode ? DeepSeekVisionOcrService.ModelName : _settings.ApiModel)} · 密钥已安全保存"
+            : "填写 API 地址、模型和 API Key";
         _regionAction.Text = regionReady ? "重选翻译识别区" : "框选翻译识别区";
-        _ocrAction.Text = _ocrReady ? "无需安装" : _ocrInitializing ? "初始化中" : "模型缺失";
+        _ocrAction.Text = visionMode
+            ? recognitionReady ? "Vision 已就绪" : "等待截图同意"
+            : _ocrReady ? "无需安装" : _ocrInitializing ? "初始化中" : "模型缺失";
         _apiAction.Text = keyReady ? "查看设置" : "配置 AI";
 
         if (_coordinator is not null)
@@ -2304,7 +2405,7 @@ public sealed class MainForm : Form
             _heroTitle.Text = paused ? "翻译已暂停" : "翻译正在运行";
             _heroDescription.Text = paused
                 ? "点击继续后会先重新建立聊天基线，不会补播暂停期间的旧消息。"
-                : "悬浮小按钮可随时暂停；右键可以静音、显示主窗口或停止翻译。";
+                : "悬浮小按钮可随时暂停或调整音量；右键可以显示主窗口或停止翻译。";
             _primaryAction.Text = paused ? "继续翻译" : "暂停翻译";
             _primaryAction.Kind = UiButtonKind.Primary;
             _primaryHint.Text = paused ? "继续时不会补播旧消息" : "停止功能位于悬浮按钮和托盘的右键菜单";
@@ -2313,7 +2414,7 @@ public sealed class MainForm : Form
             return;
         }
 
-        var ready = regionReady && _ocrReady && keyReady;
+        var ready = regionReady && recognitionReady && keyReady;
         _appBadge.SetStatus(ready ? "准备就绪" : "尚未就绪", ready);
         _headerStatus.Text = ready ? "所有必要设置已完成" : "按首页步骤完成设置";
         _heroTitle.Text = ready ? "可以开始翻译" : "准备开始屏幕翻译";
@@ -2323,8 +2424,10 @@ public sealed class MainForm : Form
         _primaryAction.Kind = UiButtonKind.Primary;
         _primaryAction.Text = !regionReady
             ? "先框选文字区域"
-            : !_ocrReady
-                ? _ocrInitializing ? "OCR 初始化中" : "OCR 尚未就绪"
+            : visionMode && !_settings.VisionPrivacyConsent
+                ? "同意 Vision 截图发送"
+            : !recognitionReady
+                ? _ocrInitializing ? "OCR 初始化中" : "识别尚未就绪"
                 : !keyReady
                     ? "配置 AI Key"
                     : "开始翻译";
@@ -2422,7 +2525,8 @@ public sealed class MainForm : Form
                 spoken = item.Spoken,
                 priority = item.Priority,
                 kind = item.Kind,
-                silenceReason = item.SilenceReason
+                silenceReason = item.SilenceReason,
+                recognitionEngine = item.RecognitionEngine
             });
             await File.AppendAllTextAsync(_historySavePath, line + Environment.NewLine);
         }
@@ -2666,7 +2770,7 @@ public sealed class MainForm : Form
         get
         {
             var version = typeof(MainForm).Assembly.GetName().Version;
-            return version is null ? "2.2.0" : version.ToString(3);
+            return version is null ? "2.3.0" : version.ToString(3);
         }
     }
 
@@ -2685,6 +2789,13 @@ public sealed class MainForm : Form
 
     protected override void WndProc(ref Message message)
     {
+        if (message.Msg == SingleInstance.WmShowExisting)
+        {
+            ShowMainWindow();
+            message.Result = (IntPtr)1;
+            return;
+        }
+
         base.WndProc(ref message);
         if (message.Msg != WmNcHitTest || WindowState != FormWindowState.Normal || message.Result != (IntPtr)HtClient)
         {

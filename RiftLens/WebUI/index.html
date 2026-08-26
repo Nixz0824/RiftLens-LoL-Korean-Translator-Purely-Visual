@@ -25,7 +25,6 @@
       <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
       <symbol id="i-export" viewBox="0 0 24 24"><path d="M12 3v12m-4-4 4 4 4-4M5 19h14"/></symbol>
       <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 3h6l1 4H8l1-4Zm-3 4 1 14h10l1-14M10 11v6m4-6v6"/></symbol>
-      <symbol id="i-eye" viewBox="0 0 24 24"><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6Z"/><circle cx="12" cy="12" r="2.5"/></symbol>
     </defs>
   </svg>
 
@@ -41,7 +40,6 @@
             <span class="welcome-animated" data-i18n="可文字">可文字</span><span class="welcome-animated" data-i18n="可播报">可播报</span>
           </div>
         </div>
-        <button class="boot-continue welcome-animated" id="welcome-continue" data-i18n="点击任意位置继续">点击任意位置继续</button>
       </div>
     </section>
 
@@ -76,7 +74,6 @@
           </article>
         </div>
         <div class="guide-dots" aria-hidden="true"><i></i><i></i><i></i></div>
-        <button class="boot-continue" id="guide-continue" data-i18n="点击任意位置继续">点击任意位置继续</button>
       </div>
     </section>
 
@@ -103,7 +100,7 @@
           <section class="left-stack" aria-label="连接、语音与系统信息" data-i18n-aria="连接、语音与系统信息">
             <article class="home-card api-card">
               <header class="card-heading"><h2 data-i18n="API连接">API连接</h2><span id="api-model-label">DeepSeek V4</span></header>
-              <div class="api-row"><label for="api-key">API Key</label><span class="api-input-shell"><input id="api-key" type="password" autocomplete="off"><button id="reveal-key" aria-label="显示或隐藏密钥" data-i18n-aria="显示或隐藏密钥"><svg><use href="#i-eye"/></svg></button></span></div>
+              <div class="api-row"><label for="api-key">API Key</label><span class="api-input-shell"><input id="api-key" type="password" autocomplete="new-password" autocapitalize="none" spellcheck="false"></span></div>
               <div class="api-actions"><button class="text-action" data-action="showApiHelp" data-i18n="如何获取API Key?">如何获取API Key?</button><button class="pill-button" id="save-api" data-i18n="保存并连接">保存并连接</button></div>
             </article>
 
@@ -121,7 +118,7 @@
 
             <article class="home-card system-card">
               <header class="card-heading"><h2 data-i18n="系统信息">系统信息</h2><button class="author-button" data-action="showAbout" data-i18n="作者：github/Nixz0824">作者：github/Nixz0824</button></header>
-              <div class="system-copy"><p data-i18n="此软件作为个人开源实践项目，未经明确授权拒绝转载、商用。">此软件作为个人开源实践项目，未经明确授权拒绝转载、商用。</p><p data-i18n="OCR模型：PP-OCRv5(KR/CN/ENG)">OCR模型：PP-OCRv5(KR/CN/ENG)</p><footer><span id="version-text">版本号：RiftLens-2.1.0</span><button class="pill-button" data-action="checkUpdate" data-i18n="检查更新">检查更新</button></footer></div>
+              <div class="system-copy"><p data-i18n="此软件作为个人开源实践项目，未经明确授权拒绝转载、商用。">此软件作为个人开源实践项目，未经明确授权拒绝转载、商用。</p><p id="recognition-model-text">识别：本地 PP-OCRv5（韩/中/英）</p><footer><span id="version-text">版本号：RiftLens-2.3.0</span><button class="pill-button" data-action="checkUpdate" data-i18n="检查更新">检查更新</button></footer></div>
             </article>
           </section>
 
@@ -160,6 +157,7 @@
 
         <aside class="advanced-popover" id="advanced-popover" role="dialog" aria-modal="false" aria-labelledby="advanced-title" hidden>
           <header><button id="advanced-back" aria-label="返回系统设置" data-i18n-aria="返回系统设置"><svg><use href="#i-chevron"/></svg></button><h2 id="advanced-title" data-i18n="更多设置">更多设置</h2></header>
+          <section class="vision-experiment-section"><h3 data-i18n="识别引擎">识别引擎</h3><div class="advanced-row"><label for="recognition-mode" data-i18n="识别模式">识别模式</label><select id="recognition-mode"><option value="0" data-i18n="本地 OCR（默认）">本地 OCR（默认）</option><option value="1" data-i18n="DeepSeek V4 Vision（实验）">DeepSeek V4 Vision（实验）</option></select></div><p class="vision-note" id="vision-note" data-i18n="Vision 模式会把用户框选区域截图发送给 DeepSeek；不会发送全屏，也不会读取游戏内存。" hidden>Vision 模式会把用户框选区域截图发送给 DeepSeek；不会发送全屏，也不会读取游戏内存。</p><label class="advanced-check vision-consent" id="vision-consent-row" hidden><input id="vision-consent" type="checkbox"><span data-i18n="我同意将框选区域截图发送给 DeepSeek Vision">我同意将框选区域截图发送给 DeepSeek Vision</span></label></section>
           <section><h3 data-i18n="屏显与悬浮">屏显与悬浮</h3><div class="advanced-row"><span data-i18n="输出方式">输出方式</span><div class="segment" id="output-mode"><button data-value="0" data-i18n="仅屏显">仅屏显</button><button data-value="1" data-i18n="仅播报">仅播报</button><button data-value="2" data-i18n="屏显 + 播报">屏显 + 播报</button></div></div><div class="advanced-row"><label for="overlay-placement" data-i18n="显示位置">显示位置</label><select id="overlay-placement"><option value="0" data-i18n="自动避让">自动避让</option><option value="1" data-i18n="识别区上方">识别区上方</option><option value="2" data-i18n="识别区下方">识别区下方</option><option value="3" data-i18n="识别区左侧">识别区左侧</option><option value="4" data-i18n="识别区右侧">识别区右侧</option><option value="5" data-i18n="自定义区域">自定义区域</option></select></div><div class="advanced-row"><label for="overlay-opacity" data-i18n="文字透明度">文字透明度</label><input id="overlay-opacity" type="range" min="20" max="90" value="68"><output id="opacity-value">68%</output></div></section>
           <section><h3 data-i18n="玩家聊天语音">玩家聊天语音</h3><label class="advanced-check"><input id="urgent-player-speech" type="checkbox" checked><span data-i18n="紧急提醒">紧急提醒</span></label><label class="advanced-check"><input id="important-player-speech" type="checkbox" checked><span data-i18n="重点沟通">重点沟通</span></label><label class="advanced-check"><input id="neutral-player-speech" type="checkbox"><span data-i18n="中性闲聊">中性闲聊</span></label></section>
           <section id="system-category-section"><h3 data-i18n="系统 Ping 与固定通知">系统 Ping 与固定通知</h3><label class="advanced-check"><input id="kill-events" type="checkbox"><span data-i18n="击杀播报">击杀播报</span></label><label class="advanced-check"><input id="objective-events" type="checkbox"><span data-i18n="地图资源与建筑">地图资源与建筑</span></label><label class="advanced-check"><input id="client-reminders" type="checkbox"><span data-i18n="防沉迷提示">防沉迷提示</span></label><label class="advanced-check"><input id="other-system-events" type="checkbox"><span data-i18n="对局流程与系统">对局流程与系统</span></label></section>

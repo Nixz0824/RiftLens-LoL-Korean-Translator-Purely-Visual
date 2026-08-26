@@ -63,6 +63,8 @@ internal enum SpatialAction
     CustomThemeColorChanged,
     OnboardingCompleted,
     SaveTranslationHistoryChanged,
+    RecognitionModeChanged,
+    VisionPrivacyConsentChanged,
     ApplyPreset,
     SpeechPresetChanged
 }
@@ -74,7 +76,8 @@ internal sealed record SpatialHistoryItem(
     bool Spoken,
     int Priority,
     string Kind,
-    string? SilenceReason = null);
+    string? SilenceReason = null,
+    string RecognitionEngine = "");
 
 /// <summary>
 /// 高保真 Soft Spatial 工作区。界面由 GDI+ 一次合成，避免 WinForms 系统控件

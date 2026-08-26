@@ -14,6 +14,8 @@ public sealed class HeroEntry
     public string KoreanTitle { get; set; } = string.Empty;
     public string ChineseOfficial { get; set; } = string.Empty;
     public string ChinesePersonal { get; set; } = string.Empty;
+    public string ChineseTraditionalName { get; set; } = string.Empty;
+    public string ChineseTraditionalTitle { get; set; } = string.Empty;
     public string EnglishName { get; set; } = string.Empty;
     public List<string> ChineseAliases { get; set; } = new();
 }
@@ -30,5 +32,6 @@ public sealed class GameTermEntry
     public string Category { get; set; } = string.Empty;
     public string Korean { get; set; } = string.Empty;
     public string Chinese { get; set; } = string.Empty;
+    public string ChineseTraditional { get; set; } = string.Empty;
     public string English { get; set; } = string.Empty;
 }

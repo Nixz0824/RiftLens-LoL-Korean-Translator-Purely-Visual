@@ -23,7 +23,7 @@ public sealed class PlayerHeroSessionTracker
 
     public ClassifiedGameMessage Observe(ClassifiedGameMessage message)
     {
-        if (message.Kind != GameMessageKind.PlayerChat
+        if (message.Kind is not (GameMessageKind.PlayerChat or GameMessageKind.TacticalSignal)
             || string.IsNullOrWhiteSpace(message.SpeakerKey))
         {
             return message;
@@ -40,6 +40,16 @@ public sealed class PlayerHeroSessionTracker
         }
 
         var observedHeroId = _heroes.FindOfficialHeroId(message.SpeakerHeroRaw);
+        if (observedHeroId is null
+            && _heroes.TryCorrectChineseHeroPrefix(
+                message.SpeakerHeroRaw,
+                out var correctedHeroId,
+                out _,
+                out _))
+        {
+            observedHeroId = correctedHeroId;
+        }
+
         if (observedHeroId is not null && state.LockedHeroId is null)
         {
             state.Votes.TryGetValue(observedHeroId, out var count);
@@ -61,11 +71,22 @@ public sealed class PlayerHeroSessionTracker
             }
         }
 
+        var stableContent = string.IsNullOrWhiteSpace(stableHeroId)
+            ? _heroes.CorrectStructuredHeroPrefix(
+                message.Content,
+                preferPersonalName: true,
+                AppLanguage.Chinese)
+            : _heroes.StabilizeHeroTokens(
+                message.Content,
+                stableHeroId,
+                AppLanguage.Chinese);
+
         return message with
         {
             SpeakerKey = state.SpeakerKey,
             SpeakerRaw = stableSpeakerRaw,
-            SpeakerHeroId = stableHeroId
+            SpeakerHeroId = stableHeroId,
+            Content = stableContent
         };
     }
 

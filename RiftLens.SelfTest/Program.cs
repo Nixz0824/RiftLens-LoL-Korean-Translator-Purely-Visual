@@ -8,6 +8,305 @@ using System.Threading.Channels;
 
 var failures = new List<string>();
 
+if (args.Length >= 2 && string.Equals(args[0], "--vision-upload-guard-eval", StringComparison.OrdinalIgnoreCase))
+{
+    var sessionDirectory = Path.GetFullPath(args[1]);
+    var frameDirectory = Path.Combine(sessionDirectory, "frames");
+    var files = Directory.GetFiles(frameDirectory, "*.png").OrderBy(path => path, StringComparer.Ordinal).ToArray();
+    var decisions = new List<(string File, VisionUploadDecision Decision)>();
+    foreach (var file in files)
+    {
+        using var bitmap = new Bitmap(file);
+        decisions.Add((Path.GetFileName(file), VisionUploadGuard.Evaluate(bitmap)));
+    }
+    var blocked = decisions.Where(item => item.Decision.ShouldBlock).ToArray();
+    Console.WriteLine(JsonSerializer.Serialize(new
+    {
+        frames = decisions.Count,
+        blocked = blocked.Length,
+        maximumDominantColourRatio = decisions.Count == 0 ? 0 : decisions.Max(item => item.Decision.DominantColourRatio),
+        maximumCoveredTileRatio = decisions.Count == 0 ? 0 : decisions.Max(item => item.Decision.CoveredTileRatio),
+        blockedFrames = blocked.Select(item => new
+        {
+            item.File,
+            item.Decision.DominantColourRatio,
+            item.Decision.CoveredTileRatio
+        }).ToArray()
+    }));
+    return 0;
+}
+
+if (args.Length >= 2 && string.Equals(args[0], "--classify-history", StringComparison.OrdinalIgnoreCase))
+{
+    var path = Path.GetFullPath(args[1]);
+    var classifier = new ChatMessageClassifier();
+    var counts = Enum.GetValues<GameMessageKind>().ToDictionary(kind => kind, _ => 0);
+    var unknown = new List<string>();
+    foreach (var json in File.ReadLines(path).Where(line => !string.IsNullOrWhiteSpace(line)))
+    {
+        using var document = JsonDocument.Parse(json);
+        var original = document.RootElement.TryGetProperty("original", out var value)
+            ? value.GetString() ?? string.Empty
+            : string.Empty;
+        foreach (var line in original.Split(
+                     new[] { "\r\n", "\n", "\r" },
+                     StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+        {
+            var message = classifier.Classify(line);
+            counts[message.Kind]++;
+            if (message.Kind == GameMessageKind.Unknown) unknown.Add(message.RawText);
+        }
+    }
+    Console.WriteLine(JsonSerializer.Serialize(new
+    {
+        categories = counts.ToDictionary(pair => pair.Key.ToString(), pair => pair.Value),
+        unknown = unknown.Distinct(StringComparer.Ordinal).Take(80).ToArray()
+    }));
+    return 0;
+}
+
+if (args.Length >= 3 && string.Equals(args[0], "--vision-eval", StringComparison.OrdinalIgnoreCase))
+{
+    var sessionDirectory = Path.GetFullPath(args[1]);
+    var outputPath = Path.GetFullPath(args[2]);
+    var maximum = args.Length >= 4 && int.TryParse(args[3], out var parsedMaximum)
+        ? Math.Max(1, parsedMaximum)
+        : int.MaxValue;
+    var eventsPath = Path.Combine(sessionDirectory, "events.jsonl");
+    if (!File.Exists(eventsPath))
+    {
+        throw new FileNotFoundException("Evaluation events file was not found.", eventsPath);
+    }
+
+    var frames = new List<VisionEvalFrame>();
+    foreach (var line in File.ReadLines(eventsPath))
+    {
+        using var document = JsonDocument.Parse(line);
+        var root = document.RootElement;
+        if (!root.TryGetProperty("eventType", out var eventType)
+            || !string.Equals(eventType.GetString(), "frame", StringComparison.Ordinal)
+            || !root.TryGetProperty("ocrAttempted", out var attempted)
+            || !attempted.GetBoolean())
+        {
+            continue;
+        }
+        frames.Add(new VisionEvalFrame(
+            root.GetProperty("frameId").GetString() ?? string.Empty,
+            root.GetProperty("screenshotFile").GetString() ?? string.Empty,
+            root.TryGetProperty("rawOcr", out var rawOcr) ? rawOcr.GetString() ?? string.Empty : string.Empty,
+            root.TryGetProperty("ocrElapsedMs", out var elapsed) ? elapsed.GetDouble() : 0));
+    }
+    frames = frames.Take(maximum).ToList();
+    var key = new CredentialStore().ReadApiKey();
+    if (string.IsNullOrWhiteSpace(key))
+    {
+        throw new InvalidOperationException("No DeepSeek API key was found in Windows Credential Manager.");
+    }
+
+    Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
+    await using var stream = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.Read);
+    await using var writer = new StreamWriter(stream, new UTF8Encoding(false)) { AutoFlush = true };
+    using var vision = new DeepSeekVisionOcrService("https://api.deepseek.com", key);
+    key = null;
+    Console.WriteLine($"Vision evaluation: {frames.Count} selected-region frames. Output stays local: {outputPath}");
+    for (var index = 0; index < frames.Count; index++)
+    {
+        var frame = frames[index];
+        var imagePath = Path.GetFullPath(Path.Combine(sessionDirectory, frame.ScreenshotFile));
+        var timer = Stopwatch.StartNew();
+        string visionText = string.Empty;
+        string error = string.Empty;
+        try
+        {
+            using var bitmap = new Bitmap(imagePath);
+            var result = await vision.RecognizeAsync(bitmap, CancellationToken.None);
+            visionText = result.RawText;
+        }
+        catch (Exception exception)
+        {
+            error = exception.Message.Length <= 240 ? exception.Message : exception.Message[..240] + "…";
+        }
+        timer.Stop();
+        await writer.WriteLineAsync(JsonSerializer.Serialize(new
+        {
+            frameId = frame.FrameId,
+            screenshotFile = frame.ScreenshotFile,
+            localOcr = frame.LocalOcr,
+            visionOcr = visionText,
+            localOcrElapsedMs = frame.LocalOcrElapsedMs,
+            visionElapsedMs = Math.Round(timer.Elapsed.TotalMilliseconds, 2),
+            error
+        }));
+        if ((index + 1) % 10 == 0 || index + 1 == frames.Count)
+        {
+            Console.WriteLine($"Vision evaluation progress: {index + 1}/{frames.Count}");
+        }
+    }
+    Console.WriteLine("Vision evaluation completed. The output contains chat text and must not be uploaded unredacted.");
+    return 0;
+}
+
+if (args.Length >= 4 && string.Equals(args[0], "--vision-hybrid-eval", StringComparison.OrdinalIgnoreCase))
+{
+    var inputPath = Path.GetFullPath(args[1]);
+    var sessionDirectory = Path.GetFullPath(args[2]);
+    var outputPath = Path.GetFullPath(args[3]);
+    var maximum = args.Length >= 5 && int.TryParse(args[4], out var parsedMaximum)
+        ? Math.Max(1, parsedMaximum)
+        : int.MaxValue;
+    var rows = File.ReadLines(inputPath)
+        .Where(line => !string.IsNullOrWhiteSpace(line))
+        .Take(maximum)
+        .Select(line => JsonDocument.Parse(line))
+        .ToArray();
+    var heroes = await HeroDictionary.LoadAsync();
+    var processor = new VisionOcrPostProcessor(heroes);
+    var rawRoute = new RouteReplayAccumulator(heroes);
+    var structuredRoute = new RouteReplayAccumulator(heroes);
+    var hybridTextRoute = new RouteReplayAccumulator(heroes);
+    var hybridRuntimeRoute = new RouteReplayAccumulator(heroes);
+    using var localOcr = new BundledOcrService();
+    localOcr.WarmUp();
+    Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
+    await using var stream = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.Read);
+    await using var writer = new StreamWriter(stream, new UTF8Encoding(false)) { AutoFlush = true };
+    Console.WriteLine($"Hybrid Vision evaluation: {rows.Length} frames. Output stays local: {outputPath}");
+    try
+    {
+        for (var index = 0; index < rows.Length; index++)
+        {
+            var root = rows[index].RootElement;
+            var frameId = root.GetProperty("frameId").GetString() ?? string.Empty;
+            var screenshotFile = root.GetProperty("screenshotFile").GetString() ?? string.Empty;
+            var localText = root.TryGetProperty("localOcr", out var localValue)
+                ? localValue.GetString() ?? string.Empty
+                : string.Empty;
+            var visionText = root.TryGetProperty("visionOcr", out var visionValue)
+                ? visionValue.GetString() ?? string.Empty
+                : string.Empty;
+            var deepSeekElapsedMs = root.TryGetProperty("visionElapsedMs", out var visionElapsed)
+                ? visionElapsed.GetDouble()
+                : 0;
+            using var bitmap = new Bitmap(Path.GetFullPath(Path.Combine(sessionDirectory, screenshotFile)));
+            var visionDocument = OcrDocument.FromText(visionText);
+
+            var structuredTimer = Stopwatch.StartNew();
+            var structured = processor.Process(null, visionDocument);
+            structuredTimer.Stop();
+
+            var hybridTextTimer = Stopwatch.StartNew();
+            var hybridText = processor.Process(null, visionDocument, OcrDocument.FromText(localText));
+            hybridTextTimer.Stop();
+
+            var localTimer = Stopwatch.StartNew();
+            var localDetailed = await localOcr.RecognizeDetailedAsync(bitmap, CancellationToken.None, 3);
+            localTimer.Stop();
+
+            var hybridRuntimeTimer = Stopwatch.StartNew();
+            var hybridRuntime = processor.Process(bitmap, visionDocument, localDetailed);
+            hybridRuntimeTimer.Stop();
+            rawRoute.Observe(visionDocument);
+            structuredRoute.Observe(structured.Document);
+            hybridTextRoute.Observe(hybridText.Document);
+            hybridRuntimeRoute.Observe(hybridRuntime.Document);
+            var estimatedParallelElapsedMs = Math.Max(deepSeekElapsedMs, localTimer.Elapsed.TotalMilliseconds)
+                + hybridRuntimeTimer.Elapsed.TotalMilliseconds;
+
+            await writer.WriteLineAsync(JsonSerializer.Serialize(new
+            {
+                frameId,
+                screenshotFile,
+                localOcr = localText,
+                localRerunOcr = localDetailed.RawText,
+                visionOcr = visionText,
+                visionStructuredOcr = structured.Document.RawText,
+                visionHybridTextOcr = hybridText.Document.RawText,
+                visionHybridRuntimeOcr = hybridRuntime.Document.RawText,
+                deepSeekElapsedMs = Math.Round(deepSeekElapsedMs, 2),
+                localRerunElapsedMs = Math.Round(localTimer.Elapsed.TotalMilliseconds, 2),
+                structuredElapsedMs = Math.Round(structuredTimer.Elapsed.TotalMilliseconds, 3),
+                hybridTextElapsedMs = Math.Round(hybridTextTimer.Elapsed.TotalMilliseconds, 3),
+                hybridRuntimeElapsedMs = Math.Round(hybridRuntimeTimer.Elapsed.TotalMilliseconds, 3),
+                estimatedParallelElapsedMs = Math.Round(estimatedParallelElapsedMs, 2),
+                structuredStats = structured.Stats,
+                hybridTextStats = hybridText.Stats,
+                hybridRuntimeStats = hybridRuntime.Stats
+            }));
+            if ((index + 1) % 10 == 0 || index + 1 == rows.Length)
+            {
+                Console.WriteLine($"Hybrid Vision evaluation progress: {index + 1}/{rows.Length}");
+            }
+        }
+    }
+    finally
+    {
+        foreach (var row in rows) row.Dispose();
+    }
+    var routeSummaryPath = Path.ChangeExtension(outputPath, ".route-summary.json");
+    var routeSummary = new
+    {
+        rawVision = rawRoute.Snapshot(),
+        structured = structuredRoute.Snapshot(),
+        hybridStoredLocal = hybridTextRoute.Snapshot(),
+        hybridRuntimeWithColour = hybridRuntimeRoute.Snapshot()
+    };
+    await File.WriteAllTextAsync(
+        routeSummaryPath,
+        JsonSerializer.Serialize(routeSummary, new JsonSerializerOptions { WriteIndented = true }),
+        new UTF8Encoding(false));
+    Console.WriteLine(JsonSerializer.Serialize(routeSummary));
+    Console.WriteLine($"Aggregate route summary: {routeSummaryPath}");
+    Console.WriteLine("Hybrid Vision evaluation completed. Output contains chat text and must not be uploaded unredacted.");
+    return 0;
+}
+
+if (args.Length >= 2 && string.Equals(args[0], "--route-replay", StringComparison.OrdinalIgnoreCase))
+{
+    var rows = File.ReadLines(Path.GetFullPath(args[1]))
+        .Where(line => !string.IsNullOrWhiteSpace(line))
+        .Select(line => JsonDocument.Parse(line))
+        .ToArray();
+    try
+    {
+        var properties = args.Length > 2
+            ? args.Skip(2).Where(value => !string.IsNullOrWhiteSpace(value)).ToArray()
+            : new[] { "localOcr", "visionOcr" };
+        foreach (var property in properties)
+        {
+            var deduplicator = new MessageDeduplicator();
+            var classifier = new ChatMessageClassifier();
+            var counts = Enum.GetValues<GameMessageKind>().ToDictionary(kind => kind, _ => 0);
+            var acceptedLines = 0;
+            foreach (var row in rows)
+            {
+                var raw = row.RootElement.TryGetProperty(property, out var value)
+                    ? value.GetString() ?? string.Empty
+                    : string.Empty;
+                foreach (var line in deduplicator.FindNewLineResults(raw))
+                {
+                    if (!IsPlausibleForReplay(line.NormalizedText))
+                    {
+                        continue;
+                    }
+                    acceptedLines++;
+                    counts[classifier.Classify(line.NormalizedText).Kind]++;
+                }
+            }
+            Console.WriteLine(JsonSerializer.Serialize(new
+            {
+                source = property,
+                acceptedLines,
+                categories = counts.ToDictionary(pair => pair.Key.ToString(), pair => pair.Value)
+            }));
+        }
+    }
+    finally
+    {
+        foreach (var row in rows) row.Dispose();
+    }
+    return 0;
+}
+
 if (args.Contains("--voice", StringComparer.OrdinalIgnoreCase))
 {
     using var speech = new NaturalSpeechService();
@@ -154,6 +453,28 @@ await CheckAsync("英雄中韩映射", async () =>
     Require(dictionary.FindOfficialHeroId("Jarvan IV") == "JarvanIV", "嘉文英文官方名未对齐");
     Require(dictionary.FindOfficialHeroId("嘉文四世") == "JarvanIV", "嘉文中文角色名未对齐");
     Require(dictionary.FindOfficialHeroId("贾尔班四世") is null, "非官方误译英雄名不应进入词典");
+    Require(dictionary.FindOfficialHeroId("犽宿") == "Yasuo", "台服官方英雄名犽宿未映射到亚索");
+    Require(dictionary.FindOfficialHeroId("凱莎") == "Kaisa", "台服官方英雄名凱莎未映射到卡莎");
+    Require(dictionary.FindOfficialHeroId("烏迪爾") == "Udyr", "台服官方英雄名烏迪爾未映射到乌迪尔");
+    Require(dictionary.TryCorrectChineseHeroPrefix(
+            "夢宿已使用R - 奪命氣息",
+            out var twHeroId,
+            out var twCorrected,
+            out _)
+        && twHeroId == "Yasuo"
+        && twCorrected == "亚索",
+        "繁体近形英雄名没有唯一修复到官方亚索");
+    Require(dictionary.CorrectStructuredHeroPrefix(
+            "弗宿 R",
+            preferPersonalName: true,
+            AppLanguage.Chinese) == "亚索 R",
+        "结构化语义中的错误犽宿名称没有规范化");
+    var traditionalMentions = dictionary.FindMentions(
+        new[] { "凱莎已使用閃現，犽宿已使用R" },
+        preferPersonalName: true);
+    Require(traditionalMentions.Any(hero => hero.Id == "Kaisa")
+        && traditionalMentions.Any(hero => hero.Id == "Yasuo"),
+        "繁体正文中的英雄实体未识别");
     var embedded = await HeroDictionary.LoadAsync();
     Require(embedded.Version == dictionary.Version, "发布版内嵌英雄词典缺失");
 });
@@ -241,6 +562,139 @@ await CheckAsync("玩家与系统消息分类", () =>
     Require(timestamped.SpeakerKey == "PLAYERONE#KR1", "玩家 ID 未从英雄名中独立提取");
     Require(timestamped.SpeakerRaw.Contains("아리", StringComparison.Ordinal), "英雄名未保留给播报映射");
     Require(timestamped.Content == "미드 밀고 갈게", "玩家聊天正文提取失败");
+
+    Require(ChineseTextNormalizer.ToSimplifiedCharacters("伊瑞莉雅已使用閃現") == "伊瑞莉雅已使用闪现",
+        "Windows 繁简转换没有生效：" + ChineseTextNormalizer.ToSimplifiedCharacters("伊瑞莉雅已使用閃現"));
+    Require(GameSemanticEventParser.TryParsePlayerFeed("伊瑞莉雅已使用閃現", out _),
+        "繁体召唤师技能正文没有被语义解析器接收");
+    var traditionalFlash = classifier.Classify(
+        "MiloBramble (烏迪爾): 伊瑞莉雅已使用閃現");
+    Require(traditionalFlash.Kind == GameMessageKind.TacticalSignal,
+        "繁体召唤师技能 HUD 被误分类为玩家聊天");
+    var traditionalAbility = classifier.Classify(
+        "아니 (潘森): 凱莎已使用R - 殺手本能");
+    Require(traditionalAbility.Kind == GameMessageKind.TacticalSignal,
+        "繁体英雄技能 HUD 被误分类为玩家聊天");
+    var traditionalItem = classifier.Classify(
+        "Luon (亞歷斯塔): 凱莎 海妖殺手");
+    Require(traditionalItem.Kind == GameMessageKind.PlayerChat
+        && traditionalItem.SemanticEvent is { Status: "item_marker" },
+        "繁体装备栏点选没有进入玩家装备播报");
+    var traditionalSignal = classifier.Classify(
+        "Luon (亞歷斯塔) 發出信號告知所有人敵人消失");
+    Require(traditionalSignal.Kind == GameMessageKind.TacticalSignal,
+        "台服固定信号句未进入战术分类");
+    Require(classifier.Classify(
+            "Luon (亞歷斯塔) 已把 治癒 換成 點燃").Kind == GameMessageKind.TacticalSignal,
+        "台服召唤师技能交换未进入 HUD 战术分类");
+    Require(classifier.Classify(
+            "Luon (亞歷斯塔) 已購買 控域守衛!").Kind == GameMessageKind.TacticalSignal,
+        "台服控制守卫购买提示未进入 HUD 战术分类");
+    Require(classifier.Classify(
+            "천하아빠 (費德提克) 已擊殺生化科技飛龍!").Kind == GameMessageKind.ObjectiveEvent,
+        "台服炼金科技亚龙击杀未进入地图资源分类");
+    Require(classifier.Classify(
+            "천수아비 (費德提克) 擊殺了虛空幼蟲!").Kind == GameMessageKind.ObjectiveEvent,
+        "台服虚空巢虫击杀未进入地图资源分类");
+    Require(classifier.Classify(
+            "처수아비 (費德提克) 打野任務完成!").Kind == GameMessageKind.OtherSystemEvent,
+        "台服打野任务完成提示未进入系统分类");
+    Require(classifier.Classify(
+            "아니 (潘森) 中路任務完成!").Kind == GameMessageKind.OtherSystemEvent,
+        "台服中路任务完成提示未进入系统分类");
+    Require(classifier.Classify(
+            "MiloBramble (烏迪爾) 已經無人能擋!").Kind == GameMessageKind.KillEvent,
+        "台服无人能挡击杀播报未进入击杀分类");
+    Require(classifier.Classify(
+            "MiloBramble (烏迪爾) 已達到已擊殺的史詩野怪的新里程碑: 4,3").Kind
+            == GameMessageKind.OtherSystemEvent,
+        "台服史诗野怪里程碑未进入系统分类");
+    Require(classifier.Classify(
+            "who am i (尤娜拉) 標記了 敵方莉珊 - (妮可)").Kind
+            == GameMessageKind.TacticalSignal,
+        "台服标记目标句未进入战术分类");
+    Require(classifier.Classify("08-23 22:54 負 1 / 9 / 16").Kind == GameMessageKind.Unknown,
+        "战绩日期和 KDA 被时间冒号误判为玩家聊天");
+    Require(classifier.Classify("Luori (亞歷斯塔) 凱莎 海妖殺手").Kind == GameMessageKind.TacticalSignal,
+        "缺少冒号的台服装备标记仍被当成未知或玩家聊天");
+    Require(classifier.Classify("천수아비 (費德提克) 要求隊友雷速支援").Kind == GameMessageKind.TacticalSignal,
+        "尽速支援的 OCR 近形没有进入战术分类");
+    Require(classifier.Classify("처수아비 (費德提克)野野任務完成!").Kind == GameMessageKind.OtherSystemEvent,
+        "打野任务 OCR 近形没有进入系统分类");
+    Require(classifier.Classify(
+            "MiloBramble (烏迪爾) 已達到已擊殺的史詩野怪的新里程").Kind
+            == GameMessageKind.OtherSystemEvent,
+        "截断的史诗野怪里程碑没有进入系统分类");
+    Require(classifier.Classify(
+            "MiloBramble (烏迪爾) 已達到已擊殺的史詩野徑的新里雅").Kind
+            == GameMessageKind.OtherSystemEvent,
+        "史诗野怪里程碑近形字没有进入系统分类");
+    Require(classifier.Classify("한수아비 (費德提克) 發出").Kind == GameMessageKind.Unknown,
+        "截断的发出信号残句不应被当成玩家聊天");
+    Require(NonPlayerContentGate.IsBlockedPlayerPayload("08-23 22:54 負 1 / 9 / 16"),
+        "战绩 KDA 没有在翻译前闸门被拦截");
+    Require(NonPlayerContentGate.IsBlockedPlayerPayload("伊瑞莉雅已使用閃現"),
+        "召唤师技能 HUD 没有在翻译前闸门被拦截");
+    Require(!NonPlayerContentGate.IsBlockedPlayerPayload("미드 밀고 갈게"),
+        "真正的队友聊天被翻译前闸门误伤");
+    Require(VisionFramePreparer.ChooseScale(498, 214) == 1,
+        "Vision 不应再把小聊天框放大后上传");
+    Require(VisionFramePreparer.ChooseScale(1280, 420) == 1,
+        "已经足够大的框选被错误放大");
+    Require(!VisionDispatchPolicy.NeedsVision(new[]
+        {
+            classifier.Classify("Ally (疾风剑豪): 离群之刺使用了闪现")
+        }),
+        "本地已能确定的闪现 HUD 仍要求上传 Vision");
+    Require(VisionDispatchPolicy.NeedsVision(new[]
+        {
+            classifier.Classify("Ally (아리): 미드 밀고 갈게")
+        }),
+        "真正的队友聊天没有送 Vision");
+    Require(VisionDispatchPolicy.PublishImmediately(
+            classifier.Classify("Ally (疾风剑豪)购买了控制守卫")),
+        "买眼 HUD 没有在本地立即发布");
+    Require(!VisionDispatchPolicy.PublishImmediately(
+            classifier.Classify("Ally (아리): 미드 밀고 갈게")),
+        "队友聊天被本地抢先发布");
+
+    var limiter = new TacticalSpeechLimiter();
+    var assist = classifier.Classify("Luon (亞歷斯塔) 要求隊友盡速支援");
+    var now = DateTimeOffset.UtcNow;
+    Require(limiter.CanSpeak(assist, now), "首次支援信号被节流");
+    limiter.MarkSpoken(assist, now);
+    Require(!limiter.CanSpeak(assist, now.AddSeconds(2)), "同一人的重复支援信号没有冷却");
+    var retreat = classifier.Classify("Luon (亞歷斯塔) 發出信號請求撤退");
+    Require(limiter.CanSpeak(retreat, now.AddSeconds(2)), "不同信号类型被错误地一起静音");
+
+    Require(classifier.Classify("Ally (疾风剑豪): 离群之刺使用了闪现").Kind == GameMessageKind.TacticalSignal,
+        "简体使用了闪现 HUD 被当成玩家聊天");
+    Require(classifier.Classify("Ally (疾风剑豪): 祖安花火使用了虚弱").Kind == GameMessageKind.TacticalSignal,
+        "简体使用了虚弱 HUD 被当成玩家聊天");
+    Require(classifier.Classify("Ally (疾风剑豪): 祖安花火使用了R - 超限爆闪").Kind == GameMessageKind.TacticalSignal,
+        "简体使用了R HUD 被当成玩家聊天");
+    Require(classifier.Classify("Ally (疾风剑豪): 723金").Kind == GameMessageKind.TacticalSignal,
+        "金币短句没有进入 HUD 分类");
+    Require(classifier.Classify("Ally (狂暴之心): 符文罗盘 - 0层充能").Kind == GameMessageKind.TacticalSignal,
+        "装备层数充能没有进入 HUD 分类");
+    Require(classifier.Classify("Ally (疾风剑豪):发出信号,请谨慎行事!").Kind == GameMessageKind.TacticalSignal,
+        "英文逗号的谨慎信号没有进入战术分类");
+    Require(classifier.Classify("Ally (疾风剑豪)购买了控制守卫").Kind == GameMessageKind.TacticalSignal,
+        "简体购买了控制守卫没有进入 HUD 分类");
+    Require(classifier.Classify("Ally (疾风剑豪)正在防守外防御塔 (镀层 4/5)").Kind == GameMessageKind.TacticalSignal,
+        "简体防守镀层塔没有进入战术分类");
+    Require(classifier.Classify("Ally (疾风剑豪)已将目标定为外防御塔 (镀层 2/5)").Kind == GameMessageKind.TacticalSignal,
+        "简体目标定为防御塔没有进入战术分类");
+    Require(classifier.Classify("Ally (疾风剑豪)示意元素女皇 - (元素女皇)往后撤。").Kind == GameMessageKind.TacticalSignal,
+        "简体示意后撤没有进入战术分类");
+    Require(classifier.Classify("Ally (럼블): 이렐리아 순간이동").Kind == GameMessageKind.TacticalSignal,
+        "韩文传送标记没有进入 HUD 分类");
+    Require(classifier.Classify("Ally (铁血狼母)刚刚拿到了第一滴血!").Kind == GameMessageKind.KillEvent,
+        "简体刚刚拿到了第一滴血没有进入击杀分类");
+    Require(classifier.Classify("Ally (疾风剑豪)击杀了Kars (离群之刺)完成了一次双杀!").Kind == GameMessageKind.KillEvent,
+        "简体完成了一次双杀没有进入击杀分类");
+    Require(classifier.Classify("[队伍] 玩家甲 (阿狸)：上路支援一下").Kind == GameMessageKind.PlayerChat,
+        "简体 HUD 扩展后误伤了真正的玩家聊天");
 
     Require(classifier.Classify("Player One (Ahri): help 上路 조심", playerPalette).Kind == GameMessageKind.PlayerChat,
         "韩中英混排玩家聊天被过滤");
@@ -588,7 +1042,115 @@ await CheckAsync("结构化 Ping 与 HUD 语义", () =>
         "普通玩家战术聊天被宽泛规则误判为系统 Ping");
     Require(classifier.Classify("[팀] PlayerOne (아리): 후퇴 후 드래곤 가자").Kind == GameMessageKind.PlayerChat,
         "包含撤退词的完整玩家计划被宽泛规则误判为系统 Ping");
+
+    var flashOcr = classifier.Classify("[팀] PlayerOne (제이스): 바루스정멸");
+    Require(flashOcr.Kind == GameMessageKind.TacticalSignal
+        && flashOcr.SemanticEvent is { Status: "summoner_spell" },
+        "闪现 OCR 近形字仍被当成玩家聊天");
+    Require(GameSemanticEventParser.Format(flashOcr.SemanticEvent!, "杰斯", AppLanguage.Chinese)
+            .Contains("闪现", StringComparison.Ordinal),
+        "闪现 OCR 近形字没有规范化为闪现");
+
+    var ireliaFlashOcr = classifier.Classify("[팀] lingyo (나피리): 아델리아 정렬");
+    Require(ireliaFlashOcr.Kind == GameMessageKind.TacticalSignal
+        && ireliaFlashOcr.SemanticEvent is { Status: "summoner_spell" },
+        "英雄名加闪现 OCR 乱码仍进入玩家翻译");
+
+    var windDrake = classifier.Classify("[팀] 스카너 (스카너): 바람의 드레이크 - 1:08 후 재생성");
+    Require(windDrake.Kind == GameMessageKind.TacticalSignal
+        && windDrake.SemanticEvent is { Status: "objective_respawn", DurationSeconds: 68 },
+        "드레이크 刷新 HUD 没有进入目标刷新分类");
+
+    var damagedWard = classifier.Classify("lingyo (나피리): 님이 져야 와드 아이템을 구입했습니다.");
+    Require(damagedWard.Kind == GameMessageKind.TacticalSignal
+        && damagedWard.SemanticEvent is { Status: "ward_purchased" },
+        "控制守卫购买 OCR 近形字仍被当成玩家聊天");
     return Task.CompletedTask;
+});
+
+await CheckAsync("玩家闪现口语与装备栏点选", async () =>
+{
+    var dictionary = await HeroDictionary.LoadAsync();
+    var classifier = new ChatMessageClassifier();
+
+    Require(
+        PlayerCalloutParser.TryFormat("1213mid", AppLanguage.Chinese, dictionary, true, out var midFlash)
+            == PlayerCalloutKind.Formatted
+        && midFlash == "中路12分13秒交了闪现",
+        "1213mid 没有本地解读为中路闪现时间：" + midFlash);
+    Require(
+        PlayerCalloutParser.TryFormat("933 sup", AppLanguage.Chinese, dictionary, true, out var supportFlash)
+            == PlayerCalloutKind.Formatted
+        && supportFlash == "辅助9分33秒交了闪现",
+        "933 sup 没有本地解读为辅助闪现时间：" + supportFlash);
+    Require(
+        PlayerCalloutParser.TryFormat("mid f on", AppLanguage.Chinese, dictionary, true, out var midFlashOn)
+            == PlayerCalloutKind.Formatted
+        && midFlashOn == "中路还有闪现",
+        "mid f on 没有本地解读为中路还有闪现：" + midFlashOn);
+    Require(
+        PlayerCalloutParser.TryFormat("mid f off", AppLanguage.Chinese, dictionary, true, out var midFlashOff)
+            == PlayerCalloutKind.Formatted
+        && midFlashOff == "中路没有闪现",
+        "mid f off 没有本地解读为中路没有闪现：" + midFlashOff);
+    Require(
+        PlayerCalloutParser.TryFormat("1630SUP 17TOP 1710MID", AppLanguage.Chinese, dictionary, true, out var packed)
+            == PlayerCalloutKind.Formatted
+        && packed.Contains("辅助16分30秒交了闪现", StringComparison.Ordinal)
+        && packed.Contains("上单17分交了闪现", StringComparison.Ordinal)
+        && packed.Contains("中路17分10秒交了闪现", StringComparison.Ordinal),
+        "连写闪现时间没有拆开播报：" + packed);
+    Require(
+        PlayerCalloutParser.TryFormat("1630SUP17T0P1710MID", AppLanguage.Chinese, dictionary, true, out var smashedTimes)
+            == PlayerCalloutKind.Formatted
+        && smashedTimes.Contains("上单17分交了闪现", StringComparison.Ordinal),
+        "无空格且 T0P OCR 的闪现时间没有解读：" + smashedTimes);
+
+    var itemClick = classifier.Classify("[팀] lingyo (나피리): 이렐리아-주문포식자");
+    Require(itemClick.Kind == GameMessageKind.PlayerChat
+        && itemClick.SemanticEvent is { Status: "item_marker" },
+        "点选对面装备栏没有留在玩家播报路径");
+    Require(
+        PlayerCalloutParser.TryFormat("이렐리아-주문포식자", AppLanguage.Chinese, dictionary, true, out var itemSpeech)
+            == PlayerCalloutKind.Formatted
+        && itemSpeech.Contains("买了", StringComparison.Ordinal)
+        && itemSpeech.Contains("海克斯饮魔刀", StringComparison.Ordinal)
+        && itemSpeech.Contains("艾瑞莉娅", StringComparison.Ordinal),
+        "装备栏点选没有播报成买了官方装备名：" + itemSpeech);
+    Require(
+        PlayerCalloutParser.TryFormat("이텔리아주문포식자", AppLanguage.Chinese, dictionary, true, out var smashedItem)
+            == PlayerCalloutKind.Formatted
+        && smashedItem.Contains("买了海克斯饮魔刀", StringComparison.Ordinal),
+        "无分隔符的英雄+装备 OCR 没有解读：" + smashedItem);
+    Require(
+        PlayerCalloutParser.TryFormat("이텔리아주문포심자", AppLanguage.Chinese, dictionary, true, out var damagedItem)
+            == PlayerCalloutKind.Formatted
+        && damagedItem.Contains("海克斯饮魔刀", StringComparison.Ordinal),
+        "装备名近形字没有纠正：" + damagedItem);
+
+    Require(
+        PlayerCalloutParser.TryFormat("미드 밀고 갈게", AppLanguage.Chinese, dictionary, true, out _)
+            == PlayerCalloutKind.PassThrough,
+        "普通韩文计划被闪现口语规则误伤");
+    Require(
+        PlayerCalloutParser.TryFormat("미템리아주문포심자", AppLanguage.Chinese, dictionary, true, out _)
+            == PlayerCalloutKind.Silence,
+        "无法安全还原的英雄+装备乱码仍送给翻译模型");
+
+    var itemSpeechResult = new TranslationResult
+    {
+        SourceKind = TranslationSourceKind.PlayerChat,
+        RoutedMessageKind = GameMessageKind.PlayerChat,
+        ShouldSpeak = true,
+        SpokenSummary = "纳亚菲利说，艾瑞莉娅买了海克斯饮魔刀",
+        OriginalLines = new List<string> { "艾瑞莉娅买了海克斯饮魔刀" },
+        Intent = "assist",
+        Priority = 2
+    };
+    Require(FinalSpeechPolicy.ShouldSpeak(
+            itemSpeechResult,
+            new AppSettings { SpeakImportantPlayerChat = true, TacticalSignalEnabled = false }),
+        "装备栏点选在关闭战术信号后仍不能播报");
 });
 
 await CheckAsync("按发言人聚合播报轮次", () =>
@@ -692,6 +1254,13 @@ await CheckAsync("术语表长词优先", () =>
         .StartsWith("top rotate ", StringComparison.OrdinalIgnoreCase), "OCR 丢失韩文空格后英文术语粘连");
     Require(GameTermGlossary.Version == "16.14.1", "内置术语表版本错误");
     Require(GameTermGlossary.OfficialTermCount >= 1400, "官方术语表条目不足");
+    Require(GameTermGlossary.ReplaceTerms("閃現、點燃、殺手本能、奪命氣息")
+            .Contains("闪现、引燃、猎手本能、狂风绝息斩", StringComparison.Ordinal),
+        "繁体召唤师技能和英雄技能未映射到简体官方名称");
+    Require(!GameTermGlossary.ReplaceTerms("템 뭐가세용").Contains("小龙", StringComparison.Ordinal),
+        "韩文礼貌词尾 세용 被单字 용 错误替换成小龙");
+    Require(GameTermGlossary.ReplaceTerms("용앞 시야").StartsWith("小龙앞", StringComparison.Ordinal),
+        "句首韩文单字 용 的游戏术语映射被边界保护误伤");
     Require(GameTermGlossary.ReplaceTerms("자르반 대격변 조심") == "자르반 天崩地裂 조심",
         "嘉文终极技能韩中官方映射失败");
     Require(GameTermGlossary.ReplaceTerms("Cataclysm 조심") == "天崩地裂 조심",
@@ -722,6 +1291,46 @@ await CheckAsync("像素变化检测", () =>
     return Task.CompletedTask;
 });
 
+await CheckAsync("Vision 上传前本地遮挡门控", () =>
+{
+    using var normal = new Bitmap(320, 140, System.Drawing.Imaging.PixelFormat.Format24bppRgb);
+    for (var y = 0; y < normal.Height; y++)
+    {
+        for (var x = 0; x < normal.Width; x++)
+        {
+            normal.SetPixel(x, y, Color.FromArgb(
+                (x * 3 + y * 5) % 180 + 30,
+                (x * 5 + y * 2) % 170 + 25,
+                (x * 2 + y * 7) % 160 + 35));
+        }
+    }
+    using (var graphics = Graphics.FromImage(normal))
+    {
+        graphics.DrawString("Player (Ahri): mid careful", SystemFonts.DefaultFont, Brushes.White, 8, 104);
+    }
+    Require(!VisionUploadGuard.Evaluate(normal).ShouldBlock,
+        "正常有纹理的聊天区域被误判为大面积遮挡");
+
+    using var obscured = (Bitmap)normal.Clone();
+    using (var graphics = Graphics.FromImage(obscured))
+    {
+        graphics.FillRectangle(new SolidBrush(Color.FromArgb(22, 24, 29)), 12, 8, 296, 118);
+        graphics.DrawString("OVERLAY", SystemFonts.DefaultFont, Brushes.White, 130, 60);
+    }
+    var blocked = VisionUploadGuard.Evaluate(obscured);
+    Require(blocked.ShouldBlock && blocked.Reason == "large_opaque_obstruction",
+        "覆盖大部分框选区域的不透明面板没有在本地拦截");
+
+    using var partial = (Bitmap)normal.Clone();
+    using (var graphics = Graphics.FromImage(partial))
+    {
+        graphics.FillRectangle(new SolidBrush(Color.FromArgb(22, 24, 29)), 0, 0, 80, 140);
+    }
+    Require(!VisionUploadGuard.Evaluate(partial).ShouldBlock,
+        "局部小遮挡不应阻止整帧 Vision 识别");
+    return Task.CompletedTask;
+});
+
 await CheckAsync("设置持久化", async () =>
 {
     var path = Path.Combine(Path.GetTempPath(), "RiftLens-SelfTest-" + Guid.NewGuid().ToString("N"), "settings.json");
@@ -749,7 +1358,7 @@ await CheckAsync("设置持久化", async () =>
     Require(loaded.OutputMode == OutputMode.VoiceOnly, "输出模式未保存");
     Require(loaded.SpeechVolume == 42, "语音音量未保存");
     Require(loaded.OcrScale == 3, "旧版 OCR 放大倍数未迁移到聊天优化值");
-    Require(loaded.SchemaVersion == 10, "旧版设置未迁移到新版界面设置版本");
+    Require(loaded.SchemaVersion == 11, "旧版设置未迁移到视觉识别实验设置版本");
     Require(!loaded.TacticalSignalEnabled
         && !loaded.KillEventEnabled
         && !loaded.ObjectiveEventEnabled
@@ -773,6 +1382,8 @@ await CheckAsync("设置持久化", async () =>
     loaded.InterfacePalette = "mono";
     loaded.CustomThemeColor = "#345678";
     loaded.SaveTranslationHistory = true;
+    loaded.RecognitionMode = RecognitionPipelineMode.DeepSeekVisionExperimental;
+    loaded.VisionPrivacyConsent = true;
     await store.SaveAsync(loaded);
     var reloaded = await store.LoadAsync();
     Require(reloaded.Language == AppLanguage.English, "英文语言设置未持久化");
@@ -787,12 +1398,169 @@ await CheckAsync("设置持久化", async () =>
     Require(reloaded.OnboardingCompleted
         && reloaded.InterfacePalette == "mono"
         && reloaded.CustomThemeColor == "#345678"
-        && reloaded.SaveTranslationHistory,
-        "首次引导、界面配色或本地历史保存设置未持久化");
+        && reloaded.SaveTranslationHistory
+        && reloaded.RecognitionMode == RecognitionPipelineMode.DeepSeekVisionExperimental
+        && reloaded.VisionPrivacyConsent,
+        "首次引导、界面配色、本地历史或视觉实验设置未持久化");
+});
+
+await CheckAsync("DeepSeek Vision OCR 结构化解析", () =>
+{
+    var document = DeepSeekVisionOcrService.ParseModelContent(
+        "```json\n{\"lines\":[\"[12:34] 레오나: 탑 조심\",\"阿狸: river miss\",\"  \"]}\n```");
+    Require(document.Lines.Count == 2, "Vision OCR 空行未过滤");
+    Require(document.Lines[0].Text == "[12:34] 레오나: 탑 조심", "韩文与时间戳未原样保留");
+    Require(document.Lines[1].Text == "阿狸: river miss", "中英混排未原样保留");
+    Require(document.RawText.Contains("레오나", StringComparison.Ordinal)
+        && document.RawText.Contains("river miss", StringComparison.Ordinal),
+        "Vision OCR 文档未保留三语文本");
+    return Task.CompletedTask;
+});
+
+await CheckAsync("Vision 混合证据结构修复", async () =>
+{
+    var dictionary = await HeroDictionary.LoadAsync();
+    var processor = new VisionOcrPostProcessor(dictionary);
+    var vision = OcrDocument.FromText(
+        "[12:34] PlayerOne#KR1 (뽀뽀) 탑 조심\n"
+        + "[12:35] PlayerOne#KR1 (뽀뽀) 님이 제어 와드 아이템을\n"
+        + "구입했습니다.");
+    var local = OcrDocument.FromText(
+        "[12:34] PlayerOne#KR1 (뽀삐): 탑 위험\n"
+        + "[12:35] PlayerOne#KR1 (뽀삐) 님이 제어 와드 아이템을\n"
+        + "구입했습니다.");
+    var processed = processor.Process(null, vision, local);
+    Require(processed.Document.Lines.Count == 2, "带时间戳的视觉换行未合并");
+    Require(processed.Stats.JoinedContinuations == 1, "视觉换行修复统计错误");
+    Require(processed.Stats.RepairedHeroTokens >= 1, "本地官方英雄证据未修复 Vision 近形字");
+    Require(processed.Stats.RepairedPlayerSeparators == 1, "本地明确分隔符未修复玩家聊天冒号");
+    Require(processed.Document.Lines[0].Text.Contains("(뽀삐): 탑 조심", StringComparison.Ordinal),
+        "Vision 玩家正文被本地 OCR 覆盖或头部未修复：" + processed.Document.Lines[0].Text);
+    Require(processed.Document.Lines[1].Text.Contains("아이템을 구입했습니다", StringComparison.Ordinal),
+        "固定消息视觉换行内容丢失");
+
+    var hudShare = processor.Process(
+        null,
+        OcrDocument.FromText(
+            "15:24 키아나 (키아나) 님이 적이 사라졌다고 알림\n"
+            + "15:30 키아나 (키아나) 님이 요새파괴자 - 구매 가능"),
+        OcrDocument.FromText(
+            "15:24 키아나 (키아나) 님이 적이 사라졌다고 알림\n"
+            + "15:30 키아나 (키아나): 요새파괴자 - 구매 가능"));
+    Require(hudShare.Document.Lines[1].Text.Contains("(키아나): 요새파괴자", StringComparison.Ordinal)
+        && !hudShare.Document.Lines[1].Text.Contains(": 님이", StringComparison.Ordinal),
+        "HUD 分享修复冒号时没有移除 Vision 伪造的系统主语：" + hudShare.Document.Lines[1].Text);
+
+    var targetWrap = processor.Process(
+        null,
+        OcrDocument.FromText(
+            "12:31 PlayerOne (아칼리) 님이 위험 신호를 보냄\n"
+            + "12:36 PlayerOne (아칼리) 님이\n"
+            + "EnemyOne (갈리오) 지목"));
+    Require(targetWrap.Document.Lines.Count == 2
+        && targetWrap.Document.Lines[1].Text.Contains("님이 EnemyOne (갈리오) 지목", StringComparison.Ordinal),
+        "看似玩家头部的目标行没有与前一条固定消息合并");
+
+    Require(dictionary.TryCorrectKoreanHeroPrefix("백토르 점멸", out var correctedHero, out _)
+        && correctedHero == "빅토르", "唯一近形英雄前缀没有修复");
+    Require(GameTermGlossary.RepairKoreanOcrTokens("접멸") == "접멸",
+        "有多个近形官方候选时不应强行改单词");
+    Require(GameSemanticEventParser.TryParsePlayerFeed("빅토르 점멸", out _),
+        "修复后的召唤师技能分享未被固定语义解析器接收");
+    var spellShare = processor.Process(
+        null,
+        OcrDocument.FromText("13:13 SeTab (진): 빈트로 접멸"),
+        OcrDocument.FromText("13:13 SeTab (진): 백토르 점멸"));
+    Require(spellShare.Document.RawText.Contains("빅토르 점멸", StringComparison.Ordinal),
+        "受限 HUD 字段没有使用本地证据和官方词典修复英雄/召唤师技能：" + spellShare.Document.RawText);
+    Require(spellShare.Stats.RepairedOfficialTermFields == 1,
+        "受限官方术语字段修复没有记录统计");
+    var unsupportedTarget = processor.Process(
+        null,
+        OcrDocument.FromText("13:13 SeTab (진): 빅토르 정밀"),
+        OcrDocument.FromText("13:13 SeTab (진): 백토 점멸"));
+    Require(unsupportedTarget.Document.RawText.Contains("빅토르 정밀", StringComparison.Ordinal)
+        && !unsupportedTarget.Document.RawText.Contains("백토", StringComparison.Ordinal),
+        "本地目标英雄没有官方唯一证据时不应覆盖 Vision 正文");
+
+    var traditionalHud = processor.Process(
+        null,
+        OcrDocument.FromText("아니 (潘森): 夢宿已使用R - 奪命氣息"),
+        OcrDocument.FromText("아니 (潘森): 犽宿已使用R - 奪命氣息"));
+    Require(traditionalHud.Document.RawText.Contains("亚索", StringComparison.Ordinal)
+        && traditionalHud.Document.RawText.Contains("狂风绝息斩", StringComparison.Ordinal)
+        && new ChatMessageClassifier().Classify(traditionalHud.Document.RawText).Kind
+            == GameMessageKind.TacticalSignal,
+        "繁体近形英雄和台服技能没有在受限 HUD 字段中规范化");
+});
+
+await CheckAsync("战术信号也参与玩家英雄会话锁定", async () =>
+{
+    var dictionary = await HeroDictionary.LoadAsync();
+    var classifier = new ChatMessageClassifier();
+    var tracker = new PlayerHeroSessionTracker(dictionary);
+    for (var count = 0; count < 3; count++)
+    {
+        var signal = classifier.Classify("PlayerOne#KR1 (아리) 님이 위험 신호를 보냄");
+        Require(signal.Kind == GameMessageKind.TacticalSignal, "测试信号未进入战术分类");
+        tracker.Observe(signal);
+    }
+    var noisyChat = classifier.Classify("PlayerOne#KR1 (아칼리): 미드 조심");
+    var stabilized = tracker.Observe(noisyChat);
+    Require(stabilized.SpeakerHeroId == "Ahri", "战术信号证据没有锁定本局玩家英雄");
+
+    var bodyTracker = new PlayerHeroSessionTracker(dictionary);
+    for (var count = 0; count < 3; count++)
+    {
+        bodyTracker.Observe(classifier.Classify("MiloBramble (烏迪爾): 伊瑞莉雅已使用閃現"));
+    }
+    var damagedSpeaker = bodyTracker.Observe(
+        classifier.Classify("MiloBramble (馬迪爾): 伊瑞莉雅已使用點燃"));
+    Require(damagedSpeaker.SpeakerHeroId == "Udyr",
+        "发言人近形英雄名没有被本局锁定纠正：" + damagedSpeaker.SpeakerHeroId);
+    var damagedBody = bodyTracker.Observe(
+        classifier.Classify("아니 (潘森): 夢宿已使用R - 奪命氣息"));
+    Require(damagedBody.Content.Contains("亚索", StringComparison.Ordinal),
+        "HUD 正文里的近形英雄名没有纠正：" + damagedBody.Content);
+});
+
+await CheckAsync("DeepSeek Vision OCR 图片请求协议", async () =>
+{
+    var response = JsonSerializer.Serialize(new
+    {
+        choices = new[]
+        {
+            new { message = new { content = "{\"lines\":[\"레오나: 탑 조심\"]}" } }
+        }
+    });
+    var handler = new FakeHttpHandler(response);
+    using var service = new DeepSeekVisionOcrService("https://api.deepseek.com", "test-key", handler);
+    using var bitmap = new Bitmap(96, 32);
+    using (var graphics = Graphics.FromImage(bitmap))
+    {
+        graphics.Clear(Color.White);
+        graphics.DrawString("레오나", SystemFonts.DefaultFont, Brushes.Black, 4, 5);
+    }
+    var document = await service.RecognizeAsync(bitmap, CancellationToken.None);
+    Require(document.RawText == "레오나: 탑 조심", "Vision 图片请求响应未解析");
+    Require(handler.RequestBody.Contains(DeepSeekVisionOcrService.ModelName, StringComparison.Ordinal),
+        "Vision 请求未使用固定实验模型");
+    Require(handler.RequestBody.Contains("data:image/jpeg;base64,", StringComparison.Ordinal),
+        "Vision 请求未内联框选区域 JPEG");
+    Require(handler.RequestBody.Contains("\"detail\":\"original\"", StringComparison.Ordinal),
+        "Vision 请求未保留原始图片细节");
+    Require(!handler.RequestBody.Contains("League of Legends", StringComparison.OrdinalIgnoreCase),
+        "Vision 原生识别实验不应注入 LOL 语境提示");
 });
 
 await CheckAsync("玩家分级播报与隐私化语音", () =>
 {
+    Require(!NaturalSpeechService.ShouldFallbackToInstalledVoice(true, AppLanguage.Chinese),
+        "中文晓晓模式不应回退到其他本机音色");
+    Require(NaturalSpeechService.ShouldFallbackToInstalledVoice(false, AppLanguage.Chinese),
+        "用户明确关闭神经语音时应允许本机语音");
+    Require(NaturalSpeechService.ShouldFallbackToInstalledVoice(true, AppLanguage.English),
+        "英文 Jenny 模式应保留原有本机回退");
     var settings = new AppSettings
     {
         SpeakUrgentPlayerChat = true,
@@ -1056,6 +1824,42 @@ await CheckAsync("本地语音闸门会写明静音原因", () =>
     Require(silenced.SpeechSilenceReason == SpeechSilenceReasons.SemanticGuard, "静音后没有留下语义原因");
     Require(LocalSpeechPlanner.FormatReason(silenced.SpeechSilenceReason, AppLanguage.Chinese).Contains("仅字幕"),
         "静音原因没有转成玩家能看懂的字幕提示");
+
+    var fullSpeech = new AppSettings
+    {
+        SpeakUrgentPlayerChat = true,
+        SpeakImportantPlayerChat = true,
+        SpeakNeutralPlayerChat = true
+    };
+    var numericNoise = new TranslationResult
+    {
+        SourceKind = TranslationSourceKind.PlayerChat,
+        ShouldSpeak = true,
+        SpokenSummary = "队友说，730",
+        OriginalLines = new List<string> { "730" }
+    };
+    Require(!FinalSpeechPolicy.ShouldSpeak(numericNoise, fullSpeech)
+        && FinalSpeechPolicy.DescribeSilence(numericNoise, fullSpeech)
+            == SpeechSilenceReasons.TranslationQuality,
+        "纯数字 OCR 噪声仍能进入语音");
+    var residualHangul = new TranslationResult
+    {
+        SourceKind = TranslationSourceKind.PlayerChat,
+        ShouldSpeak = true,
+        SpokenSummary = "队友说，템무가세小龙",
+        OriginalLines = new List<string> { "템 뭐가세용" }
+    };
+    Require(!FinalSpeechPolicy.ShouldSpeak(residualHangul, fullSpeech),
+        "中文译文残留大量韩文时仍能进入语音");
+    var naturalChat = new TranslationResult
+    {
+        SourceKind = TranslationSourceKind.PlayerChat,
+        ShouldSpeak = true,
+        SpokenSummary = "队友说，今天团战慢慢打",
+        OriginalLines = new List<string> { "오늘 한타 천천히 하자" }
+    };
+    Require(FinalSpeechPolicy.ShouldSpeak(naturalChat, fullSpeech),
+        "正常完整玩家聊天被翻译质量闸门误伤");
     return Task.CompletedTask;
 });
 
@@ -1312,6 +2116,29 @@ static void Require(bool condition, string message)
     if (!condition) throw new InvalidOperationException(message);
 }
 
+static bool IsPlausibleForReplay(string line)
+{
+    if (string.IsNullOrWhiteSpace(line) || line.Length < 3) return false;
+    var readable = 0;
+    var total = 0;
+    foreach (var character in line)
+    {
+        if (char.IsWhiteSpace(character)) continue;
+        total++;
+        if (char.IsLetterOrDigit(character)
+            || character >= 0xAC00
+            || character is >= (char)0x3130 and <= (char)0x318F
+            || character is >= (char)0x4E00 and <= (char)0x9FFF
+            || character is ':' or '：' or '[' or ']' or '!' or '？' or '?')
+        {
+            readable++;
+        }
+    }
+    return total > 0
+        && readable / (double)total >= 0.4
+        && (line.Where(character => !char.IsWhiteSpace(character)).Distinct().Count() > 2 || line.Length <= 4);
+}
+
 sealed class FakeHttpHandler(string responseBody) : HttpMessageHandler
 {
     public string RequestBody { get; private set; } = string.Empty;
@@ -1327,5 +2154,89 @@ sealed class FakeHttpHandler(string responseBody) : HttpMessageHandler
         {
             Content = new StringContent(responseBody, Encoding.UTF8, "application/json")
         };
+    }
+}
+
+sealed record VisionEvalFrame(
+    string FrameId,
+    string ScreenshotFile,
+    string LocalOcr,
+    double LocalOcrElapsedMs);
+
+sealed class RouteReplayAccumulator
+{
+    private readonly MessageDeduplicator _deduplicator = new();
+    private readonly ChatMessageClassifier _classifier = new();
+    private readonly PlayerHeroSessionTracker _playerHeroes;
+    private readonly Dictionary<GameMessageKind, int> _counts = Enum
+        .GetValues<GameMessageKind>()
+        .ToDictionary(kind => kind, _ => 0);
+    private int _acceptedLines;
+
+    public RouteReplayAccumulator(HeroDictionary heroes)
+    {
+        _playerHeroes = new PlayerHeroSessionTracker(heroes);
+    }
+
+    public void Observe(OcrDocument document)
+    {
+        foreach (var line in _deduplicator.FindNewLineResults(document.RawText))
+        {
+            if (!IsPlausible(line.NormalizedText))
+            {
+                continue;
+            }
+
+            var colour = FindColour(document, line.NormalizedText);
+            var message = _playerHeroes.Observe(_classifier.Classify(line.NormalizedText, colour));
+            _acceptedLines++;
+            _counts[message.Kind]++;
+        }
+    }
+
+    public object Snapshot()
+    {
+        var unknown = _counts[GameMessageKind.Unknown];
+        return new
+        {
+            acceptedLines = _acceptedLines,
+            categories = _counts.ToDictionary(pair => pair.Key.ToString(), pair => pair.Value),
+            routableShare = _acceptedLines == 0 ? 0 : (_acceptedLines - unknown) / (double)_acceptedLines
+        };
+    }
+
+    private static OcrColorEvidence? FindColour(OcrDocument document, string text)
+    {
+        var target = Normalize(text);
+        return document.Lines.LastOrDefault(line =>
+            string.Equals(Normalize(line.Text), target, StringComparison.OrdinalIgnoreCase))?.ColorEvidence;
+    }
+
+    private static string Normalize(string value) =>
+        MessageDeduplicator.StripGameTimestamp(value)
+            .Normalize(NormalizationForm.FormKC)
+            .Trim();
+
+    private static bool IsPlausible(string line)
+    {
+        if (string.IsNullOrWhiteSpace(line) || line.Length < 3) return false;
+        var readable = 0;
+        var total = 0;
+        foreach (var character in line)
+        {
+            if (char.IsWhiteSpace(character)) continue;
+            total++;
+            if (char.IsLetterOrDigit(character)
+                || character >= 0xAC00
+                || character is >= (char)0x3130 and <= (char)0x318F
+                || character is >= (char)0x4E00 and <= (char)0x9FFF
+                || character is ':' or '：' or '[' or ']' or '!' or '？' or '?')
+            {
+                readable++;
+            }
+        }
+        return total > 0
+            && readable / (double)total >= 0.4
+            && (line.Where(character => !char.IsWhiteSpace(character)).Distinct().Count() > 2 || line.Length <= 4);
     }
 }

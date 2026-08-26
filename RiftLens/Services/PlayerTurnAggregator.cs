@@ -11,6 +11,7 @@ public sealed class PlayerTurnAggregator
     private string _speakerKey = string.Empty;
     private string _speakerRaw = string.Empty;
     private string _speakerHeroId = string.Empty;
+    private string _recognitionEngine = string.Empty;
     private readonly List<string> _rawLines = new();
     private readonly List<string> _contents = new();
     private readonly List<string> _evaluationLineIds = new();
@@ -38,6 +39,7 @@ public sealed class PlayerTurnAggregator
             _speakerKey = message.SpeakerKey;
             _speakerRaw = message.SpeakerRaw;
             _speakerHeroId = message.SpeakerHeroId;
+            _recognitionEngine = message.RecognitionEngine;
         }
         else if (!string.IsNullOrWhiteSpace(message.SpeakerHeroId))
         {
@@ -45,6 +47,14 @@ public sealed class PlayerTurnAggregator
             // header, or may carry the session lock learned after earlier lines.
             _speakerRaw = message.SpeakerRaw;
             _speakerHeroId = message.SpeakerHeroId;
+        }
+        if (!string.IsNullOrWhiteSpace(message.RecognitionEngine))
+        {
+            _recognitionEngine = string.IsNullOrWhiteSpace(_recognitionEngine)
+                ? message.RecognitionEngine
+                : string.Equals(_recognitionEngine, message.RecognitionEngine, StringComparison.Ordinal)
+                    ? _recognitionEngine
+                    : "mixed";
         }
 
         if (!_rawLines.Contains(message.RawText, StringComparer.Ordinal))
@@ -83,10 +93,12 @@ public sealed class PlayerTurnAggregator
             _contents.ToArray(),
             _lastUpdatedAt,
             _speakerHeroId,
-            _evaluationLineIds.ToArray());
+            _evaluationLineIds.ToArray(),
+            _recognitionEngine);
         _speakerKey = string.Empty;
         _speakerRaw = string.Empty;
         _speakerHeroId = string.Empty;
+        _recognitionEngine = string.Empty;
         _rawLines.Clear();
         _contents.Clear();
         _evaluationLineIds.Clear();

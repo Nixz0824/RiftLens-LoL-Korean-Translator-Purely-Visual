@@ -19,8 +19,14 @@ public sealed class OpenAiCompatibleTranslationService : ITranslationService, ID
         ss/miss=敌人消失, ff/surrender=投降, gg=游戏结束, push=推进, back=撤退,
         help=求助, care/danger=小心, ward/vision=视野, baron=男爵, drake/dragon=小龙,
         feed/int=送头/表现差, tp=传送, omw=正在路上。
+        分路闪现口语：f/fl/flash=闪现。1213mid 或 12:13 mid = 中路12分13秒交了闪现；
+        933 sup = 辅助9分33秒交了闪现；mid f on = 中路还有闪现；mid f off = 中路没有闪现。
+        点选对面装备栏时，原文常是“英雄名-装备名”，应译成“该英雄买了该装备”，并保留官方装备名。
+        不要把 OCR 乱码猜成不存在的英雄或装备名称。
 
         recognizedHeroes 中，输出必须优先使用 spoken；id 仅是内部标识。
+        sourceTraditional 与 traditionalTitle 是港澳台客户端官方繁体名称；即使 OCR 产生一个近形字，
+        也必须根据相同英雄 id 使用 spoken，不得按错误汉字音译或创造新英雄名。
         输入中已经呈目标语言的英雄技能、召唤师技能、装备和符文名称来自本地官方三语词典；
         必须原样保留这些专有名称，不得再次音译、改名或换成另一服务器的非官方叫法。
 
@@ -73,6 +79,8 @@ public sealed class OpenAiCompatibleTranslationService : ITranslationService, ID
                 source = hero.KoreanName,
                 official = hero.ChineseOfficial,
                 personal = hero.ChinesePersonal,
+                sourceTraditional = hero.ChineseTraditionalName,
+                traditionalTitle = hero.ChineseTraditionalTitle,
                 spoken = hero.SpokenName
             }),
             chatLines = request.Lines

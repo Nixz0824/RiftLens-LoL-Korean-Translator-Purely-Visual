@@ -28,10 +28,10 @@
     try {
       if (onboardingMode) {
         verify(!document.querySelector("#welcome-screen").hidden, "Welcome screen did not open");
-        click("#welcome-continue");
+        click("#welcome-panel");
         await delay(380);
         verify(!document.querySelector("#guide-screen").hidden, "First-run guide did not open");
-        click("#guide-continue");
+        click("#guide-panel");
         await delay(310);
         verify(!document.querySelector("#home-screen").hidden, "Guide did not continue to Home");
         expectMessage("onboardingCompleted", true);
@@ -78,6 +78,13 @@
 
       click("#more-settings-button");
       verify(!document.querySelector("#advanced-popover").hidden, "Advanced settings did not open");
+      const recognitionMode = document.querySelector("#recognition-mode");
+      recognitionMode.value = "1";
+      recognitionMode.dispatchEvent(new Event("change", { bubbles: true }));
+      expectMessage("recognitionModeChanged", 1);
+      verify(!document.querySelector("#vision-note").hidden, "Vision privacy notice did not appear");
+      verify(!document.querySelector("#vision-consent-row").hidden, "Vision consent control did not appear");
+      changeToggle("vision-consent", "visionPrivacyConsentChanged");
       click('#output-mode button[data-value="1"]'); expectMessage("outputModeChanged", 1);
       const placement = document.querySelector("#overlay-placement"); placement.value = "4"; placement.dispatchEvent(new Event("change", { bubbles: true })); expectMessage("overlayPlacementChanged", 4);
       const opacity = document.querySelector("#overlay-opacity"); opacity.value = "62"; opacity.dispatchEvent(new Event("input", { bubbles: true })); opacity.dispatchEvent(new Event("change", { bubbles: true })); expectMessage("overlayOpacityChanged", 62);
@@ -93,9 +100,13 @@
       const volume = document.querySelector("#voice-volume"); volume.value = "44"; volume.dispatchEvent(new Event("input", { bubbles: true })); volume.dispatchEvent(new Event("change", { bubbles: true })); expectMessage("volumeChanged", 44);
       const rate = document.querySelector("#speech-rate"); rate.value = "3"; rate.dispatchEvent(new Event("input", { bubbles: true })); rate.dispatchEvent(new Event("change", { bubbles: true })); expectMessage("speechRateChanged", 3);
 
-      document.querySelector("#api-key").value = "test-api-key-placeholder";
+      const apiKeyInput = document.querySelector("#api-key");
+      verify(apiKeyInput.type === "password", "API key input is not permanently masked");
+      verify(!document.querySelector("#reveal-key"), "API key reveal control still exists");
+      apiKeyInput.value = "test-api-key-placeholder";
       click("#save-api"); expectMessage("saveApiKey", { apiKey: "test-api-key-placeholder" });
-      click("#reveal-key"); verify(document.querySelector("#api-key").type === "text", "API key visibility failed");
+      verify(apiKeyInput.type === "password", "API key input became visible after saving");
+      verify(apiKeyInput.value === "", "API key remained in the WebUI field after saving");
       click("#primary-action"); expectMessage("togglePrimary");
       click("#local-save-button"); expectMessage("saveTranslationHistoryChanged", true);
 

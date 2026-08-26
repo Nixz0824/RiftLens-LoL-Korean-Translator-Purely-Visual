@@ -8,6 +8,8 @@
       "koreanTitle": "다르킨의 검",
       "chineseOfficial": "暗裔剑魔",
       "chinesePersonal": "亚托克斯",
+      "chineseTraditionalName": "厄薩斯",
+      "chineseTraditionalTitle": "冥血劍魔",
       "englishName": "Aatrox",
       "chineseAliases": []
     },
@@ -18,6 +20,8 @@
       "koreanTitle": "구미호",
       "chineseOfficial": "九尾妖狐",
       "chinesePersonal": "阿狸",
+      "chineseTraditionalName": "阿璃",
+      "chineseTraditionalTitle": "九尾妖狐",
       "englishName": "Ahri",
       "chineseAliases": []
     },
@@ -28,6 +32,8 @@
       "koreanTitle": "섬기는 이 없는 암살자",
       "chineseOfficial": "离群之刺",
       "chinesePersonal": "阿卡丽",
+      "chineseTraditionalName": "阿卡莉",
+      "chineseTraditionalTitle": "隻影刺客",
       "englishName": "Akali",
       "chineseAliases": []
     },
@@ -38,6 +44,8 @@
       "koreanTitle": "떠도는 감시자",
       "chineseOfficial": "影哨",
       "chinesePersonal": "阿克尚",
+      "chineseTraditionalName": "埃可尚",
+      "chineseTraditionalTitle": "俠盜哨兵",
       "englishName": "Akshan",
       "chineseAliases": []
     },
@@ -48,6 +56,8 @@
       "koreanTitle": "미노타우로스",
       "chineseOfficial": "牛头酋长",
       "chinesePersonal": "阿利斯塔",
+      "chineseTraditionalName": "亞歷斯塔",
+      "chineseTraditionalTitle": "牛頭酋長",
       "englishName": "Alistar",
       "chineseAliases": []
     },
@@ -58,6 +68,8 @@
       "koreanTitle": "전장의 우두머리",
       "chineseOfficial": "铁血狼母",
       "chinesePersonal": "安蓓萨",
+      "chineseTraditionalName": "安比薩",
+      "chineseTraditionalTitle": "鐵血狼母",
       "englishName": "Ambessa",
       "chineseAliases": []
     },
@@ -68,6 +80,8 @@
       "koreanTitle": "슬픈 미라",
       "chineseOfficial": "殇之木乃伊",
       "chinesePersonal": "阿木木",
+      "chineseTraditionalName": "阿姆姆",
+      "chineseTraditionalTitle": "殤之木乃伊",
       "englishName": "Amumu",
       "chineseAliases": []
     },
@@ -78,6 +92,8 @@
       "koreanTitle": "얼음불사조",
       "chineseOfficial": "冰晶凤凰",
       "chinesePersonal": "艾尼维亚",
+      "chineseTraditionalName": "艾妮維亞",
+      "chineseTraditionalTitle": "冰晶鳳凰",
       "englishName": "Anivia",
       "chineseAliases": []
     },
@@ -88,6 +104,8 @@
       "koreanTitle": "어둠의 아이",
       "chineseOfficial": "黑暗之女",
       "chinesePersonal": "安妮",
+      "chineseTraditionalName": "安妮",
+      "chineseTraditionalTitle": "黑暗之女",
       "englishName": "Annie",
       "chineseAliases": []
     },
@@ -98,6 +116,8 @@
       "koreanTitle": "신념의 무기",
       "chineseOfficial": "残月之肃",
       "chinesePersonal": "厄斐琉斯",
+      "chineseTraditionalName": "亞菲利歐",
+      "chineseTraditionalTitle": "信仰銳武",
       "englishName": "Aphelios",
       "chineseAliases": []
     },
@@ -108,6 +128,8 @@
       "koreanTitle": "서리 궁수",
       "chineseOfficial": "寒冰射手",
       "chinesePersonal": "艾希",
+      "chineseTraditionalName": "艾希",
+      "chineseTraditionalTitle": "冰霜射手",
       "englishName": "Ashe",
       "chineseAliases": []
     },
@@ -118,6 +140,8 @@
       "koreanTitle": "별의 창조자",
       "chineseOfficial": "铸星龙王",
       "chinesePersonal": "奥瑞利安·索尔",
+      "chineseTraditionalName": "翱銳龍獸",
+      "chineseTraditionalTitle": "星際漫遊者",
       "englishName": "Aurelion Sol",
       "chineseAliases": []
     },
@@ -128,6 +152,8 @@
       "koreanTitle": "세계의 경계에 선 마녀",
       "chineseOfficial": "双界灵兔",
       "chinesePersonal": "阿萝拉",
+      "chineseTraditionalName": "歐羅拉",
+      "chineseTraditionalTitle": "跨界靈使",
       "englishName": "Aurora",
       "chineseAliases": []
     },
@@ -138,6 +164,8 @@
       "koreanTitle": "사막의 황제",
       "chineseOfficial": "沙漠皇帝",
       "chinesePersonal": "阿兹尔",
+      "chineseTraditionalName": "阿祈爾",
+      "chineseTraditionalTitle": "蘇瑞瑪砂皇",
       "englishName": "Azir",
       "chineseAliases": []
     },
@@ -148,6 +176,8 @@
       "koreanTitle": "영겁의 수호자",
       "chineseOfficial": "星界游神",
       "chinesePersonal": "巴德",
+      "chineseTraditionalName": "巴德",
+      "chineseTraditionalTitle": "漂泊守望者",
       "englishName": "Bard",
       "chineseAliases": []
     },
@@ -158,6 +188,8 @@
       "koreanTitle": "공허의 여제",
       "chineseOfficial": "虚空女皇",
       "chinesePersonal": "卑尔维斯",
+      "chineseTraditionalName": "貝爾薇斯",
+      "chineseTraditionalTitle": "虛空女皇",
       "englishName": "Bel'Veth",
       "chineseAliases": []
     },
@@ -168,6 +200,8 @@
       "koreanTitle": "거대 증기 골렘",
       "chineseOfficial": "蒸汽机器人",
       "chinesePersonal": "布里茨",
+      "chineseTraditionalName": "布里茨",
+      "chineseTraditionalTitle": "蒸汽巨神兵",
       "englishName": "Blitzcrank",
       "chineseAliases": []
     },
@@ -178,6 +212,8 @@
       "koreanTitle": "타오르는 복수",
       "chineseOfficial": "复仇焰魂",
       "chinesePersonal": "布兰德",
+      "chineseTraditionalName": "布蘭德",
+      "chineseTraditionalTitle": "復仇業火",
       "englishName": "Brand",
       "chineseAliases": []
     },
@@ -188,6 +224,8 @@
       "koreanTitle": "프렐요드의 심장",
       "chineseOfficial": "弗雷尔卓德之心",
       "chinesePersonal": "布隆",
+      "chineseTraditionalName": "布郎姆",
+      "chineseTraditionalTitle": "弗雷爾卓德豪腕",
       "englishName": "Braum",
       "chineseAliases": []
     },
@@ -198,6 +236,8 @@
       "koreanTitle": "억눌린 허기",
       "chineseOfficial": "狂厄蔷薇",
       "chinesePersonal": "贝蕾亚",
+      "chineseTraditionalName": "布蕾爾",
+      "chineseTraditionalTitle": "披枷饞鬼",
       "englishName": "Briar",
       "chineseAliases": []
     },
@@ -208,6 +248,8 @@
       "koreanTitle": "필트오버의 보안관",
       "chineseOfficial": "皮城女警",
       "chinesePersonal": "凯特琳",
+      "chineseTraditionalName": "凱特琳",
+      "chineseTraditionalTitle": "執法者",
       "englishName": "Caitlyn",
       "chineseAliases": []
     },
@@ -218,6 +260,8 @@
       "koreanTitle": "강철의 그림자",
       "chineseOfficial": "青钢影",
       "chinesePersonal": "卡蜜尔",
+      "chineseTraditionalName": "卡蜜兒",
+      "chineseTraditionalTitle": "鋼鐵殘影",
       "englishName": "Camille",
       "chineseAliases": []
     },
@@ -228,6 +272,8 @@
       "koreanTitle": "독사의 포옹",
       "chineseOfficial": "魔蛇之拥",
       "chinesePersonal": "卡西奥佩娅",
+      "chineseTraditionalName": "卡莎碧雅",
+      "chineseTraditionalTitle": "蛇之擁抱",
       "englishName": "Cassiopeia",
       "chineseAliases": []
     },
@@ -238,6 +284,8 @@
       "koreanTitle": "공허의 공포",
       "chineseOfficial": "虚空恐惧",
       "chinesePersonal": "科加斯",
+      "chineseTraditionalName": "科加斯",
+      "chineseTraditionalTitle": "虛空恐懼",
       "englishName": "Cho'Gath",
       "chineseAliases": []
     },
@@ -248,6 +296,8 @@
       "koreanTitle": "대담한 폭격수",
       "chineseOfficial": "英勇投弹手",
       "chinesePersonal": "库奇",
+      "chineseTraditionalName": "庫奇",
+      "chineseTraditionalTitle": "英勇投彈手",
       "englishName": "Corki",
       "chineseAliases": []
     },
@@ -258,6 +308,8 @@
       "koreanTitle": "녹서스의 실력자",
       "chineseOfficial": "诺克萨斯之手",
       "chinesePersonal": "德莱厄斯",
+      "chineseTraditionalName": "達瑞斯",
+      "chineseTraditionalTitle": "諾克薩斯之力",
       "englishName": "Darius",
       "chineseAliases": []
     },
@@ -268,6 +320,8 @@
       "koreanTitle": "차가운 달의 분노",
       "chineseOfficial": "皎月女神",
       "chinesePersonal": "黛安娜",
+      "chineseTraditionalName": "黛安娜",
+      "chineseTraditionalTitle": "輕藐之月",
       "englishName": "Diana",
       "chineseAliases": []
     },
@@ -278,6 +332,8 @@
       "koreanTitle": "화려한 처형자",
       "chineseOfficial": "荣耀行刑官",
       "chinesePersonal": "德莱文",
+      "chineseTraditionalName": "達瑞文",
+      "chineseTraditionalTitle": "處刑娛樂大師",
       "englishName": "Draven",
       "chineseAliases": []
     },
@@ -288,6 +344,8 @@
       "koreanTitle": "자운의 광인",
       "chineseOfficial": "祖安狂人",
       "chinesePersonal": "蒙多医生",
+      "chineseTraditionalName": "蒙多醫生",
+      "chineseTraditionalTitle": "佐恩狂人",
       "englishName": "Dr. Mundo",
       "chineseAliases": []
     },
@@ -298,6 +356,8 @@
       "koreanTitle": "시간을 달리는 소년",
       "chineseOfficial": "时间刺客",
       "chinesePersonal": "艾克",
+      "chineseTraditionalName": "艾克",
+      "chineseTraditionalTitle": "時空少年",
       "englishName": "Ekko",
       "chineseAliases": []
     },
@@ -308,6 +368,8 @@
       "koreanTitle": "거미 여왕",
       "chineseOfficial": "蜘蛛女皇",
       "chinesePersonal": "伊莉丝",
+      "chineseTraditionalName": "伊莉絲",
+      "chineseTraditionalTitle": "蜘蛛女王",
       "englishName": "Elise",
       "chineseAliases": []
     },
@@ -318,6 +380,8 @@
       "koreanTitle": "고통스런 포옹",
       "chineseOfficial": "痛苦之拥",
       "chinesePersonal": "伊芙琳",
+      "chineseTraditionalName": "伊芙琳",
+      "chineseTraditionalTitle": "臨終擁抱",
       "englishName": "Evelynn",
       "chineseAliases": []
     },
@@ -328,6 +392,8 @@
       "koreanTitle": "무모한 탐험가",
       "chineseOfficial": "探险家",
       "chinesePersonal": "伊泽瑞尔",
+      "chineseTraditionalName": "伊澤瑞爾",
+      "chineseTraditionalTitle": "探險家",
       "englishName": "Ezreal",
       "chineseAliases": []
     },
@@ -338,6 +404,8 @@
       "koreanTitle": "오래된 공포",
       "chineseOfficial": "远古恐惧",
       "chinesePersonal": "费德提克",
+      "chineseTraditionalName": "費德提克",
+      "chineseTraditionalTitle": "亙古之懼",
       "englishName": "Fiddlesticks",
       "chineseAliases": []
     },
@@ -348,6 +416,8 @@
       "koreanTitle": "결투의 대가",
       "chineseOfficial": "无双剑姬",
       "chinesePersonal": "菲奥娜",
+      "chineseTraditionalName": "菲歐拉",
+      "chineseTraditionalTitle": "孤高劍客",
       "englishName": "Fiora",
       "chineseAliases": []
     },
@@ -358,6 +428,8 @@
       "koreanTitle": "대양의 말썽꾸러기",
       "chineseOfficial": "潮汐海灵",
       "chinesePersonal": "菲兹",
+      "chineseTraditionalName": "飛斯",
+      "chineseTraditionalTitle": "深海頑童",
       "englishName": "Fizz",
       "chineseAliases": []
     },
@@ -368,6 +440,8 @@
       "koreanTitle": "위대한 석상",
       "chineseOfficial": "正义巨像",
       "chinesePersonal": "加里奥",
+      "chineseTraditionalName": "加里歐",
+      "chineseTraditionalTitle": "禦國巨像",
       "englishName": "Galio",
       "chineseAliases": []
     },
@@ -378,6 +452,8 @@
       "koreanTitle": "바다의 무법자",
       "chineseOfficial": "海洋之灾",
       "chinesePersonal": "普朗克",
+      "chineseTraditionalName": "剛普朗克",
+      "chineseTraditionalTitle": "海洋之災",
       "englishName": "Gangplank",
       "chineseAliases": []
     },
@@ -388,6 +464,8 @@
       "koreanTitle": "데마시아의 힘",
       "chineseOfficial": "德玛西亚之力",
       "chinesePersonal": "盖伦",
+      "chineseTraditionalName": "蓋倫",
+      "chineseTraditionalTitle": "蒂瑪西亞之力",
       "englishName": "Garen",
       "chineseAliases": []
     },
@@ -398,6 +476,8 @@
       "koreanTitle": "잃어버린 고리",
       "chineseOfficial": "迷失之牙",
       "chinesePersonal": "纳尔",
+      "chineseTraditionalName": "吶兒",
+      "chineseTraditionalTitle": "失落之子",
       "englishName": "Gnar",
       "chineseAliases": []
     },
@@ -408,6 +488,8 @@
       "koreanTitle": "술취한 난동꾼",
       "chineseOfficial": "酒桶",
       "chinesePersonal": "古拉加斯",
+      "chineseTraditionalName": "古拉格斯",
+      "chineseTraditionalTitle": "酒桶之王",
       "englishName": "Gragas",
       "chineseAliases": []
     },
@@ -418,6 +500,8 @@
       "koreanTitle": "무법자",
       "chineseOfficial": "法外狂徒",
       "chinesePersonal": "格雷福斯",
+      "chineseTraditionalName": "葛雷夫",
+      "chineseTraditionalTitle": "亡命之徒",
       "englishName": "Graves",
       "chineseAliases": []
     },
@@ -428,6 +512,8 @@
       "koreanTitle": "신성한 재봉사",
       "chineseOfficial": "灵罗娃娃",
       "chinesePersonal": "格温",
+      "chineseTraditionalName": "關",
+      "chineseTraditionalTitle": "聖啟織偶",
       "englishName": "Gwen",
       "chineseAliases": []
     },
@@ -438,6 +524,8 @@
       "koreanTitle": "전쟁의 전조",
       "chineseOfficial": "战争之影",
       "chinesePersonal": "赫卡里姆",
+      "chineseTraditionalName": "赫克林",
+      "chineseTraditionalTitle": "戰爭之影",
       "englishName": "Hecarim",
       "chineseAliases": []
     },
@@ -448,6 +536,8 @@
       "koreanTitle": "위대한 발명가",
       "chineseOfficial": "大发明家",
       "chinesePersonal": "黑默丁格",
+      "chineseTraditionalName": "漢默丁格",
+      "chineseTraditionalTitle": "大發明家",
       "englishName": "Heimerdinger",
       "chineseAliases": []
     },
@@ -458,6 +548,8 @@
       "koreanTitle": "몽상가",
       "chineseOfficial": "异画师",
       "chinesePersonal": "彗",
+      "chineseTraditionalName": "赫威",
+      "chineseTraditionalTitle": "奇想繪師",
       "englishName": "Hwei",
       "chineseAliases": []
     },
@@ -468,6 +560,8 @@
       "koreanTitle": "크라켄의 여사제",
       "chineseOfficial": "海兽祭司",
       "chinesePersonal": "俄洛伊",
+      "chineseTraditionalName": "伊羅旖",
+      "chineseTraditionalTitle": "海妖祭司",
       "englishName": "Illaoi",
       "chineseAliases": []
     },
@@ -478,6 +572,8 @@
       "koreanTitle": "칼날 무희",
       "chineseOfficial": "刀锋舞者",
       "chinesePersonal": "艾瑞莉娅",
+      "chineseTraditionalName": "伊瑞莉雅",
+      "chineseTraditionalTitle": "舞劍靈使",
       "englishName": "Irelia",
       "chineseAliases": []
     },
@@ -488,6 +584,8 @@
       "koreanTitle": "자연의 아버지",
       "chineseOfficial": "翠神",
       "chinesePersonal": "艾翁",
+      "chineseTraditionalName": "埃爾文",
+      "chineseTraditionalTitle": "綠林之父",
       "englishName": "Ivern",
       "chineseAliases": []
     },
@@ -498,6 +596,8 @@
       "koreanTitle": "폭풍의 분노",
       "chineseOfficial": "风暴之怒",
       "chinesePersonal": "迦娜",
+      "chineseTraditionalName": "珍娜",
+      "chineseTraditionalTitle": "風暴女神",
       "englishName": "Janna",
       "chineseAliases": []
     },
@@ -508,6 +608,8 @@
       "koreanTitle": "데마시아의 귀감",
       "chineseOfficial": "德玛西亚皇子",
       "chinesePersonal": "嘉文四世",
+      "chineseTraditionalName": "嘉文四世",
+      "chineseTraditionalTitle": "蒂瑪西亞楷模",
       "englishName": "Jarvan IV",
       "chineseAliases": []
     },
@@ -518,6 +620,8 @@
       "koreanTitle": "무기의 달인",
       "chineseOfficial": "武器大师",
       "chinesePersonal": "贾克斯",
+      "chineseTraditionalName": "賈克斯",
+      "chineseTraditionalTitle": "武器達人",
       "englishName": "Jax",
       "chineseAliases": []
     },
@@ -528,6 +632,8 @@
       "koreanTitle": "미래의 수호자",
       "chineseOfficial": "未来守护者",
       "chinesePersonal": "杰斯",
+      "chineseTraditionalName": "杰西",
+      "chineseTraditionalTitle": "明日守護者",
       "englishName": "Jayce",
       "chineseAliases": []
     },
@@ -538,6 +644,8 @@
       "koreanTitle": "잔혹극의 거장",
       "chineseOfficial": "戏命师",
       "chinesePersonal": "烬",
+      "chineseTraditionalName": "燼",
+      "chineseTraditionalTitle": "炫技大師",
       "englishName": "Jhin",
       "chineseAliases": []
     },
@@ -548,6 +656,8 @@
       "koreanTitle": "난폭한 말괄량이",
       "chineseOfficial": "暴走萝莉",
       "chinesePersonal": "金克丝",
+      "chineseTraditionalName": "吉茵珂絲",
+      "chineseTraditionalTitle": "暴走重砲",
       "englishName": "Jinx",
       "chineseAliases": []
     },
@@ -558,6 +668,8 @@
       "koreanTitle": "공허의 딸",
       "chineseOfficial": "虚空之女",
       "chinesePersonal": "卡莎",
+      "chineseTraditionalName": "凱莎",
+      "chineseTraditionalTitle": "虛空之女",
       "englishName": "Kai'Sa",
       "chineseAliases": []
     },
@@ -568,6 +680,8 @@
       "koreanTitle": "복수의 화신",
       "chineseOfficial": "复仇之矛",
       "chinesePersonal": "卡莉丝塔",
+      "chineseTraditionalName": "克黎思妲",
+      "chineseTraditionalTitle": "復仇之矛",
       "englishName": "Kalista",
       "chineseAliases": []
     },
@@ -578,6 +692,8 @@
       "koreanTitle": "깨우친 자",
       "chineseOfficial": "天启者",
       "chinesePersonal": "卡尔玛",
+      "chineseTraditionalName": "卡瑪",
+      "chineseTraditionalTitle": "魂之啟者",
       "englishName": "Karma",
       "chineseAliases": []
     },
@@ -588,6 +704,8 @@
       "koreanTitle": "죽음을 노래하는 자",
       "chineseOfficial": "死亡颂唱者",
       "chinesePersonal": "卡尔萨斯",
+      "chineseTraditionalName": "卡爾瑟斯",
+      "chineseTraditionalTitle": "死亡頌唱者",
       "englishName": "Karthus",
       "chineseAliases": []
     },
@@ -598,6 +716,8 @@
       "koreanTitle": "공허의 방랑자",
       "chineseOfficial": "虚空行者",
       "chinesePersonal": "卡萨丁",
+      "chineseTraditionalName": "卡薩丁",
+      "chineseTraditionalTitle": "虛空行者",
       "englishName": "Kassadin",
       "chineseAliases": []
     },
@@ -608,6 +728,8 @@
       "koreanTitle": "사악한 칼날",
       "chineseOfficial": "不祥之刃",
       "chinesePersonal": "卡特琳娜",
+      "chineseTraditionalName": "卡特蓮娜",
+      "chineseTraditionalTitle": "不祥之刃",
       "englishName": "Katarina",
       "chineseAliases": []
     },
@@ -618,6 +740,8 @@
       "koreanTitle": "정의로운 자",
       "chineseOfficial": "正义天使",
       "chinesePersonal": "凯尔",
+      "chineseTraditionalName": "凱爾",
+      "chineseTraditionalTitle": "正義天使",
       "englishName": "Kayle",
       "chineseAliases": []
     },
@@ -628,6 +752,8 @@
       "koreanTitle": "그림자 사신",
       "chineseOfficial": "影流之镰",
       "chinesePersonal": "凯隐",
+      "chineseTraditionalName": "慨影",
+      "chineseTraditionalTitle": "闇魂收割者",
       "englishName": "Kayn",
       "chineseAliases": []
     },
@@ -638,6 +764,8 @@
       "koreanTitle": "폭풍의 심장",
       "chineseOfficial": "狂暴之心",
       "chinesePersonal": "凯南",
+      "chineseTraditionalName": "凱能",
+      "chineseTraditionalTitle": "狂暴之心",
       "englishName": "Kennen",
       "chineseAliases": []
     },
@@ -648,6 +776,8 @@
       "koreanTitle": "공허의 약탈자",
       "chineseOfficial": "虚空掠夺者",
       "chinesePersonal": "卡兹克",
+      "chineseTraditionalName": "卡力斯",
+      "chineseTraditionalTitle": "虛空掠食者",
       "englishName": "Kha'Zix",
       "chineseAliases": []
     },
@@ -658,6 +788,8 @@
       "koreanTitle": "영겁의 사냥꾼",
       "chineseOfficial": "永猎双子",
       "chinesePersonal": "千珏",
+      "chineseTraditionalName": "鏡爪",
+      "chineseTraditionalTitle": "永恆獵手",
       "englishName": "Kindred",
       "chineseAliases": []
     },
@@ -668,6 +800,8 @@
       "koreanTitle": "망나니 기사",
       "chineseOfficial": "暴怒骑士",
       "chinesePersonal": "克烈",
+      "chineseTraditionalName": "克雷德",
+      "chineseTraditionalTitle": "暴躁騎士",
       "englishName": "Kled",
       "chineseAliases": []
     },
@@ -678,6 +812,8 @@
       "koreanTitle": "심연의 아귀",
       "chineseOfficial": "深渊巨口",
       "chinesePersonal": "克格莫",
+      "chineseTraditionalName": "寇格魔",
+      "chineseTraditionalTitle": "深淵巨口",
       "englishName": "Kog'Maw",
       "chineseAliases": []
     },
@@ -688,6 +824,8 @@
       "koreanTitle": "나주마의 긍지",
       "chineseOfficial": "纳祖芒荣耀",
       "chinesePersonal": "奎桑提",
+      "chineseTraditionalName": "卡桑帝",
+      "chineseTraditionalTitle": "納祖瑪之傲",
       "englishName": "K'Sante",
       "chineseAliases": []
     },
@@ -698,6 +836,8 @@
       "koreanTitle": "환술사",
       "chineseOfficial": "诡术妖姬",
       "chinesePersonal": "乐芙兰",
+      "chineseTraditionalName": "勒布朗",
+      "chineseTraditionalTitle": "詐欺師",
       "englishName": "LeBlanc",
       "chineseAliases": []
     },
@@ -708,6 +848,8 @@
       "koreanTitle": "눈먼 수도승",
       "chineseOfficial": "盲僧",
       "chinesePersonal": "李青",
+      "chineseTraditionalName": "李星",
+      "chineseTraditionalTitle": "盲眼武僧",
       "englishName": "Lee Sin",
       "chineseAliases": []
     },
@@ -718,6 +860,8 @@
       "koreanTitle": "여명의 빛",
       "chineseOfficial": "曙光女神",
       "chinesePersonal": "蕾欧娜",
+      "chineseTraditionalName": "雷歐娜",
+      "chineseTraditionalTitle": "黎明之光",
       "englishName": "Leona",
       "chineseAliases": []
     },
@@ -728,6 +872,8 @@
       "koreanTitle": "수줍은 꽃",
       "chineseOfficial": "含羞蓓蕾",
       "chinesePersonal": "莉莉娅",
+      "chineseTraditionalName": "莉莉亞",
+      "chineseTraditionalTitle": "羞赧綻華",
       "englishName": "Lillia",
       "chineseAliases": []
     },
@@ -738,6 +884,8 @@
       "koreanTitle": "얼음 마녀",
       "chineseOfficial": "冰霜女巫",
       "chinesePersonal": "丽桑卓",
+      "chineseTraditionalName": "麗珊卓",
+      "chineseTraditionalTitle": "傲雪巫女",
       "englishName": "Lissandra",
       "chineseAliases": []
     },
@@ -748,6 +896,8 @@
       "koreanTitle": "잿빛 퇴마사",
       "chineseOfficial": "灰烬驱魔人",
       "chinesePersonal": "洛克",
+      "chineseTraditionalName": "洛克",
+      "chineseTraditionalTitle": "死灰驅魔師",
       "englishName": "Locke",
       "chineseAliases": []
     },
@@ -758,6 +908,8 @@
       "koreanTitle": "정화의 사도",
       "chineseOfficial": "圣枪游侠",
       "chinesePersonal": "卢锡安",
+      "chineseTraditionalName": "路西恩",
+      "chineseTraditionalTitle": "驅魔聖槍",
       "englishName": "Lucian",
       "chineseAliases": []
     },
@@ -768,6 +920,8 @@
       "koreanTitle": "요정 마법사",
       "chineseOfficial": "仙灵女巫",
       "chinesePersonal": "璐璐",
+      "chineseTraditionalName": "露璐",
+      "chineseTraditionalTitle": "精靈魔法使",
       "englishName": "Lulu",
       "chineseAliases": []
     },
@@ -778,6 +932,8 @@
       "koreanTitle": "광명의 소녀",
       "chineseOfficial": "光辉女郎",
       "chinesePersonal": "拉克丝",
+      "chineseTraditionalName": "拉克絲",
+      "chineseTraditionalTitle": "光之少女",
       "englishName": "Lux",
       "chineseAliases": []
     },
@@ -788,6 +944,8 @@
       "koreanTitle": "거석의 파편",
       "chineseOfficial": "熔岩巨兽",
       "chinesePersonal": "墨菲特",
+      "chineseTraditionalName": "墨菲特",
+      "chineseTraditionalTitle": "幻石碎片",
       "englishName": "Malphite",
       "chineseAliases": []
     },
@@ -798,6 +956,8 @@
       "koreanTitle": "공허의 예언자",
       "chineseOfficial": "虚空先知",
       "chinesePersonal": "玛尔扎哈",
+      "chineseTraditionalName": "馬爾札哈",
+      "chineseTraditionalTitle": "虛空先知",
       "englishName": "Malzahar",
       "chineseAliases": []
     },
@@ -808,6 +968,8 @@
       "koreanTitle": "뒤틀린 나무 정령",
       "chineseOfficial": "扭曲树精",
       "chinesePersonal": "茂凯",
+      "chineseTraditionalName": "茂凱",
+      "chineseTraditionalTitle": "扭曲樹人",
       "englishName": "Maokai",
       "chineseAliases": []
     },
@@ -818,6 +980,8 @@
       "koreanTitle": "우주 검사",
       "chineseOfficial": "无极剑圣",
       "chinesePersonal": "易",
+      "chineseTraditionalName": "易大師",
+      "chineseTraditionalTitle": "無極劍聖",
       "englishName": "Master Yi",
       "chineseAliases": []
     },
@@ -828,6 +992,8 @@
       "koreanTitle": "영혼의 반향",
       "chineseOfficial": "流光镜影",
       "chinesePersonal": "梅尔",
+      "chineseTraditionalName": "梅爾",
+      "chineseTraditionalTitle": "映魂祕使",
       "englishName": "Mel",
       "chineseAliases": []
     },
@@ -838,6 +1004,8 @@
       "koreanTitle": "온화한 불꽃",
       "chineseOfficial": "明烛",
       "chinesePersonal": "米利欧",
+      "chineseTraditionalName": "米里歐",
+      "chineseTraditionalTitle": "溫煦良焰",
       "englishName": "Milio",
       "chineseAliases": []
     },
@@ -848,6 +1016,8 @@
       "koreanTitle": "현상금 사냥꾼",
       "chineseOfficial": "赏金猎人",
       "chinesePersonal": "厄运小姐",
+      "chineseTraditionalName": "好運姐",
+      "chineseTraditionalTitle": "賞金獵人",
       "englishName": "Miss Fortune",
       "chineseAliases": []
     },
@@ -858,6 +1028,8 @@
       "koreanTitle": "원숭이 왕",
       "chineseOfficial": "齐天大圣",
       "chinesePersonal": "孙悟空",
+      "chineseTraditionalName": "悟空",
+      "chineseTraditionalTitle": "齊天大聖",
       "englishName": "Wukong",
       "chineseAliases": []
     },
@@ -868,6 +1040,8 @@
       "koreanTitle": "강철의 망령",
       "chineseOfficial": "铁铠冥魂",
       "chinesePersonal": "莫德凯撒",
+      "chineseTraditionalName": "魔鬥凱薩",
+      "chineseTraditionalTitle": " 金屬亡靈",
       "englishName": "Mordekaiser",
       "chineseAliases": []
     },
@@ -878,6 +1052,8 @@
       "koreanTitle": "타락한 자",
       "chineseOfficial": "堕落天使",
       "chinesePersonal": "莫甘娜",
+      "chineseTraditionalName": "魔甘娜",
+      "chineseTraditionalTitle": "墮落天使",
       "englishName": "Morgana",
       "chineseAliases": []
     },
@@ -888,6 +1064,8 @@
       "koreanTitle": "백 번 무는 사냥개",
       "chineseOfficial": "百裂冥犬",
       "chinesePersonal": "纳亚菲利",
+      "chineseTraditionalName": "娜菲芮",
+      "chineseTraditionalTitle": "百犬之牙",
       "englishName": "Naafiri",
       "chineseAliases": []
     },
@@ -898,6 +1076,8 @@
       "koreanTitle": "파도 소환사",
       "chineseOfficial": "唤潮鲛姬",
       "chinesePersonal": "娜美",
+      "chineseTraditionalName": "娜米",
+      "chineseTraditionalTitle": "海潮之音",
       "englishName": "Nami",
       "chineseAliases": []
     },
@@ -908,6 +1088,8 @@
       "koreanTitle": "사막의 관리자",
       "chineseOfficial": "沙漠死神",
       "chinesePersonal": "内瑟斯",
+      "chineseTraditionalName": "納瑟斯",
+      "chineseTraditionalTitle": "沙漠死神",
       "englishName": "Nasus",
       "chineseAliases": []
     },
@@ -918,6 +1100,8 @@
       "koreanTitle": "심해의 타이탄",
       "chineseOfficial": "深海泰坦",
       "chinesePersonal": "诺提勒斯",
+      "chineseTraditionalName": "納帝魯斯",
+      "chineseTraditionalTitle": "深淵巨人",
       "englishName": "Nautilus",
       "chineseAliases": []
     },
@@ -928,6 +1112,8 @@
       "koreanTitle": "알쏭달쏭 카멜레온",
       "chineseOfficial": "万花通灵",
       "chinesePersonal": "妮蔻",
+      "chineseTraditionalName": "妮可",
+      "chineseTraditionalTitle": "好奇變色龍",
       "englishName": "Neeko",
       "chineseAliases": []
     },
@@ -938,6 +1124,8 @@
       "koreanTitle": "야성의 사냥꾼",
       "chineseOfficial": "狂野女猎手",
       "chinesePersonal": "奈德丽",
+      "chineseTraditionalName": "奈德麗",
+      "chineseTraditionalTitle": "狂野獵手",
       "englishName": "Nidalee",
       "chineseAliases": []
     },
@@ -948,6 +1136,8 @@
       "koreanTitle": "해방된 기쁨",
       "chineseOfficial": "不羁之悦",
       "chinesePersonal": "尼菈",
+      "chineseTraditionalName": "淣菈",
+      "chineseTraditionalTitle": "奔放笑顏",
       "englishName": "Nilah",
       "chineseAliases": []
     },
@@ -958,6 +1148,8 @@
       "koreanTitle": "영원한 악몽",
       "chineseOfficial": "永恒梦魇",
       "chinesePersonal": "魔腾",
+      "chineseTraditionalName": "夜曲",
+      "chineseTraditionalTitle": "永恆夢魘",
       "englishName": "Nocturne",
       "chineseAliases": []
     },
@@ -968,6 +1160,8 @@
       "koreanTitle": "소년과 설인",
       "chineseOfficial": "雪原双子",
       "chinesePersonal": "努努和威朗普",
+      "chineseTraditionalName": "努努和威朗普",
+      "chineseTraditionalTitle": "冰原拍檔",
       "englishName": "Nunu & Willump",
       "chineseAliases": []
     },
@@ -978,6 +1172,8 @@
       "koreanTitle": "광전사",
       "chineseOfficial": "狂战士",
       "chinesePersonal": "奥拉夫",
+      "chineseTraditionalName": "歐拉夫",
+      "chineseTraditionalTitle": "狂戰士",
       "englishName": "Olaf",
       "chineseAliases": []
     },
@@ -988,6 +1184,8 @@
       "koreanTitle": "시계태엽 소녀",
       "chineseOfficial": "发条魔灵",
       "chinesePersonal": "奥莉安娜",
+      "chineseTraditionalName": "奧莉安娜",
+      "chineseTraditionalTitle": "發條少女",
       "englishName": "Orianna",
       "chineseAliases": []
     },
@@ -998,6 +1196,8 @@
       "koreanTitle": "거산의 화염",
       "chineseOfficial": "山隐之焰",
       "chinesePersonal": "奥恩",
+      "chineseTraditionalName": "鄂爾",
+      "chineseTraditionalTitle": "爐心山神",
       "englishName": "Ornn",
       "chineseAliases": []
     },
@@ -1008,6 +1208,8 @@
       "koreanTitle": "불굴의 창",
       "chineseOfficial": "不屈之枪",
       "chinesePersonal": "潘森",
+      "chineseTraditionalName": "潘森",
+      "chineseTraditionalTitle": "不屈之矛",
       "englishName": "Pantheon",
       "chineseAliases": []
     },
@@ -1018,6 +1220,8 @@
       "koreanTitle": "망치의 수호자",
       "chineseOfficial": "圣锤之毅",
       "chinesePersonal": "波比",
+      "chineseTraditionalName": "波比",
+      "chineseTraditionalTitle": "聖鎚守護者",
       "englishName": "Poppy",
       "chineseAliases": []
     },
@@ -1028,6 +1232,8 @@
       "koreanTitle": "핏빛 항구의 학살자",
       "chineseOfficial": "血港鬼影",
       "chinesePersonal": "派克",
+      "chineseTraditionalName": "派克",
+      "chineseTraditionalTitle": "血港開膛手",
       "englishName": "Pyke",
       "chineseAliases": []
     },
@@ -1038,6 +1244,8 @@
       "koreanTitle": "원소의 여왕",
       "chineseOfficial": "元素女皇",
       "chinesePersonal": "奇亚娜",
+      "chineseTraditionalName": "姬亞娜",
+      "chineseTraditionalTitle": "元素女帝",
       "englishName": "Qiyana",
       "chineseAliases": []
     },
@@ -1048,6 +1256,8 @@
       "koreanTitle": "데마시아의 날개",
       "chineseOfficial": "德玛西亚之翼",
       "chinesePersonal": "奎因",
+      "chineseTraditionalName": "葵恩",
+      "chineseTraditionalTitle": "蒂瑪西亞之翼",
       "englishName": "Quinn",
       "chineseAliases": []
     },
@@ -1058,6 +1268,8 @@
       "koreanTitle": "매혹하는 자",
       "chineseOfficial": "幻翎",
       "chinesePersonal": "洛",
+      "chineseTraditionalName": "銳空",
+      "chineseTraditionalTitle": "惑羽",
       "englishName": "Rakan",
       "chineseAliases": []
     },
@@ -1068,6 +1280,8 @@
       "koreanTitle": "중무장 아르마딜로",
       "chineseOfficial": "披甲龙龟",
       "chinesePersonal": "拉莫斯",
+      "chineseTraditionalName": "拉姆斯",
+      "chineseTraditionalTitle": "披甲龍龜",
       "englishName": "Rammus",
       "chineseAliases": []
     },
@@ -1078,6 +1292,8 @@
       "koreanTitle": "공허의 복병",
       "chineseOfficial": "虚空遁地兽",
       "chinesePersonal": "雷克塞",
+      "chineseTraditionalName": "雷珂煞",
+      "chineseTraditionalTitle": "虛空穿梭者",
       "englishName": "Rek'Sai",
       "chineseAliases": []
     },
@@ -1088,6 +1304,8 @@
       "koreanTitle": "철의 여인",
       "chineseOfficial": "镕铁少女",
       "chinesePersonal": "芮尔",
+      "chineseTraditionalName": "銳兒",
+      "chineseTraditionalTitle": "鋼鐵少女",
       "englishName": "Rell",
       "chineseAliases": []
     },
@@ -1098,6 +1316,8 @@
       "koreanTitle": "화공 남작",
       "chineseOfficial": "炼金男爵",
       "chinesePersonal": "烈娜塔 · 戈拉斯克",
+      "chineseTraditionalName": "睿娜妲‧格萊斯克",
+      "chineseTraditionalTitle": "化學女爵",
       "englishName": "Renata Glasc",
       "chineseAliases": []
     },
@@ -1108,6 +1328,8 @@
       "koreanTitle": "사막의 도살자",
       "chineseOfficial": "荒漠屠夫",
       "chinesePersonal": "雷克顿",
+      "chineseTraditionalName": "雷尼克頓",
+      "chineseTraditionalTitle": "沙漠屠夫",
       "englishName": "Renekton",
       "chineseAliases": []
     },
@@ -1118,6 +1340,8 @@
       "koreanTitle": "추적하는 사자",
       "chineseOfficial": "傲之追猎者",
       "chinesePersonal": "雷恩加尔",
+      "chineseTraditionalName": "雷葛爾",
+      "chineseTraditionalTitle": "傲慢伏擊者",
       "englishName": "Rengar",
       "chineseAliases": []
     },
@@ -1128,6 +1352,8 @@
       "koreanTitle": "추방자",
       "chineseOfficial": "放逐之刃",
       "chinesePersonal": "锐雯",
+      "chineseTraditionalName": "雷玟",
+      "chineseTraditionalTitle": "破刃放逐者",
       "englishName": "Riven",
       "chineseAliases": []
     },
@@ -1138,6 +1364,8 @@
       "koreanTitle": "기계 악동",
       "chineseOfficial": "机械公敌",
       "chinesePersonal": "兰博",
+      "chineseTraditionalName": "藍寶",
+      "chineseTraditionalTitle": "武裝機兵",
       "englishName": "Rumble",
       "chineseAliases": []
     },
@@ -1148,6 +1376,8 @@
       "koreanTitle": "룬 마법사",
       "chineseOfficial": "符文法师",
       "chinesePersonal": "瑞兹",
+      "chineseTraditionalName": "雷茲",
+      "chineseTraditionalTitle": "符文法師",
       "englishName": "Ryze",
       "chineseAliases": []
     },
@@ -1158,6 +1388,8 @@
       "koreanTitle": "사막의 장미",
       "chineseOfficial": "沙漠玫瑰",
       "chinesePersonal": "莎弥拉",
+      "chineseTraditionalName": "煞蜜拉",
+      "chineseTraditionalTitle": "荒漠薔薇",
       "englishName": "Samira",
       "chineseAliases": []
     },
@@ -1168,6 +1400,8 @@
       "koreanTitle": "혹한의 분노",
       "chineseOfficial": "北地之怒",
       "chinesePersonal": "瑟庄妮",
+      "chineseTraditionalName": "史瓦妮",
+      "chineseTraditionalTitle": "北境之怒",
       "englishName": "Sejuani",
       "chineseAliases": []
     },
@@ -1178,6 +1412,8 @@
       "koreanTitle": "구원자",
       "chineseOfficial": "涤魂圣枪",
       "chinesePersonal": "赛娜",
+      "chineseTraditionalName": "姍娜",
+      "chineseTraditionalTitle": "贖魂聖槍",
       "englishName": "Senna",
       "chineseAliases": []
     },
@@ -1188,6 +1424,8 @@
       "koreanTitle": "노래하는 별",
       "chineseOfficial": "星籁歌姬",
       "chinesePersonal": "萨勒芬妮",
+      "chineseTraditionalName": "瑟菈紛",
+      "chineseTraditionalTitle": "燦眸歌姬",
       "englishName": "Seraphine",
       "chineseAliases": []
     },
@@ -1198,6 +1436,8 @@
       "koreanTitle": "우두머리",
       "chineseOfficial": "腕豪",
       "chinesePersonal": "瑟提",
+      "chineseTraditionalName": "賽特",
+      "chineseTraditionalTitle": "獸血拳皇",
       "englishName": "Sett",
       "chineseAliases": []
     },
@@ -1208,6 +1448,8 @@
       "koreanTitle": "악마 어릿광대",
       "chineseOfficial": "恶魔小丑",
       "chinesePersonal": "萨科",
+      "chineseTraditionalName": "薩科",
+      "chineseTraditionalTitle": "惡魔小丑",
       "englishName": "Shaco",
       "chineseAliases": []
     },
@@ -1218,6 +1460,8 @@
       "koreanTitle": "황혼의 눈",
       "chineseOfficial": "暮光之眼",
       "chinesePersonal": "慎",
+      "chineseTraditionalName": "慎",
+      "chineseTraditionalTitle": "暮光之眼",
       "englishName": "Shen",
       "chineseAliases": []
     },
@@ -1228,6 +1472,8 @@
       "koreanTitle": "하프 드래곤",
       "chineseOfficial": "龙血武姬",
       "chinesePersonal": "希瓦娜",
+      "chineseTraditionalName": "希瓦娜",
+      "chineseTraditionalTitle": "半龍少女",
       "englishName": "Shyvana",
       "chineseAliases": []
     },
@@ -1238,6 +1484,8 @@
       "koreanTitle": "미친 화학자",
       "chineseOfficial": "炼金术士",
       "chinesePersonal": "辛吉德",
+      "chineseTraditionalName": "辛吉德",
+      "chineseTraditionalTitle": "瘋狂煉金師",
       "englishName": "Singed",
       "chineseAliases": []
     },
@@ -1248,6 +1496,8 @@
       "koreanTitle": "언데드 학살병기",
       "chineseOfficial": "亡灵战神",
       "chinesePersonal": "赛恩",
+      "chineseTraditionalName": "賽恩",
+      "chineseTraditionalTitle": "亡靈勇士",
       "englishName": "Sion",
       "chineseAliases": []
     },
@@ -1258,6 +1508,8 @@
       "koreanTitle": "전장의 여제",
       "chineseOfficial": "战争女神",
       "chinesePersonal": "希维尔",
+      "chineseTraditionalName": "希維爾",
+      "chineseTraditionalTitle": "戰爭女神",
       "englishName": "Sivir",
       "chineseAliases": []
     },
@@ -1268,6 +1520,8 @@
       "koreanTitle": "태고의 군주",
       "chineseOfficial": "上古领主",
       "chinesePersonal": "斯卡纳",
+      "chineseTraditionalName": "史加納",
+      "chineseTraditionalTitle": "遠古強者",
       "englishName": "Skarner",
       "chineseAliases": []
     },
@@ -1278,6 +1532,8 @@
       "koreanTitle": "꼬마 불꽃용",
       "chineseOfficial": "炽炎雏龙",
       "chinesePersonal": "斯莫德",
+      "chineseTraditionalName": "史矛德",
+      "chineseTraditionalTitle": "帝煌雛龍",
       "englishName": "Smolder",
       "chineseAliases": []
     },
@@ -1288,6 +1544,8 @@
       "koreanTitle": "현의 명인",
       "chineseOfficial": "琴瑟仙女",
       "chinesePersonal": "娑娜",
+      "chineseTraditionalName": "索娜",
+      "chineseTraditionalTitle": "琴仙",
       "englishName": "Sona",
       "chineseAliases": []
     },
@@ -1298,6 +1556,8 @@
       "koreanTitle": "별의 아이",
       "chineseOfficial": "众星之子",
       "chinesePersonal": "索拉卡",
+      "chineseTraditionalName": "索拉卡",
+      "chineseTraditionalTitle": "眾星之子",
       "englishName": "Soraka",
       "chineseAliases": []
     },
@@ -1308,6 +1568,8 @@
       "koreanTitle": "녹서스 대장군",
       "chineseOfficial": "诺克萨斯统领",
       "chinesePersonal": "斯维因",
+      "chineseTraditionalName": "斯溫",
+      "chineseTraditionalTitle": "諾克薩斯總帥",
       "englishName": "Swain",
       "chineseAliases": []
     },
@@ -1318,6 +1580,8 @@
       "koreanTitle": "해방된 자",
       "chineseOfficial": "解脱者",
       "chinesePersonal": "塞拉斯",
+      "chineseTraditionalName": "賽勒斯",
+      "chineseTraditionalTitle": "罪鍊術士",
       "englishName": "Sylas",
       "chineseAliases": []
     },
@@ -1328,6 +1592,8 @@
       "koreanTitle": "어둠의 여제",
       "chineseOfficial": "暗黑元首",
       "chinesePersonal": "辛德拉",
+      "chineseTraditionalName": "星朵拉",
+      "chineseTraditionalTitle": "黑暗領主",
       "englishName": "Syndra",
       "chineseAliases": []
     },
@@ -1338,6 +1604,8 @@
       "koreanTitle": "강의 폭군",
       "chineseOfficial": "河流之王",
       "chinesePersonal": "塔姆",
+      "chineseTraditionalName": "貪啃奇",
+      "chineseTraditionalTitle": "河中巨怪",
       "englishName": "Tahm Kench",
       "chineseAliases": []
     },
@@ -1348,6 +1616,8 @@
       "koreanTitle": "바위술사",
       "chineseOfficial": "岩雀",
       "chinesePersonal": "塔莉垭",
+      "chineseTraditionalName": "塔莉雅",
+      "chineseTraditionalTitle": "岩石編織者",
       "englishName": "Taliyah",
       "chineseAliases": []
     },
@@ -1358,6 +1628,8 @@
       "koreanTitle": "검의 그림자",
       "chineseOfficial": "刀锋之影",
       "chinesePersonal": "泰隆",
+      "chineseTraditionalName": "塔隆",
+      "chineseTraditionalTitle": "神影刺客",
       "englishName": "Talon",
       "chineseAliases": []
     },
@@ -1368,6 +1640,8 @@
       "koreanTitle": "발로란의 방패",
       "chineseOfficial": "瓦洛兰之盾",
       "chinesePersonal": "塔里克",
+      "chineseTraditionalName": "塔里克",
+      "chineseTraditionalTitle": "瓦羅然之盾",
       "englishName": "Taric",
       "chineseAliases": []
     },
@@ -1378,6 +1652,8 @@
       "koreanTitle": "날쌘 정찰병",
       "chineseOfficial": "迅捷斥候",
       "chinesePersonal": "提莫",
+      "chineseTraditionalName": "提摩",
+      "chineseTraditionalTitle": "迅捷斥候",
       "englishName": "Teemo",
       "chineseAliases": []
     },
@@ -1388,6 +1664,8 @@
       "koreanTitle": "지옥의 간수",
       "chineseOfficial": "魂锁典狱长",
       "chinesePersonal": "锤石",
+      "chineseTraditionalName": "瑟雷西",
+      "chineseTraditionalTitle": "鍊魂獄長",
       "englishName": "Thresh",
       "chineseAliases": []
     },
@@ -1398,6 +1676,8 @@
       "koreanTitle": "요들 사수",
       "chineseOfficial": "麦林炮手",
       "chinesePersonal": "崔丝塔娜",
+      "chineseTraditionalName": "崔絲塔娜",
+      "chineseTraditionalTitle": "約德爾炮手",
       "englishName": "Tristana",
       "chineseAliases": []
     },
@@ -1408,6 +1688,8 @@
       "koreanTitle": "트롤 왕",
       "chineseOfficial": "巨魔之王",
       "chinesePersonal": "特朗德尔",
+      "chineseTraditionalName": "特朗德",
+      "chineseTraditionalTitle": "巨魔王",
       "englishName": "Trundle",
       "chineseAliases": []
     },
@@ -1418,6 +1700,8 @@
       "koreanTitle": "야만전사 왕",
       "chineseOfficial": "蛮族之王",
       "chinesePersonal": "泰达米尔",
+      "chineseTraditionalName": "泰達米爾",
+      "chineseTraditionalTitle": "蠻族之王",
       "englishName": "Tryndamere",
       "chineseAliases": []
     },
@@ -1428,6 +1712,8 @@
       "koreanTitle": "카드의 달인",
       "chineseOfficial": "卡牌大师",
       "chinesePersonal": "崔斯特",
+      "chineseTraditionalName": "逆命",
+      "chineseTraditionalTitle": "卡牌大師",
       "englishName": "Twisted Fate",
       "chineseAliases": []
     },
@@ -1438,6 +1724,8 @@
       "koreanTitle": "역병 쥐",
       "chineseOfficial": "瘟疫之源",
       "chinesePersonal": "图奇",
+      "chineseTraditionalName": "圖奇",
+      "chineseTraditionalTitle": "瘟疫之源",
       "englishName": "Twitch",
       "chineseAliases": []
     },
@@ -1448,6 +1736,8 @@
       "koreanTitle": "정령 주술사",
       "chineseOfficial": "兽灵行者",
       "chinesePersonal": "乌迪尔",
+      "chineseTraditionalName": "烏迪爾",
+      "chineseTraditionalTitle": "神靈行者",
       "englishName": "Udyr",
       "chineseAliases": []
     },
@@ -1458,6 +1748,8 @@
       "koreanTitle": "살상 병기",
       "chineseOfficial": "无畏战车",
       "chinesePersonal": "厄加特",
+      "chineseTraditionalName": "烏爾加特",
+      "chineseTraditionalTitle": "重裝無畏",
       "englishName": "Urgot",
       "chineseAliases": []
     },
@@ -1468,6 +1760,8 @@
       "koreanTitle": "응징의 화살",
       "chineseOfficial": "惩戒之箭",
       "chinesePersonal": "韦鲁斯",
+      "chineseTraditionalName": "法洛士",
+      "chineseTraditionalTitle": "懲戒之箭",
       "englishName": "Varus",
       "chineseAliases": []
     },
@@ -1478,6 +1772,8 @@
       "koreanTitle": "어둠 사냥꾼",
       "chineseOfficial": "暗夜猎手",
       "chinesePersonal": "薇恩",
+      "chineseTraditionalName": "汎",
+      "chineseTraditionalTitle": "暗夜獵人",
       "englishName": "Vayne",
       "chineseAliases": []
     },
@@ -1488,6 +1784,8 @@
       "koreanTitle": "악의 작은 지배자",
       "chineseOfficial": "邪恶小法师",
       "chinesePersonal": "维迦",
+      "chineseTraditionalName": "維迦",
+      "chineseTraditionalTitle": "邪惡小法師",
       "englishName": "Veigar",
       "chineseAliases": []
     },
@@ -1498,6 +1796,8 @@
       "koreanTitle": "공허의 눈",
       "chineseOfficial": "虚空之眼",
       "chinesePersonal": "维克兹",
+      "chineseTraditionalName": "威寇茲",
+      "chineseTraditionalTitle": "虛空魔眼",
       "englishName": "Vel'Koz",
       "chineseAliases": []
     },
@@ -1508,6 +1808,8 @@
       "koreanTitle": "우울주의자",
       "chineseOfficial": "愁云使者",
       "chinesePersonal": "薇古丝",
+      "chineseTraditionalName": "薇可絲",
+      "chineseTraditionalTitle": "愁霧影巫",
       "englishName": "Vex",
       "chineseAliases": []
     },
@@ -1518,6 +1820,8 @@
       "koreanTitle": "필트오버의 집행자",
       "chineseOfficial": "皮城执法官",
       "chinesePersonal": "蔚",
+      "chineseTraditionalName": "菲艾",
+      "chineseTraditionalTitle": "鐵腕特警",
       "englishName": "Vi",
       "chineseAliases": []
     },
@@ -1528,6 +1832,8 @@
       "koreanTitle": "몰락한 왕",
       "chineseOfficial": "破败之王",
       "chinesePersonal": "佛耶戈",
+      "chineseTraditionalName": "維爾戈",
+      "chineseTraditionalTitle": "殞落王者",
       "englishName": "Viego",
       "chineseAliases": []
     },
@@ -1538,6 +1844,8 @@
       "koreanTitle": "아케인의 전령관",
       "chineseOfficial": "奥术先驱",
       "chinesePersonal": "维克托",
+      "chineseTraditionalName": "維克特",
+      "chineseTraditionalTitle": "奧術預示者",
       "englishName": "Viktor",
       "chineseAliases": []
     },
@@ -1548,6 +1856,8 @@
       "koreanTitle": "진홍빛 사신",
       "chineseOfficial": "猩红收割者",
       "chinesePersonal": "弗拉基米尔",
+      "chineseTraditionalName": "弗拉迪米爾",
+      "chineseTraditionalTitle": "血色收割者",
       "englishName": "Vladimir",
       "chineseAliases": []
     },
@@ -1558,6 +1868,8 @@
       "koreanTitle": "무자비한 폭풍",
       "chineseOfficial": "不灭狂雷",
       "chinesePersonal": "沃利贝尔",
+      "chineseTraditionalName": "弗力貝爾",
+      "chineseTraditionalTitle": "無情風暴",
       "englishName": "Volibear",
       "chineseAliases": []
     },
@@ -1568,6 +1880,8 @@
       "koreanTitle": "자운의 고삐 풀린 분노",
       "chineseOfficial": "祖安怒兽",
       "chinesePersonal": "沃里克",
+      "chineseTraditionalName": "沃維克",
+      "chineseTraditionalTitle": "嗜血狂怒",
       "englishName": "Warwick",
       "chineseAliases": []
     },
@@ -1578,6 +1892,8 @@
       "koreanTitle": "저항하는 자",
       "chineseOfficial": "逆羽",
       "chinesePersonal": "霞",
+      "chineseTraditionalName": "剎雅",
+      "chineseTraditionalTitle": "逆羽",
       "englishName": "Xayah",
       "chineseAliases": []
     },
@@ -1588,6 +1904,8 @@
       "koreanTitle": "초월한 마법사",
       "chineseOfficial": "远古巫灵",
       "chinesePersonal": "泽拉斯",
+      "chineseTraditionalName": "齊勒斯",
+      "chineseTraditionalTitle": "遠古魔導",
       "englishName": "Xerath",
       "chineseAliases": []
     },
@@ -1598,6 +1916,8 @@
       "koreanTitle": "데마시아의 호위무사",
       "chineseOfficial": "德邦总管",
       "chinesePersonal": "赵信",
+      "chineseTraditionalName": "趙信",
+      "chineseTraditionalTitle": "蒂瑪西亞總管",
       "englishName": "Xin Zhao",
       "chineseAliases": []
     },
@@ -1608,6 +1928,8 @@
       "koreanTitle": "용서받지 못한 자",
       "chineseOfficial": "疾风剑豪",
       "chinesePersonal": "亚索",
+      "chineseTraditionalName": "犽宿",
+      "chineseTraditionalTitle": "放逐浪人",
       "englishName": "Yasuo",
       "chineseAliases": []
     },
@@ -1618,6 +1940,8 @@
       "koreanTitle": "잊히지 못한 자",
       "chineseOfficial": "封魔剑魂",
       "chinesePersonal": "永恩",
+      "chineseTraditionalName": "犽凝",
+      "chineseTraditionalTitle": "不滅劍豪",
       "englishName": "Yone",
       "chineseAliases": []
     },
@@ -1628,6 +1952,8 @@
       "koreanTitle": "영혼의 길잡이",
       "chineseOfficial": "牧魂人",
       "chinesePersonal": "约里克",
+      "chineseTraditionalName": "約瑞科",
+      "chineseTraditionalTitle": "亡魂牧人",
       "englishName": "Yorick",
       "chineseAliases": []
     },
@@ -1638,6 +1964,8 @@
       "koreanTitle": "꺾이지 않는 신념",
       "chineseOfficial": "不破之誓",
       "chinesePersonal": "芸阿娜",
+      "chineseTraditionalName": "尤娜拉",
+      "chineseTraditionalTitle": "千年巫女",
       "englishName": "Yunara",
       "chineseAliases": []
     },
@@ -1648,6 +1976,8 @@
       "koreanTitle": "마법 고양이",
       "chineseOfficial": "魔法猫咪",
       "chinesePersonal": "悠米",
+      "chineseTraditionalName": "悠咪",
+      "chineseTraditionalTitle": "魔法靈貓",
       "englishName": "Yuumi",
       "chineseAliases": []
     },
@@ -1658,6 +1988,8 @@
       "koreanTitle": "저물지 않는 자",
       "chineseOfficial": "不落魔锋",
       "chinesePersonal": "亚恒",
+      "chineseTraditionalName": "薩亨",
+      "chineseTraditionalTitle": "不滅冥聖",
       "englishName": "Zaahen",
       "chineseAliases": []
     },
@@ -1668,6 +2000,8 @@
       "koreanTitle": "비밀 병기",
       "chineseOfficial": "生化魔人",
       "chinesePersonal": "扎克",
+      "chineseTraditionalName": "札克",
+      "chineseTraditionalTitle": "魔人",
       "englishName": "Zac",
       "chineseAliases": []
     },
@@ -1678,6 +2012,8 @@
       "koreanTitle": "그림자의 주인",
       "chineseOfficial": "影流之主",
       "chinesePersonal": "劫",
+      "chineseTraditionalName": "劫",
+      "chineseTraditionalTitle": "影忍至尊",
       "englishName": "Zed",
       "chineseAliases": []
     },
@@ -1688,6 +2024,8 @@
       "koreanTitle": "자운의 불꽃",
       "chineseOfficial": "祖安花火",
       "chinesePersonal": "泽丽",
+      "chineseTraditionalName": "婕莉",
+      "chineseTraditionalTitle": "佐恩電光",
       "englishName": "Zeri",
       "chineseAliases": []
     },
@@ -1698,6 +2036,8 @@
       "koreanTitle": "마법공학 폭파병",
       "chineseOfficial": "爆破鬼才",
       "chinesePersonal": "吉格斯",
+      "chineseTraditionalName": "希格斯",
+      "chineseTraditionalTitle": "魔法爆破專家",
       "englishName": "Ziggs",
       "chineseAliases": []
     },
@@ -1708,6 +2048,8 @@
       "koreanTitle": "시간의 수호자",
       "chineseOfficial": "时光守护者",
       "chinesePersonal": "基兰",
+      "chineseTraditionalName": "極靈",
+      "chineseTraditionalTitle": "時光守護者",
       "englishName": "Zilean",
       "chineseAliases": []
     },
@@ -1718,6 +2060,8 @@
       "koreanTitle": "여명의 성위",
       "chineseOfficial": "暮光星灵",
       "chinesePersonal": "佐伊",
+      "chineseTraditionalName": "柔依",
+      "chineseTraditionalTitle": "暮光星靈",
       "englishName": "Zoe",
       "chineseAliases": []
     },
@@ -1728,6 +2072,8 @@
       "koreanTitle": "가시 덩굴의 복수",
       "chineseOfficial": "荆棘之兴",
       "chinesePersonal": "婕拉",
+      "chineseTraditionalName": "枷蘿",
+      "chineseTraditionalTitle": "荊棘漫遊者",
       "englishName": "Zyra",
       "chineseAliases": []
     }

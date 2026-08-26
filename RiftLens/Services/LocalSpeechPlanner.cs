@@ -116,6 +116,9 @@ public static class LocalSpeechPlanner
         SpeechSilenceReasons.EmptySpeech => language == AppLanguage.English
             ? "Text only · nothing safe to read"
             : "仅字幕 · 无可读摘要",
+        SpeechSilenceReasons.TranslationQuality => language == AppLanguage.English
+            ? "Text only · translation quality was uncertain"
+            : "仅字幕 · 翻译质量不确定",
         _ => language == AppLanguage.English ? "Text only" : "仅字幕"
     };
 
@@ -192,4 +195,5 @@ public static class SpeechSilenceReasons
     public const string OverlayOnly = "overlay_only";
     public const string HudLeak = "hud";
     public const string EmptySpeech = "empty";
+    public const string TranslationQuality = "translation_quality";
 }

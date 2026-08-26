@@ -8,6 +8,12 @@ public enum AppLanguage
     English
 }
 
+public enum RecognitionPipelineMode
+{
+    LocalOcr,
+    DeepSeekVisionExperimental
+}
+
 public enum OutputMode
 {
     OverlayOnly,
@@ -143,7 +149,7 @@ public sealed class ScreenRegion
 
 public sealed class AppSettings
 {
-    public int SchemaVersion { get; set; } = 10;
+    public int SchemaVersion { get; set; } = 11;
     public AppLanguage Language { get; set; } = AppLanguage.Chinese;
     public ScreenRegion CaptureRegion { get; set; } = new();
     public ScreenRegion DisplayRegion { get; set; } = new();
@@ -189,6 +195,8 @@ public sealed class AppSettings
     public string InterfacePalette { get; set; } = "porcelain";
     public string CustomThemeColor { get; set; } = "#6f7f91";
     public bool SaveTranslationHistory { get; set; }
+    public RecognitionPipelineMode RecognitionMode { get; set; } = RecognitionPipelineMode.LocalOcr;
+    public bool VisionPrivacyConsent { get; set; }
     public int ActivePresetIndex { get; set; } = -1;
     public List<CapturePreset> Presets { get; set; } = new();
 

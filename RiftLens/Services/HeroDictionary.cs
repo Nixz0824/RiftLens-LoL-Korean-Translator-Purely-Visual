@@ -27,6 +27,16 @@ public sealed class HeroDictionary
             AddSpeakerAlias(aliases, entry, entry.KoreanName);
             AddSpeakerAlias(aliases, entry, entry.ChineseOfficial);
             AddSpeakerAlias(aliases, entry, entry.ChinesePersonal);
+            AddSpeakerAlias(aliases, entry, entry.ChineseTraditionalName);
+            AddSpeakerAlias(aliases, entry, entry.ChineseTraditionalTitle);
+            AddSpeakerAlias(
+                aliases,
+                entry,
+                ChineseTextNormalizer.ToSimplifiedCharacters(entry.ChineseTraditionalName));
+            AddSpeakerAlias(
+                aliases,
+                entry,
+                ChineseTextNormalizer.ToSimplifiedCharacters(entry.ChineseTraditionalTitle));
             AddSpeakerAlias(aliases, entry, entry.EnglishName);
             foreach (var alias in entry.ChineseAliases)
             {
@@ -95,6 +105,16 @@ public sealed class HeroDictionary
                 // 中文常用名（至少 2 个汉字，如"蕾欧娜""阿狸"）
                 || (entry.ChinesePersonal is { Length: >= 2 } personal
                     && text.Contains(personal, StringComparison.OrdinalIgnoreCase))
+                || (entry.ChineseTraditionalName is { Length: >= 2 } traditionalName
+                    && (text.Contains(traditionalName, StringComparison.OrdinalIgnoreCase)
+                        || text.Contains(
+                            ChineseTextNormalizer.ToSimplifiedCharacters(traditionalName),
+                            StringComparison.OrdinalIgnoreCase)))
+                || (entry.ChineseTraditionalTitle is { Length: >= 2 } traditionalTitle
+                    && (text.Contains(traditionalTitle, StringComparison.OrdinalIgnoreCase)
+                        || text.Contains(
+                            ChineseTextNormalizer.ToSimplifiedCharacters(traditionalTitle),
+                            StringComparison.OrdinalIgnoreCase)))
                 // 中文别名（至少 2 个字符）
                 || entry.ChineseAliases.Any(alias =>
                     alias is { Length: >= 2 }
@@ -121,6 +141,158 @@ public sealed class HeroDictionary
             : null;
     }
 
+    /// <summary>
+    /// Repairs only a leading Korean champion token and only when exactly one
+    /// official name is within one character. Callers must keep this scoped to
+    /// structured HUD fields rather than free-form player chat.
+    /// </summary>
+    public bool TryCorrectKoreanHeroPrefix(
+        string? text,
+        out string correctedKoreanName,
+        out int consumedCharacters)
+    {
+        correctedKoreanName = string.Empty;
+        consumedCharacters = 0;
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        var source = text.TrimStart();
+        var candidates = new List<(HeroEntry Entry, int Consumed, int Distance)>();
+        foreach (var entry in _entries)
+        {
+            var expected = NormalizeHeroToken(entry.KoreanName);
+            if (expected.Length < 2 || !expected.All(IsHangul))
+            {
+                continue;
+            }
+
+            var builder = new System.Text.StringBuilder(expected.Length);
+            var consumed = 0;
+            while (consumed < source.Length && builder.Length < expected.Length)
+            {
+                var character = source[consumed++];
+                if (char.IsWhiteSpace(character))
+                {
+                    continue;
+                }
+                if (!IsHangul(character))
+                {
+                    builder.Clear();
+                    break;
+                }
+                builder.Append(character);
+            }
+            if (builder.Length != expected.Length)
+            {
+                continue;
+            }
+
+            var distance = EditDistance(builder.ToString(), expected);
+            if (distance <= 1)
+            {
+                candidates.Add((entry, consumed, distance));
+            }
+        }
+
+        var bestDistance = candidates.Count == 0 ? int.MaxValue : candidates.Min(item => item.Distance);
+        var best = candidates
+            .Where(item => item.Distance == bestDistance)
+            .GroupBy(item => item.Entry.Id, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .Take(2)
+            .ToArray();
+        if (best.Length != 1)
+        {
+            return false;
+        }
+
+        correctedKoreanName = best[0].Entry.KoreanName;
+        consumedCharacters = best[0].Consumed;
+        return true;
+    }
+
+    /// <summary>
+    /// Resolves a leading Simplified/Traditional Chinese champion token when
+    /// exactly one official hero is within one Han-character edit. This is for
+    /// fixed HUD/Ping fields only; free-form chat must not be fuzzily rewritten.
+    /// </summary>
+    public bool TryCorrectChineseHeroPrefix(
+        string? text,
+        out string heroId,
+        out string correctedSimplifiedName,
+        out int consumedCharacters)
+    {
+        heroId = string.Empty;
+        correctedSimplifiedName = string.Empty;
+        consumedCharacters = 0;
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        var source = text.TrimStart();
+        var candidates = new List<(HeroEntry Entry, int Consumed, int Distance)>();
+        foreach (var entry in _entries)
+        {
+            foreach (var alias in ChineseHeroAliases(entry))
+            {
+                var expected = NormalizeHeroToken(alias);
+                if (expected.Length < 2 || expected.Length > 8 || !expected.All(IsHan))
+                {
+                    continue;
+                }
+
+                var builder = new System.Text.StringBuilder(expected.Length);
+                var consumed = 0;
+                while (consumed < source.Length && builder.Length < expected.Length)
+                {
+                    var character = source[consumed++];
+                    if (char.IsWhiteSpace(character))
+                    {
+                        continue;
+                    }
+                    if (!IsHan(character))
+                    {
+                        builder.Clear();
+                        break;
+                    }
+                    builder.Append(character);
+                }
+                if (builder.Length != expected.Length)
+                {
+                    continue;
+                }
+
+                var distance = EditDistance(builder.ToString(), expected);
+                if (distance <= 1)
+                {
+                    candidates.Add((entry, consumed, distance));
+                }
+            }
+        }
+
+        var bestDistance = candidates.Count == 0 ? int.MaxValue : candidates.Min(item => item.Distance);
+        var best = candidates
+            .Where(item => item.Distance == bestDistance)
+            .GroupBy(item => item.Entry.Id, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .Take(2)
+            .ToArray();
+        if (best.Length != 1)
+        {
+            return false;
+        }
+
+        heroId = best[0].Entry.Id;
+        correctedSimplifiedName = !string.IsNullOrWhiteSpace(best[0].Entry.ChinesePersonal)
+            ? best[0].Entry.ChinesePersonal
+            : best[0].Entry.ChineseOfficial;
+        consumedCharacters = best[0].Consumed;
+        return true;
+    }
+
     public HeroMention? FindById(
         string? heroId,
         bool preferPersonalName,
@@ -130,6 +302,105 @@ public sealed class HeroDictionary
             && _entriesById.TryGetValue(heroId, out var entry)
                 ? CreateMention(entry, preferPersonalName, language)
                 : null;
+    }
+
+    public string CorrectStructuredHeroPrefix(
+        string subject,
+        bool preferPersonalName,
+        AppLanguage language)
+    {
+        if (TryCorrectChineseHeroPrefix(
+                subject,
+                out var chineseHeroId,
+                out _,
+                out var chineseConsumed))
+        {
+            var mention = FindById(chineseHeroId, preferPersonalName, language);
+            if (mention is not null)
+            {
+                return mention.SpokenName + subject.TrimStart()[chineseConsumed..];
+            }
+        }
+
+        if (TryCorrectKoreanHeroPrefix(subject, out var koreanName, out var koreanConsumed))
+        {
+            var heroId = FindOfficialHeroId(koreanName);
+            var mention = FindById(heroId, preferPersonalName, language);
+            if (mention is not null)
+            {
+                return mention.SpokenName + subject.TrimStart()[koreanConsumed..];
+            }
+        }
+
+        return subject;
+    }
+
+    public string StabilizeHeroTokens(
+        string text,
+        string? lockedHeroId,
+        AppLanguage language)
+    {
+        var stabilized = CorrectStructuredHeroPrefix(text, preferPersonalName: true, language);
+        if (string.IsNullOrWhiteSpace(lockedHeroId)
+            || !_entriesById.TryGetValue(lockedHeroId, out var locked))
+        {
+            return stabilized;
+        }
+
+        var spoken = CreateMention(locked, preferPersonalName: true, language).SpokenName;
+        foreach (var alias in ChineseHeroAliases(locked)
+                     .Concat(new[] { locked.KoreanName, locked.EnglishName })
+                     .Where(alias => !string.IsNullOrWhiteSpace(alias) && alias.Length >= 2)
+                     .Distinct(StringComparer.OrdinalIgnoreCase)
+                     .OrderByDescending(alias => alias.Length))
+        {
+            if (string.Equals(alias, spoken, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            stabilized = stabilized.Replace(
+                ChineseTextNormalizer.ToSimplifiedCharacters(alias),
+                spoken,
+                StringComparison.OrdinalIgnoreCase);
+            stabilized = stabilized.Replace(alias, spoken, StringComparison.OrdinalIgnoreCase);
+        }
+
+        return ReplaceUniqueNearMissRuns(stabilized, locked.Id, spoken);
+    }
+
+    private string ReplaceUniqueNearMissRuns(string text, string lockedHeroId, string spokenName)
+    {
+        var index = 0;
+        while (index < text.Length)
+        {
+            if (!IsHan(text[index]))
+            {
+                index++;
+                continue;
+            }
+
+            var end = index;
+            while (end < text.Length && IsHan(text[end]) && end - index < 8)
+            {
+                end++;
+            }
+
+            var run = text[index..end];
+            if (run.Length >= 2
+                && !string.Equals(run, spokenName, StringComparison.Ordinal)
+                && TryCorrectChineseHeroPrefix(run, out var heroId, out _, out _)
+                && string.Equals(heroId, lockedHeroId, StringComparison.OrdinalIgnoreCase))
+            {
+                text = string.Concat(text.AsSpan(0, index), spokenName, text.AsSpan(end));
+                index += spokenName.Length;
+                continue;
+            }
+
+            index = end;
+        }
+
+        return text;
     }
 
     public HeroMention? FindSpeakerMention(
@@ -164,6 +435,14 @@ public sealed class HeroDictionary
             IsSpeakerToken(normalized, candidate.KoreanName)
             || IsSpeakerToken(normalized, candidate.ChineseOfficial)
             || IsSpeakerToken(normalized, candidate.ChinesePersonal)
+            || IsSpeakerToken(normalized, candidate.ChineseTraditionalName)
+            || IsSpeakerToken(normalized, candidate.ChineseTraditionalTitle)
+            || IsSpeakerToken(
+                normalized,
+                ChineseTextNormalizer.ToSimplifiedCharacters(candidate.ChineseTraditionalName))
+            || IsSpeakerToken(
+                normalized,
+                ChineseTextNormalizer.ToSimplifiedCharacters(candidate.ChineseTraditionalTitle))
             || IsSpeakerToken(normalized, candidate.EnglishName)
             || candidate.ChineseAliases.Any(alias => IsSpeakerToken(normalized, alias)));
         return entry is null
@@ -178,12 +457,33 @@ public sealed class HeroDictionary
         return lines.Select(line =>
         {
             var result = line;
-            foreach (var hero in mentions.OrderByDescending(hero => hero.KoreanName.Length))
+            foreach (var hero in mentions)
             {
-                result = result.Replace(
-                    hero.KoreanName,
-                    $"<英雄 id=\"{hero.Id}\">{hero.SpokenName}</英雄>",
-                    StringComparison.OrdinalIgnoreCase);
+                if (!_entriesById.TryGetValue(hero.Id, out var entry))
+                {
+                    continue;
+                }
+
+                var tag = $"<英雄 id=\"{hero.Id}\">{hero.SpokenName}</英雄>";
+                var aliases = new[]
+                    {
+                        entry.KoreanName,
+                        entry.ChineseOfficial,
+                        entry.ChinesePersonal,
+                        entry.ChineseTraditionalName,
+                        entry.ChineseTraditionalTitle,
+                        ChineseTextNormalizer.ToSimplifiedCharacters(entry.ChineseTraditionalName),
+                        ChineseTextNormalizer.ToSimplifiedCharacters(entry.ChineseTraditionalTitle),
+                        entry.EnglishName
+                    }
+                    .Concat(entry.ChineseAliases)
+                    .Where(alias => !string.IsNullOrWhiteSpace(alias) && alias.Length >= 2)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderByDescending(alias => alias.Length);
+                foreach (var alias in aliases)
+                {
+                    result = result.Replace(alias, tag, StringComparison.OrdinalIgnoreCase);
+                }
             }
 
             return result;
@@ -235,6 +535,40 @@ public sealed class HeroDictionary
         return builder.ToString();
     }
 
+    private static bool IsHangul(char character) =>
+        character is >= '\uAC00' and <= '\uD7A3';
+
+    private static bool IsHan(char character) =>
+        character is >= '\u3400' and <= '\u9FFF';
+
+    private static IEnumerable<string> ChineseHeroAliases(HeroEntry entry) => new[]
+        {
+            entry.ChinesePersonal,
+            entry.ChineseOfficial,
+            entry.ChineseTraditionalName,
+            entry.ChineseTraditionalTitle
+        }
+        .Concat(entry.ChineseAliases)
+        .Where(alias => !string.IsNullOrWhiteSpace(alias));
+
+    private static int EditDistance(string left, string right)
+    {
+        var previous = Enumerable.Range(0, right.Length + 1).ToArray();
+        for (var row = 1; row <= left.Length; row++)
+        {
+            var current = new int[right.Length + 1];
+            current[0] = row;
+            for (var column = 1; column <= right.Length; column++)
+            {
+                current[column] = Math.Min(
+                    Math.Min(previous[column] + 1, current[column - 1] + 1),
+                    previous[column - 1] + (left[row - 1] == right[column - 1] ? 0 : 1));
+            }
+            previous = current;
+        }
+        return previous[right.Length];
+    }
+
     private static HeroMention CreateMention(
         HeroEntry entry,
         bool preferPersonalName,
@@ -245,7 +579,9 @@ public sealed class HeroDictionary
             entry.KoreanName,
             entry.ChineseOfficial,
             entry.ChinesePersonal,
-            GetSpokenName(entry, preferPersonalName, language));
+            GetSpokenName(entry, preferPersonalName, language),
+            entry.ChineseTraditionalName,
+            entry.ChineseTraditionalTitle);
 
     private static string GetSpokenName(
         HeroEntry entry,

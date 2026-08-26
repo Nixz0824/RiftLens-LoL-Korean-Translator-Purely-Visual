@@ -19,6 +19,7 @@ public static class FinalSpeechPolicy
         {
             TranslationSourceKind.PlayerChat =>
                 !ContainsDeterministicNonPlayerContent(result)
+                && PassesPlayerSpeechQuality(result, settings.Language)
                 && PlayerSpeechPolicy.ShouldSpeak(result, settings),
             TranslationSourceKind.TacticalSignal =>
                 settings.TacticalSignalEnabled
@@ -54,6 +55,12 @@ public static class FinalSpeechPolicy
             return SpeechSilenceReasons.HudLeak;
         }
 
+        if (result.SourceKind == TranslationSourceKind.PlayerChat
+            && !PassesPlayerSpeechQuality(result, settings.Language))
+        {
+            return SpeechSilenceReasons.TranslationQuality;
+        }
+
         if (!result.ShouldSpeak || string.IsNullOrWhiteSpace(result.SpokenSummary))
         {
             return SpeechSilenceReasons.UserFilter;
@@ -78,7 +85,8 @@ public static class FinalSpeechPolicy
         foreach (var candidate in candidates)
         {
             var normalized = GameTimestampPrefixParser.Strip(candidate);
-            if (GameSemanticEventParser.TryParsePlayerFeed(normalized, out _)
+            if ((GameSemanticEventParser.TryParsePlayerFeed(normalized, out var playerFeed)
+                    && !string.Equals(playerFeed.Status, "item_marker", StringComparison.Ordinal))
                 || GameSemanticEventParser.TryParseSystemFeed(normalized, out _)
                 || SystemMessageCatalog.TryClassify(normalized, out _, out _, out _))
             {
@@ -92,6 +100,34 @@ public static class FinalSpeechPolicy
             }
         }
 
-        return false;
+        return candidates.Any() && candidates.All(NonPlayerContentGate.IsFixedNonChatPayload);
+    }
+
+    private static bool PassesPlayerSpeechQuality(
+        TranslationResult result,
+        AppLanguage language)
+    {
+        var source = string.Join(
+            " ",
+            (result.OriginalLines ?? new List<string>())
+                .Where(line => !string.IsNullOrWhiteSpace(line)));
+        var readableSource = source.Count(char.IsLetterOrDigit);
+        if (readableSource < 3 || source.All(character => !char.IsLetter(character)))
+        {
+            return false;
+        }
+
+        if (language == AppLanguage.Chinese)
+        {
+            var residualHangul = result.SpokenSummary.Count(character =>
+                character is >= '\uAC00' and <= '\uD7A3'
+                or >= '\u3130' and <= '\u318F');
+            if (residualHangul >= 2)
+            {
+                return false;
+            }
+        }
+
+        return result.SpokenSummary.Count(char.IsLetterOrDigit) >= 2;
     }
 }

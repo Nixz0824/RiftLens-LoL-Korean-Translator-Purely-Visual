@@ -4,6 +4,48 @@ All notable user-facing changes will be documented here. The project follows a l
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-08-26
+
+### Added
+
+- An opt-in `DeepSeek V4 Vision (experimental)` recognition mode. After explicit screenshot consent, only the user-selected crop is sent to `deepseek-v4-flash-vision-exp` for literal Korean/Chinese/English transcription; the existing local classification, terminology, translation, aggregation, and speech pipeline remains unchanged.
+- Automatic per-frame fallback to bundled local PP-OCRv5 when a Vision request fails.
+- A deterministic Vision post-processing layer that joins wrapped chat rows, rejects scrolled-off orphan fragments, repairs evidence-backed player separators, and confines fuzzy official-term correction to structured HUD/Ping fields.
+- Official Riot Data Dragon `zh_TW` names for all 173 champions plus Traditional Chinese abilities, summoner spells, items, and runes. Regional aliases map to the same stable champion/term IDs as Korean, Simplified Chinese, and English.
+- A local-only large-obstruction preflight that runs before JPEG encoding or any DeepSeek Vision request. Clearly covered frames are skipped without uploading.
+- Constrained OCR near-miss recovery for official Ping/HUD phrases, a translation-time fuse that blocks shop/KDA/HUD leaks, session-locked champion names inside HUD bodies, and per-signal speech cooldowns.
+- Simplified-Chinese HUD shares such as `使用了闪现`, `购买了控制守卫`, ASCII-comma caution pings, plating-turret marks, gold ticks, and first-blood/double-kill feed variants are classified locally instead of being spoken as teammate chat.
+- Player flash-timer slang such as `1213mid`, `933 sup`, and `mid f on` is interpreted locally as “that lane used or still has Flash” instead of being read as a raw number plus role.
+- Clicking an enemy item bar now speaks as “A said B bought [official item]” using the Data Dragon name, including smashed OCR such as `이텔리아주문포식자`.
+- A named mutex so a second launch focuses the existing window instead of creating another tray icon.
+
+### Changed
+
+- Vision mode now classifies the local OCR first. Deterministic HUD/Ping/system lines skip the network; only unresolved player chat is sent to DeepSeek, and in-flight Vision work keeps only the latest frame. Uploads use JPEG at native crop size instead of an upscaled PNG.
+- The API Key field is permanently password-masked, has no reveal control, and is cleared from the WebUI immediately after the save message is sent. Persistent storage remains Windows Credential Manager only.
+- Settings schema is now `11` for the experimental recognition mode and explicit Vision screenshot consent. Existing users remain on local OCR with consent off.
+- Chinese neural speech is voice-locked to Xiaoxiao. A transient failure skips the item and retries after a short cooldown instead of silently switching to another installed Chinese voice; English keeps its previous local fallback.
+- Local history JSONL now records the actual recognition engine (`deepseek-v4-flash-vision-exp`, local OCR, or Vision fallback) so future A/B evaluations can distinguish pipelines.
+- In Vision mode, bundled PP-OCRv5 runs first. DeepSeek is used only when player chat remains unresolved; local output still supplies geometry, colour, fallback, and constrained corroboration for champion/header/HUD fields. Free-form player text is never replaced from local OCR.
+- Traditional Chinese Taiwan/Hong Kong/Macau client signals, HUD shares, objective notices, quest notices, kill-spree text, and item markers are normalized before deterministic classification instead of being sent to AI as player chat.
+- The final speech gate now silences pure-number OCR, incomplete/low-information text, and Chinese translations that retain substantial Korean text. Local history now says “queued for speech” for spoken rows instead of the misleading “text only” label.
+
+### Fixed
+
+- Flash OCR near-misses such as `정멸`/`점렬`/`정렬`, control-ward purchases OCR'd as `져야 와드`, and `드레이크` respawn timers are classified as HUD instead of being spoken as invented champion names, surrenders, or item names.
+- Unresolved smashed hero-plus-item OCR is silenced instead of being guessed by the translator.
+- One-syllable Korean glossary entries such as `용` no longer match inside an unrelated word ending such as `세용`; legitimate phrase starts such as `용앞` remain supported.
+- Regional and one-character OCR variants such as `犽宿`, `夢宿`, and `弗宿` resolve to the official Yasuo ID and are spoken as `亚索`, while `凱莎`, `烏迪爾`, `伊瑞莉雅`, and other `zh_TW` names resolve through the same catalog.
+- Match-history timestamps/KDA, pure numbers, and known shop/stat labels no longer enter the player-chat path through a clock colon.
+- Welcome and first-run guide screens advance automatically; the extra “click anywhere to continue” prompt is gone.
+
+### Privacy
+
+- Local OCR remains the default. Vision never runs until the user selects the experimental mode and consents to sending the selected crop.
+- Accepted Vision uploads are JPEG of the selected region at native size. HUD-only frames stay local. The full screen is never sent.
+- The API Key field stays password-masked with no reveal control, is cleared from the WebUI after save, and remains in Windows Credential Manager only.
+- Release notes and packages contain no local evaluation captures, chat logs, annotations, machine paths, API keys, or personal test data.
+
 ## [2.2.0] - 2026-08-24
 
 ### Added
@@ -114,4 +156,4 @@ Implementation brief: `docs/2.1-PLAN.md`.
 
 ## Release policy
 
-RiftLens 2.2.0 is the current public MVP release. It passes the repository's automated Windows checks, but it remains a personal early-stage project: real-match OCR, client wording, antivirus reputation, and unusual Windows/HUD configurations will continue to need community testing.
+RiftLens 2.3.0 is the current public MVP release. Local OCR remains the default; DeepSeek V4 Vision is an opt-in experiment. The package passes the repository's automated Windows checks, but it remains a personal early-stage project: real-match OCR, client wording, antivirus reputation, and unusual Windows/HUD configurations will continue to need community testing.

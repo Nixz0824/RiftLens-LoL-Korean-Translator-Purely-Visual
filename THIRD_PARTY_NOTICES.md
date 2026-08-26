@@ -43,7 +43,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ## Riot Games data and trademarks
 
-The offline champion-name and game-term mappings were derived from Riot Games Data Dragon `ko_KR`, `zh_CN`, and `en_US` locale data, version 16.14.1. Names are aligned only by stable champion, ability, summoner-spell, item, and rune IDs. The compact embedded catalog contains localized names, not game artwork or full raw Data Dragon payloads.
+The offline champion-name and game-term mappings were derived from Riot Games Data Dragon `ko_KR`, `zh_CN`, `zh_TW`, and `en_US` locale data, version 16.14.1. Names are aligned only by stable champion, ability, summoner-spell, item, and rune IDs. The compact embedded catalog contains localized names, not game artwork or full raw Data Dragon payloads.
 
 League of Legends, Riot Games, champion names, Data Dragon data, and associated properties belong to Riot Games, Inc. or their respective rights holders. They are not covered by the RiftLens MIT license.
 

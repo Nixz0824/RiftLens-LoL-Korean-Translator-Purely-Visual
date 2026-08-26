@@ -51,7 +51,7 @@ internal sealed class WebWorkspace : UserControl
     public string RecentMeta { get; set; } = string.Empty;
     public string RecentSilenceReason { get; set; } = string.Empty;
     public string RegionPreview { get; set; } = string.Empty;
-    public string AppVersion { get; set; } = "2.2.0";
+    public string AppVersion { get; set; } = "2.3.0";
     public int ActivePresetIndex { get; set; } = -1;
     public IReadOnlyList<string> PresetNames { get; set; } = Array.Empty<string>();
     public int Volume { get; set; } = 65;
@@ -79,6 +79,8 @@ internal sealed class WebWorkspace : UserControl
     public string InterfacePalette { get; set; } = "porcelain";
     public string CustomThemeColor { get; set; } = "#6f7f91";
     public bool SaveTranslationHistory { get; set; }
+    public int RecognitionMode { get; set; }
+    public bool VisionPrivacyConsent { get; set; }
     public string ApiKeyText { get; set; } = string.Empty;
     public bool EvaluationRecording { get; set; }
 
@@ -134,6 +136,8 @@ internal sealed class WebWorkspace : UserControl
         InterfacePalette = settings.InterfacePalette;
         CustomThemeColor = settings.CustomThemeColor;
         SaveTranslationHistory = settings.SaveTranslationHistory;
+        RecognitionMode = (int)settings.RecognitionMode;
+        VisionPrivacyConsent = settings.VisionPrivacyConsent;
         PushState();
     }
 
@@ -301,6 +305,8 @@ internal sealed class WebWorkspace : UserControl
             "customThemeColorChanged" => SpatialAction.CustomThemeColorChanged,
             "onboardingCompleted" => SpatialAction.OnboardingCompleted,
             "saveTranslationHistoryChanged" => SpatialAction.SaveTranslationHistoryChanged,
+            "recognitionModeChanged" => SpatialAction.RecognitionModeChanged,
+            "visionPrivacyConsentChanged" => SpatialAction.VisionPrivacyConsentChanged,
             "applyPreset" => SpatialAction.ApplyPreset,
             "speechPresetChanged" => SpatialAction.SpeechPresetChanged,
             _ => (SpatialAction?)null
@@ -315,13 +321,14 @@ internal sealed class WebWorkspace : UserControl
             "navigate" => ReadPage(message.Payload),
             "volumeChanged" or "speechRateChanged" or "speechFilterChanged" or "outputModeChanged"
                 or "systemFilterChanged" or "overlayOpacityChanged" or "overlayPlacementChanged"
-                or "applyPreset" or "speechPresetChanged" => ReadInt(message.Payload),
+                or "applyPreset" or "speechPresetChanged" or "recognitionModeChanged" => ReadInt(message.Payload),
             "toggleAutoSpeech" or "changeOnlyChanged" or "signalVoiceChanged"
                 or "urgentPlayerSpeechChanged" or "importantPlayerSpeechChanged" or "neutralPlayerSpeechChanged"
                 or "tacticalSignalsChanged" or "killEventsChanged" or "objectiveEventsChanged"
                 or "clientRemindersChanged" or "otherSystemEventsChanged" or "keepEmotionChanged"
                 or "floatingButtonChanged" or "lowUsageChanged" or "minimizeAfterStartChanged"
-                or "closeToTrayChanged" or "onboardingCompleted" or "saveTranslationHistoryChanged" => ReadBool(message.Payload),
+                or "closeToTrayChanged" or "onboardingCompleted" or "saveTranslationHistoryChanged"
+                or "visionPrivacyConsentChanged" => ReadBool(message.Payload),
             "languageChanged" or "interfacePaletteChanged" or "customThemeColorChanged" => ReadString(message.Payload),
             _ => null
         };
@@ -390,6 +397,8 @@ internal sealed class WebWorkspace : UserControl
                 interfacePalette = InterfacePalette,
                 customThemeColor = CustomThemeColor,
                 saveTranslationHistory = SaveTranslationHistory,
+                recognitionMode = RecognitionMode,
+                visionPrivacyConsent = VisionPrivacyConsent,
                 evaluationRecording = EvaluationRecording,
                 filteredCount = 0,
                 history = _history.ToArray()
