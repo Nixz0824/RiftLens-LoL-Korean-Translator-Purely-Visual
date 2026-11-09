@@ -23,6 +23,12 @@ internal sealed class PaddleOcrEngine : IDisposable
     private readonly string _chineseInput;
     private readonly string[] _koreanDictionary;
     private readonly string[] _chineseDictionary;
+    // Calls are serialized by BundledOcrService. Retain bounded scratch buffers
+    // across frames instead of allocating large arrays on every inference.
+    private float[] _detectionValues = Array.Empty<float>();
+    private float[] _recognitionValues = Array.Empty<float>();
+    private byte[] _detectionMask = Array.Empty<byte>();
+    private int[] _componentQueue = Array.Empty<int>();
     private bool _disposed;
 
     public PaddleOcrEngine(string modelDirectory)
@@ -114,7 +120,7 @@ internal sealed class PaddleOcrEngine : IDisposable
                 using var segment = line.Clone(
                     new Rectangle(span.Start, 0, span.End - span.Start, line.Height),
                     PixelFormat.Format24bppRgb);
-                var candidate = RecognizeWithBothModels(segment);
+                var candidate = RecognizeWithBothModels(segment, cancellationToken);
                 if (candidate.Text.Length > 0 && candidate.Confidence >= 0.24f)
                 {
                     selected.Add(candidate);
@@ -132,32 +138,10 @@ internal sealed class PaddleOcrEngine : IDisposable
             }
         }
 
-        return RecognizeWithBothModels(line);
+        return RecognizeWithBothModels(line, cancellationToken);
     }
 
-    private OcrTextCandidate RecognizeWithBothModels(Bitmap bitmap)
-    {
-        var korean = Recognize(
-            _koreanRecognizer,
-            _koreanInput,
-            _koreanDictionary,
-            OcrRecognitionModel.KoreanEnglish,
-            bitmap);
-        var chinese = Recognize(
-            _chineseRecognizer,
-            _chineseInput,
-            _chineseDictionary,
-            OcrRecognitionModel.ChineseEnglish,
-            bitmap);
-        return TrilingualOcrFusion.Select(korean, chinese);
-    }
-
-    private static OcrTextCandidate Recognize(
-        InferenceSession session,
-        string inputName,
-        string[] dictionary,
-        OcrRecognitionModel model,
-        Bitmap bitmap)
+    private OcrTextCandidate RecognizeWithBothModels(Bitmap bitmap, CancellationToken cancellationToken)
     {
         var ratio = bitmap.Width / (double)Math.Max(1, bitmap.Height);
         var width = Math.Clamp(
@@ -166,12 +150,36 @@ internal sealed class PaddleOcrEngine : IDisposable
             RecognitionMaxWidth);
         using var resized = Resize(bitmap, width, RecognitionHeight);
         var tensor = CreateRecognitionTensor(resized);
+        cancellationToken.ThrowIfCancellationRequested();
+        var korean = Recognize(
+            _koreanRecognizer,
+            _koreanInput,
+            _koreanDictionary,
+            OcrRecognitionModel.KoreanEnglish,
+            tensor);
+        cancellationToken.ThrowIfCancellationRequested();
+        var chinese = Recognize(
+            _chineseRecognizer,
+            _chineseInput,
+            _chineseDictionary,
+            OcrRecognitionModel.ChineseEnglish,
+            tensor);
+        return TrilingualOcrFusion.Select(korean, chinese);
+    }
+
+    private static OcrTextCandidate Recognize(
+        InferenceSession session,
+        string inputName,
+        string[] dictionary,
+        OcrRecognitionModel model,
+        DenseTensor<float> tensor)
+    {
         using var results = session.Run(new[]
         {
             NamedOnnxValue.CreateFromTensor(inputName, tensor)
         });
         var output = results.First().AsTensor<float>();
-        var dimensions = output.Dimensions.ToArray();
+        var dimensions = output.Dimensions;
         if (dimensions.Length != 3 || dimensions[0] < 1)
         {
             return new OcrTextCandidate(string.Empty, 0f, model);
@@ -179,7 +187,9 @@ internal sealed class PaddleOcrEngine : IDisposable
 
         var timeSteps = dimensions[1];
         var classes = dimensions[2];
-        var values = output.ToArray();
+        // Consume the dense output while its owning results collection is alive.
+        ReadOnlySpan<float> values = output is DenseTensor<float> dense
+            ? dense.Buffer.Span : output.ToArray();
         var text = new System.Text.StringBuilder();
         var confidence = 0f;
         var accepted = 0;
@@ -231,7 +241,7 @@ internal sealed class PaddleOcrEngine : IDisposable
             NamedOnnxValue.CreateFromTensor(_detectorInput, tensor)
         });
         var output = results.First().AsTensor<float>();
-        var dimensions = output.Dimensions.ToArray();
+        var dimensions = output.Dimensions;
         if (dimensions.Length != 4 || dimensions[0] < 1 || dimensions[1] < 1)
         {
             return new List<Rectangle>();
@@ -239,7 +249,8 @@ internal sealed class PaddleOcrEngine : IDisposable
 
         var outputHeight = dimensions[2];
         var outputWidth = dimensions[3];
-        var probabilities = output.ToArray();
+        ReadOnlySpan<float> probabilities = output is DenseTensor<float> dense
+            ? dense.Buffer.Span : output.ToArray();
         var components = FindComponents(probabilities, outputWidth, outputHeight);
         var ratioX = source.Width / (double)outputWidth;
         var ratioY = source.Height / (double)outputHeight;
@@ -276,20 +287,23 @@ internal sealed class PaddleOcrEngine : IDisposable
         return MergeLineBoxes(boxes);
     }
 
-    private static List<DetectionComponent> FindComponents(
-        float[] probabilities,
+    private List<DetectionComponent> FindComponents(
+        ReadOnlySpan<float> probabilities,
         int width,
         int height)
     {
-        var mask = new byte[width * height];
-        for (var index = 0; index < mask.Length; index++)
+        var pixelCount = width * height;
+        if (_detectionMask.Length < pixelCount) _detectionMask = new byte[pixelCount];
+        if (_componentQueue.Length < pixelCount) _componentQueue = new int[pixelCount];
+        var mask = _detectionMask;
+        for (var index = 0; index < pixelCount; index++)
         {
             mask[index] = probabilities[index] >= DetectionPixelThreshold ? (byte)1 : (byte)0;
         }
 
-        var queue = new int[mask.Length];
+        var queue = _componentQueue;
         var result = new List<DetectionComponent>();
-        for (var start = 0; start < mask.Length; start++)
+        for (var start = 0; start < pixelCount; start++)
         {
             if (mask[start] == 0)
             {
@@ -464,11 +478,12 @@ internal sealed class PaddleOcrEngine : IDisposable
             .ToList();
     }
 
-    private static DenseTensor<float> CreateDetectionTensor(Bitmap bitmap)
+    private DenseTensor<float> CreateDetectionTensor(Bitmap bitmap)
     {
         var (pixels, stride) = ReadBgr(bitmap);
         var plane = bitmap.Width * bitmap.Height;
-        var values = new float[plane * 3];
+        if (_detectionValues.Length < plane * 3) _detectionValues = new float[plane * 3];
+        var values = _detectionValues;
         for (var y = 0; y < bitmap.Height; y++)
         {
             for (var x = 0; x < bitmap.Width; x++)
@@ -480,14 +495,15 @@ internal sealed class PaddleOcrEngine : IDisposable
                 values[plane * 2 + index] = (pixel.R / 255f - 0.406f) / 0.225f;
             }
         }
-        return new DenseTensor<float>(values, new[] { 1, 3, bitmap.Height, bitmap.Width });
+        return new DenseTensor<float>(values.AsMemory(0, plane * 3), new[] { 1, 3, bitmap.Height, bitmap.Width });
     }
 
-    private static DenseTensor<float> CreateRecognitionTensor(Bitmap bitmap)
+    private DenseTensor<float> CreateRecognitionTensor(Bitmap bitmap)
     {
         var (pixels, stride) = ReadBgr(bitmap);
         var plane = bitmap.Width * bitmap.Height;
-        var values = new float[plane * 3];
+        if (_recognitionValues.Length < plane * 3) _recognitionValues = new float[plane * 3];
+        var values = _recognitionValues;
         for (var y = 0; y < bitmap.Height; y++)
         {
             for (var x = 0; x < bitmap.Width; x++)
@@ -499,7 +515,7 @@ internal sealed class PaddleOcrEngine : IDisposable
                 values[plane * 2 + index] = pixel.R / 127.5f - 1f;
             }
         }
-        return new DenseTensor<float>(values, new[] { 1, 3, bitmap.Height, bitmap.Width });
+        return new DenseTensor<float>(values.AsMemory(0, plane * 3), new[] { 1, 3, bitmap.Height, bitmap.Width });
     }
 
     private static (byte[] Pixels, int Stride) ReadBgr(Bitmap bitmap)

@@ -10,7 +10,8 @@ public static class FinalSpeechPolicy
 {
     public static bool ShouldSpeak(TranslationResult result, AppSettings settings)
     {
-        if (!result.ShouldSpeak || string.IsNullOrWhiteSpace(result.SpokenSummary))
+        if (result.Lifetime is { IsExpired: true }
+            || !result.ShouldSpeak || string.IsNullOrWhiteSpace(result.SpokenSummary))
         {
             return false;
         }
@@ -34,6 +35,7 @@ public static class FinalSpeechPolicy
 
     public static string? DescribeSilence(TranslationResult result, AppSettings settings)
     {
+        if (result.Lifetime is { IsExpired: true }) return SpeechSilenceReasons.Expired;
         if (settings.OutputMode == OutputMode.OverlayOnly)
         {
             return SpeechSilenceReasons.OverlayOnly;

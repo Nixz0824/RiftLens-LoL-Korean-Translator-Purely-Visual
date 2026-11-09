@@ -8,6 +8,12 @@ using System.Threading.Channels;
 
 var failures = new List<string>();
 
+if (args.Length >= 2 && args[0] == "--benchmark-ocr")
+{
+    await OcrPerformanceBenchmark.RunAsync(args[1], args.Length >= 3 ? Math.Clamp(int.Parse(args[2]), 3, 100) : 10);
+    return 0;
+}
+
 if (args.Length >= 2 && string.Equals(args[0], "--vision-upload-guard-eval", StringComparison.OrdinalIgnoreCase))
 {
     var sessionDirectory = Path.GetFullPath(args[1]);
@@ -407,34 +413,25 @@ if (args.Length >= 2 && string.Equals(args[0], "--render-translation", StringCom
 
 if (args.Length >= 2 && string.Equals(args[0], "--render-main", StringComparison.OrdinalIgnoreCase))
 {
-    ApplicationConfiguration.Initialize();
-    using var form = new RiftLens.UI.MainForm
-    {
-        Size = new Size(1240, 810),
-        Opacity = 0,
-        ShowInTaskbar = false
-    };
-    form.Show();
-    Application.DoEvents();
-    if (args.Length >= 3)
-    {
-        var showPage = typeof(RiftLens.UI.MainForm).GetMethod(
-            "ShowPage",
-            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException("找不到页面切换方法");
-        showPage.Invoke(form, new object[] { args[2].ToLowerInvariant() });
-        Application.DoEvents();
-    }
-    Thread.Sleep(80);
-    Application.DoEvents();
-    using var bitmap = new Bitmap(form.Width, form.Height);
-    form.DrawToBitmap(bitmap, new Rectangle(Point.Empty, form.Size));
-    var outputPath = Path.GetFullPath(args[1]);
-    Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
-    bitmap.Save(outputPath, System.Drawing.Imaging.ImageFormat.Png);
-    Console.WriteLine($"主界面预览：{form.Width}x{form.Height} · {outputPath}");
-    return 0;
+    return await MainWindowDiagnostics.CaptureAsync(args[1],
+        args.Length >= 3 && int.TryParse(args[2], out var renderWidth) ? renderWidth : 1240,
+        args.Length >= 4 && int.TryParse(args[3], out var renderHeight) ? renderHeight : 810,
+        args.Length >= 3 && !int.TryParse(args[2], out _) ? args[2].ToLowerInvariant() : "home");
 }
+await CheckAsync("翻译超时后继续消费", PipelineRegressionChecks.TimeoutRecoveryAsync);
+await CheckAsync("暂停取消请求与继续监听", PipelineRegressionChecks.PauseRecoveryAsync);
+await CheckAsync("混合轮次原文与译文配对", PipelineRegressionChecks.SourceAlignmentAsync);
+await CheckAsync("Vision 超时回退与恢复", PipelineRegressionChecks.VisionTimeoutAsync);
+await CheckAsync("并发设置保存与损坏恢复", PipelineRegressionChecks.ConcurrentSettingsAsync);
+await CheckAsync("消息期限使用单调时钟", MessageDeliveryRegressionChecks.MonotonicLifetimeAsync);
+await CheckAsync("过期玩家消息与混合轮次过滤", MessageDeliveryRegressionChecks.ExpiredAndMixedTurnsAsync);
+await CheckAsync("翻译响应到达后的时效检查", MessageDeliveryRegressionChecks.ExpiryDuringTranslationAsync);
+await CheckAsync("消息截止时间取消与后续恢复", MessageDeliveryRegressionChecks.DeadlineCancellationAndRecoveryAsync);
+await CheckAsync("聚合条数与最长等待边界", MessageDeliveryRegressionChecks.AggregationLimitsAsync);
+await CheckAsync("持续来消息时强制结束聚合", MessageDeliveryRegressionChecks.ContinuousConsumerAsync);
+await CheckAsync("逐行 ID 与响应完成状态校验", MessageDeliveryRegressionChecks.TranslationProtocolAsync);
+await CheckAsync("缺行与长句播报安全", MessageDeliveryRegressionChecks.LiteralSpeechSafetyAsync);
+await CheckAsync("TTS 排队及合成后的过期检查", MessageDeliveryRegressionChecks.SpeechExpiryAsync);
 
 await CheckAsync("英雄中韩映射", async () =>
 {
@@ -1683,12 +1680,12 @@ await CheckAsync("AI 结构化翻译协议", async () =>
 {
     var modelResult = JsonSerializer.Serialize(new
     {
-        displayLines = new[] { "请上路支援。", "小心敌方打野。" },
+        displayLines = new[] { new { id = "line-1", translation = "请上路支援。" }, new { id = "line-2", translation = "小心敌方打野。" } },
         toxicityFiltered = false
     });
     var apiResponse = JsonSerializer.Serialize(new
     {
-        choices = new[] { new { message = new { content = modelResult } } }
+        choices = new[] { new { finish_reason = "stop", message = new { content = modelResult } } }
     });
     var handler = new FakeHttpHandler(apiResponse);
     using var translator = new OpenAiCompatibleTranslationService(
@@ -1725,7 +1722,7 @@ await CheckAsync("AI 结构化翻译协议", async () =>
 
     var genericResult = JsonSerializer.Serialize(new
     {
-        displayLines = new[] { "请上路支援，并小心对面打野。" },
+        displayLines = new[] { new { id = "line-1", translation = "请上路支援，并小心对面打野。" } },
         toxicityFiltered = false
     });
     using var faithfulTranslator = new OpenAiCompatibleTranslationService(
@@ -1734,7 +1731,7 @@ await CheckAsync("AI 结构化翻译协议", async () =>
         "test-key",
         new FakeHttpHandler(JsonSerializer.Serialize(new
         {
-            choices = new[] { new { message = new { content = genericResult } } }
+            choices = new[] { new { finish_reason = "stop", message = new { content = genericResult } } }
         })));
     var faithful = await faithfulTranslator.TranslateAsync(new TranslationRequest(
         new[] { "탑 합류 좀, 상대 정글 조심해" },
@@ -1748,7 +1745,7 @@ await CheckAsync("AI 结构化翻译协议", async () =>
 
     var hostileResult = JsonSerializer.Serialize(new
     {
-        displayLines = new[] { "队友持续进行人身攻击。" },
+        displayLines = new[] { new { id = "line-1", translation = "队友持续进行人身攻击。" } },
         toxicityFiltered = true
     });
     using var protectiveTranslator = new OpenAiCompatibleTranslationService(
@@ -1757,7 +1754,7 @@ await CheckAsync("AI 结构化翻译协议", async () =>
         "test-key",
         new FakeHttpHandler(JsonSerializer.Serialize(new
         {
-            choices = new[] { new { message = new { content = hostileResult } } }
+            choices = new[] { new { finish_reason = "stop", message = new { content = hostileResult } } }
         })));
     var protective = await protectiveTranslator.TranslateAsync(new TranslationRequest(
         new[] { "심한 욕설" },
@@ -1772,12 +1769,12 @@ await CheckAsync("AI 结构化翻译协议", async () =>
 
     var englishResult = JsonSerializer.Serialize(new
     {
-        displayLines = new[] { "Rotate top now and watch for the enemy jungler." },
+        displayLines = new[] { new { id = "line-1", translation = "Rotate top now and watch for the enemy jungler." } },
         toxicityFiltered = false
     });
     var englishHandler = new FakeHttpHandler(JsonSerializer.Serialize(new
     {
-        choices = new[] { new { message = new { content = englishResult } } }
+        choices = new[] { new { finish_reason = "stop", message = new { content = englishResult } } }
     }));
     using var englishTranslator = new OpenAiCompatibleTranslationService(
         "https://api.deepseek.com", "deepseek-v4-flash", "test-key", englishHandler);

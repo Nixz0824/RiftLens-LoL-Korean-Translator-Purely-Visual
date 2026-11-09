@@ -32,6 +32,7 @@ internal sealed class WebWorkspace : UserControl
     private bool _webReady;
     private bool _initializing;
     private bool _suspendPending;
+    private readonly string? _userDataFolder;
 
     public event Action<SpatialAction, object?>? ActionRequested;
 
@@ -84,8 +85,9 @@ internal sealed class WebWorkspace : UserControl
     public string ApiKeyText { get; set; } = string.Empty;
     public bool EvaluationRecording { get; set; }
 
-    public WebWorkspace()
+    public WebWorkspace(string? userDataFolder = null)
     {
+        _userDataFolder = userDataFolder;
         BackColor = Color.FromArgb(249, 248, 247);
         Controls.Add(_webView);
         Controls.Add(_loadingSurface);
@@ -182,7 +184,7 @@ internal sealed class WebWorkspace : UserControl
         _initializing = true;
         try
         {
-            var userDataFolder = Path.Combine(
+            var userDataFolder = _userDataFolder ?? Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "RiftLens",
                 "WebView2");
@@ -337,7 +339,9 @@ internal sealed class WebWorkspace : UserControl
 
     private void PushState()
     {
-        if (!_webReady || _webView.CoreWebView2 is null || IsDisposed)
+        // Property/history updates still accumulate while hidden. Send one current
+        // snapshot when shown, rather than serializing history into a suspended view.
+        if (!_webReady || _webView.CoreWebView2 is null || IsDisposed || !Visible)
         {
             return;
         }
@@ -423,15 +427,7 @@ internal sealed class WebWorkspace : UserControl
         _suspendPending = true;
         try
         {
-            if (Visible)
-            {
-                if (_webView.CoreWebView2.IsSuspended)
-                {
-                    _webView.CoreWebView2.Resume();
-                    PushState();
-                }
-            }
-            else if (!_webView.CoreWebView2.IsSuspended)
+            if (!Visible && !_webView.CoreWebView2.IsSuspended)
             {
                 await _webView.CoreWebView2.TrySuspendAsync();
             }
@@ -443,6 +439,20 @@ internal sealed class WebWorkspace : UserControl
         finally
         {
             _suspendPending = false;
+            // Suspension is best-effort. Refresh on show even when it failed or
+            // the window became visible while TrySuspendAsync was pending.
+            if (Visible && !IsDisposed && _webView.CoreWebView2 is { } core)
+            {
+                try
+                {
+                    if (core.IsSuspended) core.Resume();
+                    PushState();
+                }
+                catch (InvalidOperationException)
+                {
+                    // The browser may be shutting down with its parent window.
+                }
+            }
         }
     }
 

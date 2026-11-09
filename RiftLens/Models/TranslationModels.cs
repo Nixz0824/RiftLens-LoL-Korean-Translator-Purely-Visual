@@ -195,7 +195,11 @@ public sealed record ClassifiedGameMessage(
     GameSystemEvent? SystemEvent = null,
     double ClassificationConfidence = 0,
     string EvaluationLineId = "",
-    string RecognitionEngine = "");
+    string RecognitionEngine = "")
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public MessageLifetime? Lifetime { get; init; }
+}
 
 public sealed record PlayerSpeechTurn(
     string SpeakerKey,
@@ -205,7 +209,28 @@ public sealed record PlayerSpeechTurn(
     DateTimeOffset LastUpdatedAt,
     string SpeakerHeroId = "",
     IReadOnlyList<string>? EvaluationLineIds = null,
-    string RecognitionEngine = "");
+    string RecognitionEngine = "",
+    IReadOnlyList<ClassifiedGameMessage>? Messages = null)
+{
+    public IReadOnlyList<ClassifiedGameMessage> GetMessages() => Messages ?? Contents
+        .Select((content, index) => new ClassifiedGameMessage(
+            GameMessageKind.PlayerChat,
+            index < RawLines.Count ? RawLines[index] : content,
+            content, SpeakerKey, SpeakerRaw, CapturedAt: LastUpdatedAt,
+            SpeakerHeroId: SpeakerHeroId,
+            EvaluationLineId: EvaluationLineIds is not null && index < EvaluationLineIds.Count
+                ? EvaluationLineIds[index] : string.Empty,
+            RecognitionEngine: RecognitionEngine))
+        .ToArray();
+
+    public PlayerSpeechTurn SelectMessages(IReadOnlyList<ClassifiedGameMessage> messages) => this with
+    {
+        Messages = messages,
+        RawLines = messages.Select(message => message.RawText).ToArray(),
+        Contents = messages.Select(message => message.Content).ToArray(),
+        EvaluationLineIds = messages.Select(message => message.EvaluationLineId).ToArray()
+    };
+}
 
 public sealed record HeroMention(
     string Id,
@@ -228,6 +253,8 @@ public sealed record TranslationRequest(
 
 public sealed class TranslationResult
 {
+    [System.Text.Json.Serialization.JsonIgnore]
+    public MessageLifetime? Lifetime { get; set; }
     public string RecognitionEngine { get; set; } = string.Empty;
     public TranslationSourceKind SourceKind { get; set; } = TranslationSourceKind.PlayerChat;
     public bool ShouldSpeak { get; set; }

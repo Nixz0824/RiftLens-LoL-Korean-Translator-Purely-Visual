@@ -121,8 +121,72 @@
       verify(document.querySelector(".history-card h2").textContent.includes(otherLanguage === "en-US" ? "Translation" : "翻译"), "History heading did not localize");
       click("#language-button"); verify(document.documentElement.lang === language, "Language switch-back failed");
 
+      const deliveryHostState = data => window.__riftLensHostMessage({data:{type:"state",data}});
+      const statusMessage = language === "en-US"
+        ? "The translation was incomplete; this turn was skipped."
+        : "翻译未完整结束，已跳过本轮。";
+      const deliveryHistory = [
+        {time:"2026-11-09T12:00:00+08:00",original:"first",translation:"第一行\n第二行",spoken:true},
+        {time:"2026-11-09T12:00:01+08:00",original:"expired",translation:"过期译文",spoken:false,silenceReasonCode:"expired"},
+        {time:"2026-11-09T12:00:02+08:00",original:"long",translation:"保留完整长译文",spoken:false,silenceReasonCode:"speech_too_long"},
+        {time:"2026-11-09T12:00:03+08:00",original:"partial",translation:"待确认译文",spoken:false,silenceReasonCode:"translation_quality"}
+      ];
+      deliveryHostState({statusMessage,history:deliveryHistory});
+      const deliveryCells = () => [...document.querySelectorAll("#history-rows tr")].map(row=>row.cells[3].textContent);
+      const expectedDelivery = language === "en-US"
+        ? ["Queued","Message expired","Text too long","Translation unverified"]
+        : ["已加入队列","消息已过期","译文过长","翻译质量不确定"];
+      verify(JSON.stringify(deliveryCells())===JSON.stringify(expectedDelivery), "Delivery status or silence reasons were not localized");
+      verify(document.querySelector("#runtime-status").textContent===statusMessage
+        && !document.querySelector("#runtime-status").hidden
+        && document.querySelector("#runtime-status").getAttribute("role")==="status",
+        "Backend rejection was not visible as accessible status feedback");
+      verify(document.querySelector("#history-summary").textContent.includes(language==="en-US"?"1 queued":"已排队1条"),
+        "Queue count was presented as confirmed playback");
+      const translationCell = document.querySelector("#history-rows tr").cells[2];
+      verify(translationCell.textContent==="第一行\n第二行" && getComputedStyle(translationCell).whiteSpace==="pre-line",
+        "Full translation lines were collapsed or truncated");
+      deliveryHistory[1].silenceReasonCode="policy";
+      deliveryHostState({history:deliveryHistory});
+      verify(deliveryCells()[1]===(language==="en-US"?"Speech tier off":"当前策略不播报"),
+        "A reason-only history update was lost by the render cache");
+      click("#language-button");
+      verify(deliveryCells()[2]===(language==="en-US"?"译文过长":"Text too long"),
+        "Changing language did not retranslate delivery reasons");
+      click("#language-button");
+      deliveryHistory[1].silenceReasonCode="future_reason";
+      deliveryHostState({history:deliveryHistory,statusMessage:""});
+      verify(deliveryCells()[1]===(language==="en-US"?"Silent":"未播报")
+        && document.querySelector("#runtime-status").hidden,
+        "Unknown reason or cleared status did not fall back safely");
+
+      const historyForPerformance = Array.from({length:150},(_,index)=>({
+        time:"2026-09-05T12:00:00+08:00", original:`sample ${index}`, translation:`译文 ${index}`, spoken:false
+      }));
+      const hostState = data => window.__riftLensHostMessage({data:{type:"state",data}});
+      hostState({history:historyForPerformance});
+      const historyBody = document.querySelector("#history-rows");
+      const originalFirstRow = historyBody.firstElementChild;
+      const observer = new MutationObserver(()=>{});
+      observer.observe(historyBody,{childList:true,subtree:true});
+      for(let index=0;index<100;index++)hostState({volume:index,history:historyForPerformance.map(item=>({...item}))});
+      const unchangedHistoryMutations = observer.takeRecords().length;
+      observer.disconnect();
+      verify(unchangedHistoryMutations===0 && historyBody.firstElementChild===originalFirstRow,
+        "Unrelated state updates rebuilt unchanged history rows");
+      historyForPerformance[0].translation="更新后的译文";
+      hostState({history:historyForPerformance});
+      verify(historyBody.firstElementChild.cells[2].textContent==="更新后的译文", "Same-length history edit was missed");
+      const languageBefore = document.documentElement.lang;
+      click("#language-button");
+      verify(historyBody.firstElementChild.cells[3].textContent === (languageBefore==="zh-CN"?"Silent":"未播报"),
+        "Cached history did not update after language switch");
+      click("#language-button");
+      hostState({history:[]});
+      verify(historyBody.children.length===0 && !document.querySelector("#empty-history").hidden,
+        "Cached history did not clear");
       result.dataset.status = "pass";
-      result.textContent = `PASS ${language} interactions`;
+      result.textContent = `PASS ${language} interactions; 100 updates / 150 rows: ${unchangedHistoryMutations} history mutations`;
     } catch (error) {
       result.dataset.status = "fail";
       result.textContent = `${language}: ${error.message}`;

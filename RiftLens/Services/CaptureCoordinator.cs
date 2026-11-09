@@ -18,6 +18,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
     private readonly VisionOcrPostProcessor _visionPostProcessor;
     private readonly ITranslationService _translator;
     private readonly IVisionOcrService? _visionOcr;
+    private readonly TimeProvider _clock;
     private readonly Channel<ClassifiedGameMessage> _messages = Channel.CreateBounded<ClassifiedGameMessage>(new BoundedChannelOptions(24)
     {
         FullMode = BoundedChannelFullMode.DropOldest,
@@ -25,10 +26,13 @@ public sealed class CaptureCoordinator : IAsyncDisposable
         SingleWriter = false
     });
     private readonly object _pipelineLock = new();
+    private readonly object _requestGate = new();
+    private CancellationTokenSource _requestCancellation = new();
     private readonly object _visionScheduleLock = new();
     private Bitmap? _pendingVisionBitmap;
     private OcrDocument? _pendingVisionLocalDocument;
     private DateTimeOffset _pendingVisionCapturedAt;
+    private MessageLifetime? _pendingVisionLifetime;
     private ClassifiedGameMessage[] _pendingHeldPlayerChat = Array.Empty<ClassifiedGameMessage>();
     private int _pendingVisionGeneration;
     private int _visionWorkerRunning;
@@ -51,7 +55,9 @@ public sealed class CaptureCoordinator : IAsyncDisposable
     public event Action<MessageDiagnosticObservation>? DiagnosticObserved;
     public event Action<EvaluationFrameObservation>? EvaluationFrameObserved;
 
-    public bool IsRunning => _cancellation is { IsCancellationRequested: false };
+    public bool IsRunning => _cancellation is { IsCancellationRequested: false }
+        && _captureTask is not { IsCompleted: true }
+        && _translationTask is not { IsCompleted: true };
     public bool IsPaused => Volatile.Read(ref _paused) == 1;
     public bool EvaluationCaptureEnabled
     {
@@ -70,7 +76,8 @@ public sealed class CaptureCoordinator : IAsyncDisposable
         AppSettings settings,
         HeroDictionary heroes,
         ITranslationService translator,
-        IVisionOcrService? visionOcr = null)
+        IVisionOcrService? visionOcr = null,
+        TimeProvider? clock = null)
     {
         _settings = settings;
         _heroes = heroes;
@@ -78,6 +85,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
         _visionPostProcessor = new VisionOcrPostProcessor(heroes);
         _translator = translator;
         _visionOcr = visionOcr;
+        _clock = clock ?? TimeProvider.System;
     }
 
     public void Start()
@@ -103,11 +111,11 @@ public sealed class CaptureCoordinator : IAsyncDisposable
         DropPendingVision();
         _lastEvaluationPeriodicSampleAt = DateTimeOffset.MinValue;
         ClearPendingMessages();
-        Interlocked.Increment(ref _stateGeneration);
+        InvalidateRequests();
         Interlocked.Exchange(ref _paused, 0);
         _cancellation = new CancellationTokenSource();
-        _captureTask = CaptureLoopAsync(_cancellation.Token);
-        _translationTask = TranslationLoopAsync(_cancellation.Token);
+        _captureTask = RunWorkerAsync(CaptureLoopAsync, _cancellation.Token);
+        _translationTask = RunWorkerAsync(TranslationLoopAsync, _cancellation.Token);
         StatusChanged?.Invoke(UsesVisionOcr
             ? L(
                 "正在使用 DeepSeek V4 Vision 实验识别；首次结果只建立基线，不播报旧消息。",
@@ -130,7 +138,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             return;
         }
 
-        Interlocked.Increment(ref _stateGeneration);
+        InvalidateRequests();
         ClearPendingMessages();
         DropPendingVision();
         if (paused)
@@ -156,7 +164,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             return;
         }
 
-        Interlocked.Increment(ref _stateGeneration);
+        InvalidateRequests();
         ClearPendingMessages();
         DropPendingVision();
         _cancellation.Cancel();
@@ -177,6 +185,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             _captureTask = null;
             _translationTask = null;
             _visionWorkerTask = null;
+            Interlocked.Exchange(ref _visionWorkerRunning, 0);
             StatusChanged?.Invoke(L("监听已停止。", "Listening stopped."));
         }
     }
@@ -189,6 +198,47 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             return (await RecognizeVisionHybridAsync(bitmap, cancellationToken)).Document.RawText;
         }
         return await _ocr.RecognizeAsync(bitmap, cancellationToken, _settings.OcrScale);
+    }
+
+    private void InvalidateRequests()
+    {
+        CancellationTokenSource previous;
+        lock (_requestGate)
+        {
+            Interlocked.Increment(ref _stateGeneration);
+            previous = _requestCancellation;
+            _requestCancellation = new CancellationTokenSource();
+        }
+        previous.Cancel();
+        previous.Dispose();
+    }
+
+    private CancellationTokenSource CreateRequestCancellation(int generation, CancellationToken lifetime)
+    {
+        lock (_requestGate)
+        {
+            var request = CancellationTokenSource.CreateLinkedTokenSource(lifetime, _requestCancellation.Token);
+            if (IsPaused || generation != Volatile.Read(ref _stateGeneration)) request.Cancel();
+            return request;
+        }
+    }
+
+    private async Task RunWorkerAsync(Func<CancellationToken, Task> worker, CancellationToken token)
+    {
+        try
+        {
+            await worker(token);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            _cancellation?.Cancel();
+            StatusChanged?.Invoke(L(
+                $"监听意外停止，请重新开始：{exception.Message}",
+                $"Listening stopped unexpectedly. Start again: {exception.Message}"));
+        }
     }
 
     public string OcrEngineName => UsesVisionOcr
@@ -274,6 +324,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             visionDisposable.Dispose();
         }
         _ocr.Dispose();
+        _requestCancellation.Dispose();
     }
 
     private async Task CaptureLoopAsync(CancellationToken cancellationToken)
@@ -322,7 +373,8 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                         continue;
                     }
                     using var stableBitmap = _capture.Capture(_settings.CaptureRegion);
-                    var capturedAt = DateTimeOffset.UtcNow;
+                    var capturedAt = _clock.GetUtcNow();
+                    var lifetime = MessageLifetime.FromCapture(capturedAt, TimeSpan.FromSeconds(6), _clock);
                     var localPipelineTimer = Stopwatch.StartNew();
                     var ocrTimer = Stopwatch.StartNew();
                     var localDocument = await _ocr.RecognizeDetailedAsync(
@@ -341,7 +393,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                         localDocument,
                         capturedAt,
                         frameId,
-                        "local-ppocrv5");
+                        "local-ppocrv5", lifetime);
                     localPipelineTimer.Stop();
 
                     var captureKind = "ocr_stable_frame";
@@ -367,7 +419,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                                     .Select(item => item.Message)
                                     .Where(message => !VisionDispatchPolicy.PublishImmediately(message))
                                     .ToArray(),
-                                generation);
+                                generation, lifetime);
                         }
                         else
                         {
@@ -448,7 +500,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
 
     private async Task TranslationLoopAsync(CancellationToken cancellationToken)
     {
-        var turns = new PlayerTurnAggregator();
+        var turns = new PlayerTurnAggregator(_clock);
         ClassifiedGameMessage? pendingSystemMessage = null;
         var generation = Volatile.Read(ref _stateGeneration);
         var lastPlayerObservedAt = DateTimeOffset.MinValue;
@@ -462,18 +514,40 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                 pendingSystemMessage = null;
                 _speechLimiter.Reset();
                 generation = Volatile.Read(ref _stateGeneration);
+                partialWaitUsed = false;
             }
 
+            if (IsPaused)
+            {
+                await Task.Delay(50, cancellationToken);
+                continue;
+            }
+
+            // Check independently of reads: a continuously nonempty channel must not
+            // postpone a turn just because ReadAsync never times out.
+            if (turns.HasReachedMaximumWait)
+            {
+                var completed = turns.Flush();
+                partialWaitUsed = false;
+                if (completed is not null)
+                    await TranslatePlayerTurnAsync(completed, generation, cancellationToken);
+                continue;
+            }
+
+            var idleTimeoutMs = Math.Clamp(_settings.SummaryWindowMs, 500, 2500);
             var timeoutMs = turns.HasPending
-                ? Math.Clamp(_settings.SummaryWindowMs, 500, 2500)
+                ? turns.GetWaitMilliseconds(idleTimeoutMs * (partialWaitUsed ? 2 : 1))
                 : pendingSystemMessage is not null ? 450 : Timeout.Infinite;
-            var message = await ReadNextMessageAsync(timeoutMs, cancellationToken);
+            var message = await ReadNextMessageAsync(timeoutMs, generation, cancellationToken);
+
+            if (IsPaused || generation != Volatile.Read(ref _stateGeneration)) continue;
 
             if (message is null)
             {
                 if (turns.HasPending)
                 {
-                    if (!partialWaitUsed && PartialLineWait.LooksIncomplete(turns.LastContent))
+                    if (!partialWaitUsed && !turns.HasReachedMaximumWait
+                        && PartialLineWait.LooksIncomplete(turns.LastContent))
                     {
                         partialWaitUsed = true;
                         continue;
@@ -491,10 +565,9 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                 if (pendingSystemMessage is not null)
                 {
                     var now = DateTimeOffset.UtcNow;
-                    var messageAge = now - pendingSystemMessage.CapturedAt;
                     if (now - lastPlayerObservedAt >= TimeSpan.FromMilliseconds(2200)
                         && _speechLimiter.CanSpeak(pendingSystemMessage, now)
-                        && messageAge <= TimeSpan.FromSeconds(4)
+                        && pendingSystemMessage.Lifetime is { IsExpired: false }
                         && _settings.IsSystemMessageEnabled(pendingSystemMessage.Kind)
                         && !IsPaused
                         && generation == Volatile.Read(ref _stateGeneration))
@@ -511,6 +584,9 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             {
                 continue;
             }
+
+            message = EnsureLifetime(message);
+            if (message.Lifetime!.IsExpired) continue;
 
             if (message.Kind == GameMessageKind.PlayerChat)
             {
@@ -561,15 +637,11 @@ public sealed class CaptureCoordinator : IAsyncDisposable
 
     private async Task<ClassifiedGameMessage?> ReadNextMessageAsync(
         int timeoutMs,
+        int generation,
         CancellationToken cancellationToken)
     {
-        if (timeoutMs == Timeout.Infinite)
-        {
-            return await _messages.Reader.ReadAsync(cancellationToken);
-        }
-
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(timeoutMs);
+        using var timeout = CreateRequestCancellation(generation, cancellationToken);
+        if (timeoutMs != Timeout.Infinite) timeout.CancelAfter(timeoutMs);
         try
         {
             return await _messages.Reader.ReadAsync(timeout.Token);
@@ -580,6 +652,20 @@ public sealed class CaptureCoordinator : IAsyncDisposable
         }
     }
 
+    private ClassifiedGameMessage EnsureLifetime(ClassifiedGameMessage message)
+    {
+        var budget = message.Kind == GameMessageKind.PlayerChat
+            ? TimeSpan.FromMilliseconds(PlayerSpeechPolicy.IsLikelyUrgent(message.Content) ? 4500 : 6000)
+            : TimeSpan.FromMilliseconds(4000);
+        var lifetime = message.Lifetime?.LimitTo(budget)
+            ?? MessageLifetime.FromCapture(message.CapturedAt, budget, _clock);
+        return message with { CapturedAt = lifetime.CapturedAt, Lifetime = lifetime };
+    }
+
+    private static MessageLifetime GetTurnLifetime(PlayerSpeechTurn turn) =>
+        turn.GetMessages().Select(message => message.Lifetime!)
+            .MinBy(lifetime => lifetime.Remaining)!;
+
     private async Task TranslatePlayerTurnAsync(
         PlayerSpeechTurn turn,
         int generation,
@@ -587,6 +673,9 @@ public sealed class CaptureCoordinator : IAsyncDisposable
     {
         try
         {
+            turn = turn.SelectMessages(turn.GetMessages().Select(EnsureLifetime)
+                .Where(message => !message.Lifetime!.IsExpired).ToArray());
+            if (turn.Contents.Count == 0) return;
             var speakerMention = _heroes.FindById(
                     turn.SpeakerHeroId,
                     _settings.PreferChampionPersonalName,
@@ -597,33 +686,38 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                     _settings.Language);
             var speakerLabel = speakerMention?.SpokenName
                 ?? (_settings.Language == AppLanguage.English ? "Teammate" : "队友");
-            var remainingContents = new List<string>();
-            if (TryEmitPlayerCallouts(turn, speakerLabel, generation, remainingContents)
-                && remainingContents.Count == 0)
+            if (IsPaused || generation != Volatile.Read(ref _stateGeneration)) return;
+            var remainingMessages = new List<ClassifiedGameMessage>();
+            if (TryEmitPlayerCallouts(turn, speakerLabel, generation, remainingMessages)
+                && remainingMessages.Count == 0)
             {
                 return;
             }
 
-            var playerLines = remainingContents
-                .Where(line => !NonPlayerContentGate.IsBlockedPlayerPayload(line))
+            var remainingTurn = turn.SelectMessages(remainingMessages);
+            turn = turn.SelectMessages(remainingMessages
+                .Where(message => !NonPlayerContentGate.IsBlockedPlayerPayload(message.Content)).ToArray());
+            var playerLines = turn.Contents
                 .Select(line => _heroes.StabilizeHeroTokens(
                     line,
                     turn.SpeakerHeroId,
                     _settings.Language))
                 .ToArray();
             if (playerLines.Length == 0
-                || NonPlayerContentGate.ShouldSkipPlayerTranslation(remainingContents.Count > 0
-                    ? remainingContents
+                || NonPlayerContentGate.ShouldSkipPlayerTranslation(remainingMessages.Count > 0
+                    ? remainingMessages.Select(message => message.Content)
                     : turn.RawLines.Concat(turn.Contents)))
             {
-                foreach (var raw in turn.RawLines)
+                foreach (var original in remainingTurn.GetMessages())
                 {
-                    var rerouted = _playerHeroes.Observe(
-                        _classifier.Classify(raw) with
+                    var rerouted = EnsureLifetime(_playerHeroes.Observe(
+                        _classifier.Classify(original.RawText) with
                         {
-                            CapturedAt = turn.LastUpdatedAt,
-                            RecognitionEngine = turn.RecognitionEngine
-                        });
+                            CapturedAt = original.CapturedAt,
+                            Lifetime = original.Lifetime,
+                            EvaluationLineId = original.EvaluationLineId,
+                            RecognitionEngine = original.RecognitionEngine
+                        }));
                     if (rerouted.Kind is GameMessageKind.PlayerChat or GameMessageKind.Unknown
                         || !_settings.IsSystemMessageEnabled(rerouted.Kind))
                     {
@@ -631,7 +725,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                     }
 
                     var now = DateTimeOffset.UtcNow;
-                    if (!_speechLimiter.CanSpeak(rerouted, now))
+                    if (rerouted.Lifetime!.IsExpired || !_speechLimiter.CanSpeak(rerouted, now))
                     {
                         continue;
                     }
@@ -672,13 +766,20 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                 speakerLabel,
                 _settings.KeepEmotionSummary,
                 _settings.Language);
-            var result = await _translator.TranslateAsync(request, cancellationToken);
-            if (IsPaused || generation != Volatile.Read(ref _stateGeneration))
+            using var requestCancellation = CreateRequestCancellation(generation, cancellationToken);
+            var lifetime = GetTurnLifetime(turn);
+            if (lifetime.IsExpired) return;
+            requestCancellation.CancelAfter(lifetime.Remaining);
+            requestCancellation.Token.ThrowIfCancellationRequested();
+            var result = await _translator.TranslateAsync(request, requestCancellation.Token);
+            if (lifetime.IsExpired || requestCancellation.IsCancellationRequested
+                || IsPaused || generation != Volatile.Read(ref _stateGeneration))
             {
                 return;
             }
 
             result.SourceKind = TranslationSourceKind.PlayerChat;
+            result.Lifetime = lifetime;
             result.RecognitionEngine = turn.RecognitionEngine;
             result.RoutedMessageKind = GameMessageKind.PlayerChat;
             result.ClassificationConfidence = 1;
@@ -708,6 +809,16 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             }
             TranslationReady?.Invoke(result);
         }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            // HttpClient timeouts and pause cancellation must not kill the consumer.
+            if (!IsPaused && generation == Volatile.Read(ref _stateGeneration))
+            {
+                StatusChanged?.Invoke(L(
+                    "本条玩家发言翻译超时，已跳过；继续处理后续消息。",
+                    "This translation timed out and was skipped. Listening continues."));
+            }
+        }
         catch (OperationCanceledException)
         {
             throw;
@@ -724,13 +835,14 @@ public sealed class CaptureCoordinator : IAsyncDisposable
         PlayerSpeechTurn turn,
         string speakerLabel,
         int generation,
-        List<string> remainingContents)
+        List<ClassifiedGameMessage> remainingMessages)
     {
         var formatted = new List<string>();
-        foreach (var line in turn.Contents)
+        var formattedMessages = new List<ClassifiedGameMessage>();
+        foreach (var message in turn.GetMessages())
         {
             var kind = PlayerCalloutParser.TryFormat(
-                line,
+                message.Content,
                 _settings.Language,
                 _heroes,
                 _settings.PreferChampionPersonalName,
@@ -739,26 +851,28 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             {
                 case PlayerCalloutKind.Formatted when !string.IsNullOrWhiteSpace(displayLine):
                     formatted.Add(displayLine);
+                    formattedMessages.Add(message);
                     break;
                 case PlayerCalloutKind.Silence:
                     break;
                 default:
-                    remainingContents.Add(line);
+                    remainingMessages.Add(message);
                     break;
             }
         }
 
         if (formatted.Count == 0)
         {
-            return remainingContents.Count == 0;
+            return remainingMessages.Count == 0;
         }
 
-        if (IsPaused || generation != Volatile.Read(ref _stateGeneration))
+        if (IsPaused || generation != Volatile.Read(ref _stateGeneration)
+            || GetTurnLifetime(turn.SelectMessages(formattedMessages)).IsExpired)
         {
             return true;
         }
 
-        TranslationReady?.Invoke(CreatePlayerCalloutResult(turn, speakerLabel, formatted));
+        TranslationReady?.Invoke(CreatePlayerCalloutResult(turn.SelectMessages(formattedMessages), speakerLabel, formatted));
         return true;
     }
 
@@ -775,6 +889,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             : $"{speakerLabel}说，{body}";
         var result = new TranslationResult
         {
+            Lifetime = GetTurnLifetime(turn),
             RecognitionEngine = turn.RecognitionEngine,
             SourceKind = TranslationSourceKind.PlayerChat,
             RoutedMessageKind = GameMessageKind.PlayerChat,
@@ -795,7 +910,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             DisplayLines = displayLines.ToList(),
             SpokenSummary = spoken,
             RawText = string.Join("\n", turn.RawLines),
-            OriginalLines = displayLines.ToList(),
+            OriginalLines = turn.Contents.ToList(),
             EvaluationLineIds = (turn.EvaluationLineIds ?? Array.Empty<string>())
                 .Where(lineId => !string.IsNullOrWhiteSpace(lineId))
                 .Take(8)
@@ -848,6 +963,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                 hasKnownInitiator);
         return new TranslationResult
         {
+            Lifetime = EnsureLifetime(message).Lifetime,
             RecognitionEngine = message.RecognitionEngine,
             SourceKind = TranslationSourceKind.TacticalSignal,
             RoutedMessageKind = GameMessageKind.TacticalSignal,
@@ -944,7 +1060,8 @@ public sealed class CaptureCoordinator : IAsyncDisposable
         OcrDocument document,
         DateTimeOffset capturedAt,
         string frameId,
-        string recognitionEngine)
+        string recognitionEngine,
+        MessageLifetime? lifetime = null)
     {
         lock (_pipelineLock)
         {
@@ -953,15 +1070,16 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                 .Where(line => IsPlausibleGameChat(line.NormalizedText))
                 .Select((line, index) => new ObservedLine(
                     line,
-                    _playerHeroes.Observe(
+                    EnsureLifetime(_playerHeroes.Observe(
                         _classifier.Classify(
                             line.NormalizedText,
                             FindColorEvidence(document, line.NormalizedText)) with
                         {
                             CapturedAt = capturedAt,
+                            Lifetime = lifetime,
                             EvaluationLineId = $"{frameId}/line-{index + 1:00}",
                             RecognitionEngine = recognitionEngine
-                        })))
+                        }))))
                 .ToArray();
         }
     }
@@ -1000,7 +1118,9 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             capturedAt));
         foreach (var message in routed)
         {
-            await _messages.Writer.WriteAsync(message, cancellationToken);
+            var timed = EnsureLifetime(message);
+            if (!timed.Lifetime!.IsExpired)
+                await _messages.Writer.WriteAsync(timed, cancellationToken);
         }
     }
 
@@ -1020,7 +1140,9 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             capturedAt));
         foreach (var message in messages)
         {
-            await _messages.Writer.WriteAsync(message, cancellationToken);
+            var timed = EnsureLifetime(message);
+            if (!timed.Lifetime!.IsExpired)
+                await _messages.Writer.WriteAsync(timed, cancellationToken);
         }
     }
 
@@ -1029,7 +1151,8 @@ public sealed class CaptureCoordinator : IAsyncDisposable
         OcrDocument localDocument,
         DateTimeOffset capturedAt,
         ClassifiedGameMessage[] heldPlayerChat,
-        int generation)
+        int generation,
+        MessageLifetime? lifetime = null)
     {
         var clone = source.Clone(new Rectangle(Point.Empty, source.Size), source.PixelFormat);
         lock (_visionScheduleLock)
@@ -1038,6 +1161,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             _pendingVisionBitmap = clone;
             _pendingVisionLocalDocument = localDocument;
             _pendingVisionCapturedAt = capturedAt;
+            _pendingVisionLifetime = lifetime ?? MessageLifetime.FromCapture(capturedAt, TimeSpan.FromSeconds(6), _clock);
             _pendingHeldPlayerChat = heldPlayerChat;
             _pendingVisionGeneration = generation;
         }
@@ -1058,6 +1182,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             _pendingVisionBitmap?.Dispose();
             _pendingVisionBitmap = null;
             _pendingVisionLocalDocument = null;
+            _pendingVisionLifetime = null;
             _pendingHeldPlayerChat = Array.Empty<ClassifiedGameMessage>();
         }
     }
@@ -1079,6 +1204,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             Bitmap? frame;
             OcrDocument? localDocument;
             DateTimeOffset capturedAt;
+            MessageLifetime? lifetime;
             ClassifiedGameMessage[] held;
             var workGeneration = 0;
             lock (_visionScheduleLock)
@@ -1086,10 +1212,12 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                 frame = _pendingVisionBitmap;
                 localDocument = _pendingVisionLocalDocument;
                 capturedAt = _pendingVisionCapturedAt;
+                lifetime = _pendingVisionLifetime;
                 held = _pendingHeldPlayerChat;
                 workGeneration = _pendingVisionGeneration;
                 _pendingVisionBitmap = null;
                 _pendingVisionLocalDocument = null;
+                _pendingVisionLifetime = null;
                 _pendingHeldPlayerChat = Array.Empty<ClassifiedGameMessage>();
             }
 
@@ -1112,16 +1240,21 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             {
                 using (frame)
                 {
-                    if (IsPaused || workGeneration != Volatile.Read(ref _stateGeneration))
+                    if (lifetime is null || lifetime.IsExpired
+                        || IsPaused || workGeneration != Volatile.Read(ref _stateGeneration))
                     {
                         continue;
                     }
 
+                    using var requestCancellation = CreateRequestCancellation(workGeneration, cancellationToken);
+                    requestCancellation.CancelAfter(lifetime.Remaining);
+                    requestCancellation.Token.ThrowIfCancellationRequested();
                     var hybrid = await RecognizeVisionGivenLocalAsync(
                         frame,
                         localDocument,
-                        cancellationToken);
-                    if (IsPaused || workGeneration != Volatile.Read(ref _stateGeneration))
+                        requestCancellation.Token);
+                    if (lifetime.IsExpired || requestCancellation.IsCancellationRequested
+                        || IsPaused || workGeneration != Volatile.Read(ref _stateGeneration))
                     {
                         continue;
                     }
@@ -1140,7 +1273,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                             hybrid.Document,
                             capturedAt,
                             frameId,
-                            DeepSeekVisionOcrService.ModelName + "+local-evidence");
+                            DeepSeekVisionOcrService.ModelName + "+local-evidence", lifetime);
                         var playerLines = observed
                             .Where(item => !VisionDispatchPolicy.PublishImmediately(item.Message))
                             .ToArray();
@@ -1169,6 +1302,10 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                         await PublishMessagesAsync(held, capturedAt, cancellationToken);
                     }
                 }
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                // Pause invalidates this frame; the worker remains available after resume.
             }
             catch (OperationCanceledException)
             {
@@ -1224,7 +1361,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                 UploadBlocked: false,
                 UploadBlockReason: string.Empty);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             throw;
         }
@@ -1278,7 +1415,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
         {
             visionDocument = await visionTask;
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             try
             {

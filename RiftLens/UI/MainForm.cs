@@ -7,7 +7,7 @@ namespace RiftLens.UI;
 
 public sealed class MainForm : Form
 {
-    private readonly SettingsStore _settingsStore = new();
+    private readonly SettingsStore _settingsStore;
     private readonly CredentialStore _credentialStore = new();
     private readonly TranslationOverlayForm _overlay = new();
     private readonly OverlayControlForm _overlayControl = new();
@@ -16,7 +16,7 @@ public sealed class MainForm : Form
     private RealEvaluationSessionRecorder? _evaluationSession;
     private readonly System.Windows.Forms.Timer _volumeSaveTimer = new() { Interval = 500 };
     private readonly NotifyIcon _trayIcon;
-    private readonly WebWorkspace _workspace = new();
+    private readonly WebWorkspace _workspace;
 
     private AppSettings _settings = new();
     private HeroDictionary? _heroes;
@@ -24,6 +24,9 @@ public sealed class MainForm : Form
     private Task? _ocrWarmupTask;
     private CaptureCoordinator? _coordinator;
     private bool _exiting;
+    private bool _shutdownComplete;
+    private Task? _shutdownTask;
+    private Task? _stopListeningTask;
     private bool _ocrReady;
     private bool _ocrInitializing;
     private string? _ocrError;
@@ -108,8 +111,10 @@ public sealed class MainForm : Form
         Dock = DockStyle.Fill
     };
 
-    public MainForm()
+    public MainForm(SettingsStore? settingsStore = null, string? webViewUserDataFolder = null)
     {
+        _settingsStore = settingsStore ?? new SettingsStore();
+        _workspace = new WebWorkspace(webViewUserDataFolder);
         Text = "RiftLens · 韩服屏幕翻译";
         FormBorderStyle = FormBorderStyle.None;
         Padding = Padding.Empty;
@@ -1609,6 +1614,12 @@ public sealed class MainForm : Form
         SetStatus(L(
             "配置已载入；本地 OCR 正在后台初始化。",
             "Settings loaded. Local OCR is initializing in the background."));
+        if (_settingsStore.LoadWarning is { } loadWarning)
+        {
+            SetStatus(loadWarning);
+            Log(L("设置恢复", "Settings recovery"), loadWarning
+                + (_settingsStore.RecoveryBackupPath is { } backup ? " " + backup : string.Empty));
+        }
         if (_currentPage == "home")
         {
             _homeNav.Select();
@@ -1661,7 +1672,7 @@ public sealed class MainForm : Form
 
     private async Task HandlePrimaryActionAsync()
     {
-        if (_coordinator is not null)
+        if (_coordinator is { IsRunning: true })
         {
             TogglePause();
             return;
@@ -1872,7 +1883,11 @@ public sealed class MainForm : Form
             _coordinator = new CaptureCoordinator(_settings, _heroes, translator, visionOcr);
             _coordinator.EvaluationCaptureEnabled = _evaluationSession?.IsRecording == true;
             _diagnostics.Reset();
-            _coordinator.StatusChanged += message => SafeUi(() => SetStatus(message));
+            _coordinator.StatusChanged += message => SafeUi(() =>
+            {
+                SetStatus(message);
+                UpdateReadiness();
+            });
             _coordinator.OcrRecognized += batch => SafeUi(() => Log("OCR", string.Join(" / ", batch.NewLines)));
             _coordinator.DiagnosticObserved += observation =>
             {
@@ -1916,7 +1931,13 @@ public sealed class MainForm : Form
         }
     }
 
-    private async Task StopListeningAsync()
+    private Task StopListeningAsync()
+    {
+        if (_stopListeningTask is { IsCompleted: false }) return _stopListeningTask;
+        return _stopListeningTask = StopListeningCoreAsync();
+    }
+
+    private async Task StopListeningCoreAsync()
     {
         if (_coordinator is null)
         {
@@ -2052,6 +2073,11 @@ public sealed class MainForm : Form
             result.SpeechSilenceReason = FinalSpeechPolicy.DescribeSilence(result, _settings)
                 ?? result.SpeechSilenceReason;
         }
+        else if (!shouldQueueSpeech)
+        {
+            result.ShouldSpeak = false;
+            result.SpeechSilenceReason = SpeechSilenceReasons.OverlayOnly;
+        }
         _diagnostics.RecordOutput(result, shouldQueueSpeech);
         _evaluationSession?.RecordOutput(result, shouldQueueSpeech);
         Log("翻译", $"[{result.Speaker}] {result.DisplayTranslation}");
@@ -2073,7 +2099,8 @@ public sealed class MainForm : Form
                 _settings.Language,
                 result.Priority,
                 () => FinalSpeechPolicy.ShouldSpeak(result, _settings)
-                    && _settings.OutputMode is OutputMode.VoiceOnly or OutputMode.OverlayAndVoice);
+                    && _settings.OutputMode is OutputMode.VoiceOnly or OutputMode.OverlayAndVoice,
+                result.Lifetime);
         }
     }
 
@@ -2274,7 +2301,8 @@ public sealed class MainForm : Form
             result.ShouldSpeak
                 ? L("已加入播报队列", "Queued for speech")
                 : LocalSpeechPlanner.FormatReason(result.SpeechSilenceReason, _settings.Language),
-            result.RecognitionEngine);
+            result.RecognitionEngine,
+            result.SpeechSilenceReason);
         _workspace.AddHistory(historyItem);
         if (_settings.SaveTranslationHistory)
         {
@@ -2357,7 +2385,7 @@ public sealed class MainForm : Form
         _workspace.DisplayRegionReady = _settings.DisplayRegion.IsValid;
         _workspace.OcrReady = recognitionReady;
         _workspace.AiReady = keyReady;
-        _workspace.IsRunning = _coordinator is not null;
+        _workspace.IsRunning = _coordinator?.IsRunning ?? false;
         _workspace.IsPaused = _coordinator?.IsPaused ?? false;
         _workspace.Language = _settings.Language == AppLanguage.English ? "en-US" : "zh-CN";
         _workspace.RegionSummary = regionReady
@@ -2526,6 +2554,7 @@ public sealed class MainForm : Form
                 priority = item.Priority,
                 kind = item.Kind,
                 silenceReason = item.SilenceReason,
+                silenceReasonCode = item.SilenceReasonCode,
                 recognitionEngine = item.RecognitionEngine
             });
             await File.AppendAllTextAsync(_historySavePath, line + Environment.NewLine);
@@ -2825,8 +2854,9 @@ public sealed class MainForm : Form
         };
     }
 
-    private void OnFormClosing(object? sender, FormClosingEventArgs e)
+    private async void OnFormClosing(object? sender, FormClosingEventArgs e)
     {
+        if (_shutdownComplete) return;
         if (!_exiting
             && _settings.CloseToTray
             && e.CloseReason is not CloseReason.WindowsShutDown
@@ -2836,31 +2866,40 @@ public sealed class MainForm : Form
             HideToTray();
             return;
         }
+        e.Cancel = true;
+        if (_shutdownTask is not null) return;
+        _exiting = true;
+        Enabled = false;
+        try
+        {
+            // Keep pumping the UI thread while the coordinator completes its awaits.
+            _shutdownTask = ShutdownAsync();
+            await _shutdownTask;
+            _shutdownComplete = true;
+            Close();
+        }
+        catch (Exception exception)
+        {
+            _shutdownTask = null;
+            _exiting = false;
+            Enabled = true;
+            SetStatus(L("退出未完成，请重试：", "Could not finish closing. Try again: ") + exception.Message);
+        }
+    }
+
+    private async Task ShutdownAsync()
+    {
+        // Leave the first FormClosing event before a possibly synchronous cleanup
+        // calls Close again (for example when no listening session was started).
+        await Task.Yield();
+        var savePendingVolume = _volumeSaveTimer.Enabled;
+        _volumeSaveTimer.Stop();
         _overlay.HideImmediately();
         _overlayControl.Hide();
-        _coordinator?.DisposeAsync().AsTask().GetAwaiter().GetResult();
-        var evaluationSession = Interlocked.Exchange(ref _evaluationSession, null);
-        if (evaluationSession is not null)
-        {
-            try
-            {
-                evaluationSession.CompleteAsync().GetAwaiter().GetResult();
-            }
-            catch
-            {
-            }
-        }
-        if (_volumeSaveTimer.Enabled)
-        {
-            _volumeSaveTimer.Stop();
-            try
-            {
-                _settingsStore.SaveAsync(_settings).GetAwaiter().GetResult();
-            }
-            catch
-            {
-            }
-        }
+        await StopListeningAsync();
+        await StopEvaluationRecordingAsync(showCompletionDialog: false);
+        if (savePendingVolume) await _settingsStore.SaveAsync(_settings);
+        await _settingsStore.FlushAsync();
         _speech.Dispose();
         _volumeSaveTimer.Dispose();
         _overlayControl.Dispose();
@@ -2877,10 +2916,9 @@ public sealed class MainForm : Form
         menu.Items.Add("停止翻译", null, async (_, _) => await StopListeningAsync());
         menu.Items.Add("立即静音并隐藏", null, (_, _) => { _speech.Clear(); _overlay.HideImmediately(); });
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add("退出", null, async (_, _) =>
+        menu.Items.Add("退出", null, (_, _) =>
         {
             _exiting = true;
-            await StopListeningAsync();
             Close();
         });
         var icon = new NotifyIcon

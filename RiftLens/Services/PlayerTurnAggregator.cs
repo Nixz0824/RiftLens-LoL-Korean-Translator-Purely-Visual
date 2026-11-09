@@ -8,6 +8,11 @@ namespace RiftLens.Services;
 /// </summary>
 public sealed class PlayerTurnAggregator
 {
+    public const int MaximumLines = 8;
+    public const int MaximumWaitMs = 2500;
+    private readonly TimeProvider _clock;
+    private long _startedAt;
+    private long _lastAddedAt;
     private string _speakerKey = string.Empty;
     private string _speakerRaw = string.Empty;
     private string _speakerHeroId = string.Empty;
@@ -15,11 +20,26 @@ public sealed class PlayerTurnAggregator
     private readonly List<string> _rawLines = new();
     private readonly List<string> _contents = new();
     private readonly List<string> _evaluationLineIds = new();
+    private readonly List<ClassifiedGameMessage> _messages = new();
     private DateTimeOffset _lastUpdatedAt;
 
     public bool HasPending => _contents.Count > 0;
 
     public string LastContent => _contents.Count > 0 ? _contents[^1] : string.Empty;
+
+    public PlayerTurnAggregator(TimeProvider? clock = null) => _clock = clock ?? TimeProvider.System;
+
+    public bool HasReachedMaximumWait => HasPending
+        && _clock.GetElapsedTime(_startedAt).TotalMilliseconds >= MaximumWaitMs;
+
+    public int GetWaitMilliseconds(int idleTimeoutMs)
+    {
+        if (!HasPending) return Timeout.Infinite;
+        var remaining = Math.Min(
+            MaximumWaitMs - _clock.GetElapsedTime(_startedAt).TotalMilliseconds,
+            idleTimeoutMs - _clock.GetElapsedTime(_lastAddedAt).TotalMilliseconds);
+        return (int)Math.Max(0, Math.Ceiling(remaining));
+    }
 
     public PlayerSpeechTurn? Add(ClassifiedGameMessage message)
     {
@@ -29,13 +49,14 @@ public sealed class PlayerTurnAggregator
         }
 
         PlayerSpeechTurn? completed = null;
-        if (HasPending && !AreSameSpeaker(_speakerKey, message.SpeakerKey))
+        if (HasPending && (!AreSameSpeaker(_speakerKey, message.SpeakerKey) || HasReachedMaximumWait))
         {
             completed = Flush();
         }
 
         if (!HasPending)
         {
+            _startedAt = _clock.GetTimestamp();
             _speakerKey = message.SpeakerKey;
             _speakerRaw = message.SpeakerRaw;
             _speakerHeroId = message.SpeakerHeroId;
@@ -57,26 +78,18 @@ public sealed class PlayerTurnAggregator
                     : "mixed";
         }
 
-        if (!_rawLines.Contains(message.RawText, StringComparer.Ordinal))
-        {
-            _rawLines.Add(message.RawText);
-        }
         if (!_contents.Contains(message.Content, StringComparer.Ordinal))
         {
             _contents.Add(message.Content);
-        }
-        if (!string.IsNullOrWhiteSpace(message.EvaluationLineId)
-            && !_evaluationLineIds.Contains(message.EvaluationLineId, StringComparer.Ordinal))
-        {
+            _rawLines.Add(message.RawText);
             _evaluationLineIds.Add(message.EvaluationLineId);
+            _messages.Add(message);
         }
         _lastUpdatedAt = message.CapturedAt == default ? DateTimeOffset.UtcNow : message.CapturedAt;
+        _lastAddedAt = _clock.GetTimestamp();
 
-        // A single turn cannot grow without bound when somebody floods chat.
-        while (_rawLines.Count > 8) _rawLines.RemoveAt(0);
-        while (_contents.Count > 8) _contents.RemoveAt(0);
-        while (_evaluationLineIds.Count > 8) _evaluationLineIds.RemoveAt(0);
-        return completed;
+        // Complete the full turn before accepting more lines; never discard its beginning.
+        return completed ?? (_contents.Count >= MaximumLines ? Flush() : null);
     }
 
     public PlayerSpeechTurn? Flush()
@@ -94,7 +107,8 @@ public sealed class PlayerTurnAggregator
             _lastUpdatedAt,
             _speakerHeroId,
             _evaluationLineIds.ToArray(),
-            _recognitionEngine);
+            _recognitionEngine,
+            _messages.ToArray());
         _speakerKey = string.Empty;
         _speakerRaw = string.Empty;
         _speakerHeroId = string.Empty;
@@ -102,6 +116,7 @@ public sealed class PlayerTurnAggregator
         _rawLines.Clear();
         _contents.Clear();
         _evaluationLineIds.Clear();
+        _messages.Clear();
         _lastUpdatedAt = default;
         return turn;
     }

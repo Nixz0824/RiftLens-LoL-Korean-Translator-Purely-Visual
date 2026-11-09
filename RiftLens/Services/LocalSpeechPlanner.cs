@@ -14,11 +14,9 @@ public static class LocalSpeechPlanner
             ? request.Language == AppLanguage.English ? "Teammate" : "队友"
             : request.SpeakerLabel;
 
-        var maximumDisplayLines = Math.Clamp(request.Lines.Count, 1, 8);
         result.DisplayLines = (result.DisplayLines ?? new List<string>())
             .Select(line => StripSpeakerPrefix(line, result.Speaker))
             .Where(line => !string.IsNullOrWhiteSpace(line))
-            .Take(maximumDisplayLines)
             .ToList();
 
         if (result.DisplayLines.Count == 0 && !string.IsNullOrWhiteSpace(result.DisplayTranslation))
@@ -27,7 +25,6 @@ public static class LocalSpeechPlanner
                 .Split(new[] { "\r\n", "\n", "\r" }, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
                 .Select(line => StripSpeakerPrefix(line, result.Speaker))
                 .Where(line => !string.IsNullOrWhiteSpace(line))
-                .Take(maximumDisplayLines)
                 .ToList();
         }
 
@@ -80,10 +77,17 @@ public static class LocalSpeechPlanner
                 : $"{result.Speaker}说，{result.SpokenSummary}";
         }
 
-        if (result.SpokenSummary.Length > request.MaxSummaryChars + 16)
+        if (result.DisplayLines.Count != request.Lines.Count)
         {
-            result.SpokenSummary = result.SpokenSummary[..Math.Min(result.SpokenSummary.Length, request.MaxSummaryChars + 4)]
-                + (request.Language == AppLanguage.English ? "." : "。");
+            result.ShouldSpeak = false;
+            result.SpeechSilenceReason = SpeechSilenceReasons.TranslationQuality;
+        }
+        else if (result.ShouldSpeak && result.SpokenSummary.Length > request.MaxSummaryChars + 16)
+        {
+            // Keep literal subtitles intact. Cutting a sentence can remove a negation,
+            // condition or target after the semantic guard has already checked it.
+            result.ShouldSpeak = false;
+            result.SpeechSilenceReason = SpeechSilenceReasons.SpeechTooLong;
         }
 
         if (string.IsNullOrWhiteSpace(result.SpokenSummary))
@@ -119,6 +123,12 @@ public static class LocalSpeechPlanner
         SpeechSilenceReasons.TranslationQuality => language == AppLanguage.English
             ? "Text only · translation quality was uncertain"
             : "仅字幕 · 翻译质量不确定",
+        SpeechSilenceReasons.Expired => language == AppLanguage.English
+            ? "Text only · message expired"
+            : "仅字幕 · 消息已过期",
+        SpeechSilenceReasons.SpeechTooLong => language == AppLanguage.English
+            ? "Text only · full translation is too long to read"
+            : "仅字幕 · 完整译文过长",
         _ => language == AppLanguage.English ? "Text only" : "仅字幕"
     };
 
@@ -196,4 +206,6 @@ public static class SpeechSilenceReasons
     public const string HudLeak = "hud";
     public const string EmptySpeech = "empty";
     public const string TranslationQuality = "translation_quality";
+    public const string Expired = "expired";
+    public const string SpeechTooLong = "speech_too_long";
 }

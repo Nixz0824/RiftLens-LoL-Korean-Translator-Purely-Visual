@@ -14,7 +14,7 @@ public sealed class NaturalSpeechService : IDisposable
     private readonly object _queueMutationGate = new();
     private readonly Thread _worker;
     private readonly object _activeGate = new();
-    private readonly EdgeNeuralSpeechClient _neuralClient = new();
+    private readonly ISpeechSynthesizer _neuralClient;
     private WaveOutEvent? _currentPlayer;
     private CancellationTokenSource? _currentSynthesis;
     private int _purgeRequested;
@@ -28,8 +28,9 @@ public sealed class NaturalSpeechService : IDisposable
 
     public event Action<string>? StatusChanged;
 
-    public NaturalSpeechService()
+    public NaturalSpeechService(ISpeechSynthesizer? synthesizer = null)
     {
+        _neuralClient = synthesizer ?? new EdgeNeuralSpeechClient();
         _worker = new Thread(Work)
         {
             IsBackground = true,
@@ -49,12 +50,17 @@ public sealed class NaturalSpeechService : IDisposable
         bool isTactical = false,
         AppLanguage language = AppLanguage.Chinese,
         int priority = 1,
-        Func<bool>? canSpeak = null)
+        Func<bool>? canSpeak = null,
+        MessageLifetime? lifetime = null)
     {
         if (_disposed || string.IsNullOrWhiteSpace(text))
         {
             return;
         }
+
+        lifetime ??= MessageLifetime.FromCapture(DateTimeOffset.UtcNow,
+            TimeSpan.FromMilliseconds(Math.Clamp(expiresAfterMs, 1500, 10000)));
+        if (lifetime.IsExpired) return;
 
         SetVolume(volume);
         priority = Math.Clamp(priority, 0, 3);
@@ -74,7 +80,7 @@ public sealed class NaturalSpeechService : IDisposable
             isTactical,
             language,
             priority,
-            DateTimeOffset.UtcNow.AddMilliseconds(Math.Clamp(expiresAfterMs, 1500, 10000)),
+            lifetime,
             canSpeak);
         if (_queue.TryAdd(item))
         {
@@ -150,10 +156,6 @@ public sealed class NaturalSpeechService : IDisposable
             foreach (var item in _queue.GetConsumingEnumerable())
             {
                 currentLanguage = item.Language;
-                if (DateTimeOffset.UtcNow > item.ExpiresAt)
-                {
-                    continue;
-                }
                 if (!IsStillAllowed(item))
                 {
                     continue;
@@ -235,9 +237,14 @@ public sealed class NaturalSpeechService : IDisposable
 
     private bool TrySpeakNeural(SpeechItem item)
     {
+        using var timeout = new CancellationTokenSource();
+        var deadlineLimited = false;
         try
         {
-            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(7));
+            if (!IsStillAllowed(item)) return true;
+            var remaining = item.Lifetime.Remaining;
+            deadlineLimited = remaining <= TimeSpan.FromSeconds(7);
+            timeout.CancelAfter(deadlineLimited ? remaining : TimeSpan.FromSeconds(7));
             lock (_activeGate)
             {
                 _currentSynthesis = timeout;
@@ -255,7 +262,7 @@ public sealed class NaturalSpeechService : IDisposable
             {
                 return true;
             }
-            if (!IsStillAllowed(item))
+            if (timeout.IsCancellationRequested || !IsStillAllowed(item))
             {
                 return true;
             }
@@ -267,11 +274,12 @@ public sealed class NaturalSpeechService : IDisposable
                     : "已连接晓晓神经语音。");
             }
 
-            PlayMp3(audio);
+            PlayMp3(audio, item);
             _fallbackReported = false;
             return true;
         }
-        catch (OperationCanceledException) when (Volatile.Read(ref _purgeRequested) == 1)
+        catch (OperationCanceledException) when (Volatile.Read(ref _purgeRequested) == 1
+            || item.Lifetime.IsExpired || (deadlineLimited && timeout.IsCancellationRequested))
         {
             return true;
         }
@@ -294,7 +302,7 @@ public sealed class NaturalSpeechService : IDisposable
         }
     }
 
-    private void PlayMp3(byte[] audio)
+    private void PlayMp3(byte[] audio, SpeechItem item)
     {
         using var stream = new MemoryStream(audio, writable: false);
         using var reader = new Mp3FileReader(stream);
@@ -309,9 +317,10 @@ public sealed class NaturalSpeechService : IDisposable
         player.Init(reader);
         lock (_activeGate)
         {
+            if (!IsStillAllowed(item) || Volatile.Read(ref _purgeRequested) == 1) return;
             _currentPlayer = player;
+            player.Play();
         }
-        player.Play();
         while (!completed.Wait(50))
         {
             if (Interlocked.Exchange(ref _purgeRequested, 0) == 1)
@@ -435,7 +444,11 @@ public sealed class NaturalSpeechService : IDisposable
         TrySelectVoice(voice, item.Language);
         voice.Volume = Volatile.Read(ref _configuredVolume);
         voice.Rate = item.Rate;
-        voice.Speak(item.Text, 1);
+        lock (_activeGate)
+        {
+            if (!IsStillAllowed(item) || Volatile.Read(ref _purgeRequested) == 1) return;
+            voice.Speak(item.Text, 1);
+        }
         while (!voice.WaitUntilDone(50))
         {
             if (Interlocked.Exchange(ref _purgeRequested, 0) == 1)
@@ -450,7 +463,7 @@ public sealed class NaturalSpeechService : IDisposable
     {
         try
         {
-            return item.CanSpeak?.Invoke() ?? true;
+            return !item.Lifetime.IsExpired && (item.CanSpeak?.Invoke() ?? true);
         }
         catch
         {
@@ -498,6 +511,6 @@ public sealed class NaturalSpeechService : IDisposable
         bool IsTactical,
         AppLanguage Language,
         int Priority,
-        DateTimeOffset ExpiresAt,
+        MessageLifetime Lifetime,
         Func<bool>? CanSpeak);
 }

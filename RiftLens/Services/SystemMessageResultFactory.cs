@@ -20,6 +20,7 @@ public static class SystemMessageResultFactory
         var spoken = SystemMessageTemplates.Format(message, settings.Language);
         return new TranslationResult
         {
+            Lifetime = message.Lifetime ?? MessageLifetime.FromCapture(message.CapturedAt, TimeSpan.FromSeconds(4)),
             RecognitionEngine = message.RecognitionEngine,
             SourceKind = TranslationSourceKind.SystemMessage,
             RoutedMessageKind = message.Kind,
@@ -61,6 +62,7 @@ public static class SystemMessageResultFactory
         var label = language == AppLanguage.English ? "Unclassified" : "未分类";
         return new TranslationResult
         {
+            Lifetime = message.Lifetime ?? MessageLifetime.FromCapture(message.CapturedAt, TimeSpan.FromSeconds(4)),
             RecognitionEngine = message.RecognitionEngine,
             SourceKind = TranslationSourceKind.Unknown,
             RoutedMessageKind = GameMessageKind.Unknown,

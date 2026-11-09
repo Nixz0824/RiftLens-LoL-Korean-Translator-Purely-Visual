@@ -77,7 +77,8 @@ internal sealed record SpatialHistoryItem(
     int Priority,
     string Kind,
     string? SilenceReason = null,
-    string RecognitionEngine = "");
+    string RecognitionEngine = "",
+    string SilenceReasonCode = "");
 
 /// <summary>
 /// 高保真 Soft Spatial 工作区。界面由 GDI+ 一次合成，避免 WinForms 系统控件

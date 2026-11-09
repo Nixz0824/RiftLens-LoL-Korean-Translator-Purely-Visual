@@ -4,6 +4,32 @@ All notable user-facing changes will be documented here. The project follows a l
 
 ## [Unreleased]
 
+### Fixed
+
+- WebUI history shows localized expiry, long-text and other silence reasons, refreshes reason-only changes, and retains translation line breaks. Queue decisions are labeled as queued rather than completed playback, and backend rejection/status messages are visible in the history footer.
+- Messages keep a capture-based deadline through OCR, aggregation, translation and TTS. Expired messages and late responses are skipped, requests use the remaining budget, and audio is checked again before playback.
+- Player turns complete after eight distinct lines or 2.5 seconds even during continuous chat, preserving the beginning of each turn and its evaluation IDs.
+- AI translations require a normal completion and exactly one nonempty result per input line ID. Missing, duplicated, unknown, malformed or truncated results are rejected; output token budgets scale with the turn.
+- Long spoken sentences keep their complete subtitles and become silent instead of being cut after semantic validation.
+- A text-translation HTTP timeout skips only that turn; the consumer continues processing later messages. Vision timeouts fall back to local OCR and allow subsequent frames to recover.
+- Pause now cancels in-flight translation and Vision requests and wakes pending reads. Resume no longer drops the first newly queued message because an earlier read was still waiting.
+- Closing awaits listening shutdown asynchronously, including UI-bound continuations. Concurrent stop requests share one shutdown operation, and failed workers are reflected in the running state.
+- Settings saves use serialized snapshots, a single write gate, and unique temporary files. Corrupt settings are backed up and reported instead of silently discarded.
+- Local callouts and AI translations retain their own original lines and evaluation IDs when splitting a mixed player turn.
+
+### Development
+
+- Added nine delivery regression groups covering deadlines, wall-clock changes, cancellation recovery, continuous aggregation, line-ID validation and TTS expiry. See `docs/MESSAGE-DELIVERY-2026-11-09.md` for the provisional timing policy and offline validation scope.
+- Added regressions for timeout recovery, pause/resume, mixed-turn source alignment, Vision fallback, and concurrent settings saves.
+- Main-window capture now uses the actual WebView2 renderer with isolated settings and browser data, exports layout/font evidence, and verifies closing with a pending UI-bound worker.
+
+### Performance
+
+- Korean and Chinese recognizers share one image resize and input tensor per segment. Dense ONNX outputs are read without copying, and detection/input scratch buffers are reused across frames.
+- Hidden windows stop serializing and posting full UI snapshots. Showing the window sends its latest state, including when WebView2 suspension was unavailable.
+- Unchanged history rows are retained during unrelated state updates. Record edits, clearing history, and language changes still refresh the table.
+- Added a repeatable warm OCR benchmark (`--benchmark-ocr output.json 12`) with allocation, latency, garbage collection, full-output checksum, and changing-dimension checks. See `docs/PERFORMANCE-2026-09-05.md` for measured results and limitations.
+
 ## [2.3.0] - 2026-08-26
 
 ### Added

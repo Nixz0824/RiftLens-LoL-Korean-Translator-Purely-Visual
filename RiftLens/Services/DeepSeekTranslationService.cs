@@ -31,7 +31,8 @@ public sealed class OpenAiCompatibleTranslationService : ITranslationService, ID
         必须原样保留这些专有名称，不得再次音译、改名或换成另一服务器的非官方叫法。
 
         只做逐条直译：
-        1. displayLines 必须与 chatLines 数量一致、顺序一致。每个元素只翻译对应原句。
+        1. chatLines 是 {id, text} 数组。displayLines 必须与其数量一致，每个元素为 {id, translation}，
+           原样保留对应输入的 id，每个元素只翻译该 id 的原句，不得遗漏、重复或创造 id。
         2. 不总结、不解释、不推断行为或意图，不加 speaker、时间戳、玩家 ID、项目符号或序号。
         3. 不添加原文没有的英雄、位置、技能、目标或战术事实。
         4. 已经属于目标语言的句子原样保留或只做必要精简，不要二次翻译。
@@ -41,7 +42,7 @@ public sealed class OpenAiCompatibleTranslationService : ITranslationService, ID
         8. “技能 - 20s”中的横杠是 HUD 分隔符，表示冷却还剩 20 秒，绝不能译成负 20 秒。
         语音摘要、意图、优先级和是否播报由本地代码决定，不要返回这些字段。
         只返回一个 JSON 对象，不要 Markdown。字段：
-        displayLines(string[]), toxicityFiltered(bool)。
+        displayLines({id:string, translation:string}[]), toxicityFiltered(bool)。
         """;
 
     private readonly HttpClient _httpClient;
@@ -63,6 +64,9 @@ public sealed class OpenAiCompatibleTranslationService : ITranslationService, ID
         TranslationRequest request,
         CancellationToken cancellationToken)
     {
+        if (request.Lines.Count is < 1 or > PlayerTurnAggregator.MaximumLines)
+            throw new ArgumentException("A translation request must contain 1–8 lines.", nameof(request));
+        var lineIds = Enumerable.Range(1, request.Lines.Count).Select(index => $"line-{index}").ToArray();
         var userPayload = JsonSerializer.Serialize(new
         {
             targetLanguage = request.Language == AppLanguage.English
@@ -83,7 +87,7 @@ public sealed class OpenAiCompatibleTranslationService : ITranslationService, ID
                 traditionalTitle = hero.ChineseTraditionalTitle,
                 spoken = hero.SpokenName
             }),
-            chatLines = request.Lines
+            chatLines = request.Lines.Select((line, index) => new { id = lineIds[index], text = line })
         });
 
         var messages = new object[]
@@ -96,7 +100,7 @@ public sealed class OpenAiCompatibleTranslationService : ITranslationService, ID
             ["model"] = _model,
             ["messages"] = messages,
             ["temperature"] = 0.15,
-            ["max_tokens"] = 280,
+            ["max_tokens"] = Math.Clamp(128 + request.Lines.Sum(line => Math.Min(line.Length, 512) * 3 + 64), 384, 4096),
             ["response_format"] = new { type = "json_object" },
             ["stream"] = false
         };
@@ -115,18 +119,45 @@ public sealed class OpenAiCompatibleTranslationService : ITranslationService, ID
         }
 
         using var document = JsonDocument.Parse(responseText);
-        var modelContent = document.RootElement
-            .GetProperty("choices")[0]
-            .GetProperty("message")
-            .GetProperty("content")
-            .GetString();
-        var json = ExtractJson(modelContent ?? string.Empty, request.Language);
-        var result = JsonSerializer.Deserialize<TranslationResult>(json, new JsonSerializerOptions
+        if (!document.RootElement.TryGetProperty("choices", out var choices)
+            || choices.ValueKind != JsonValueKind.Array || choices.GetArrayLength() != 1)
+            throw InvalidResponse(request.Language);
+        var choice = choices[0];
+        if (!choice.TryGetProperty("finish_reason", out var finishReason)
+            || finishReason.ValueKind != JsonValueKind.String || finishReason.GetString() != "stop"
+            || !choice.TryGetProperty("message", out var message)
+            || message.ValueKind != JsonValueKind.Object
+            || !message.TryGetProperty("content", out var content) || content.ValueKind != JsonValueKind.String)
+            throw InvalidResponse(request.Language);
+        using var translated = JsonDocument.Parse(ExtractJson(content.GetString() ?? string.Empty, request.Language));
+        var root = translated.RootElement;
+        if (root.ValueKind != JsonValueKind.Object
+            || !root.TryGetProperty("displayLines", out var lines) || lines.ValueKind != JsonValueKind.Array
+            || lines.GetArrayLength() != lineIds.Length
+            || !root.TryGetProperty("toxicityFiltered", out var toxicity)
+            || toxicity.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+            throw InvalidResponse(request.Language);
+
+        var translations = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var line in lines.EnumerateArray())
         {
-            PropertyNameCaseInsensitive = true
-        }) ?? throw new InvalidOperationException(request.Language == AppLanguage.English
-            ? "The AI did not return a valid translation result."
-            : "AI 没有返回有效的翻译结果。");
+            if (line.ValueKind != JsonValueKind.Object
+                || !line.TryGetProperty("id", out var id) || id.ValueKind != JsonValueKind.String
+                || !line.TryGetProperty("translation", out var text) || text.ValueKind != JsonValueKind.String)
+                throw InvalidResponse(request.Language);
+            var key = id.GetString()!;
+            var index = Array.IndexOf(lineIds, key);
+            var value = text.GetString()?.Trim() ?? string.Empty;
+            if (index < 0 || string.IsNullOrWhiteSpace(value)
+                || value.Length > Math.Clamp(request.Lines[index].Length * 4 + 120, 256, 2048)
+                || !translations.TryAdd(key, value))
+                throw InvalidResponse(request.Language);
+        }
+        var result = new TranslationResult
+        {
+            DisplayLines = lineIds.Select(id => translations[id]).ToList(),
+            ToxicityFiltered = toxicity.GetBoolean()
+        };
 
         result.RawText = string.Join("\n", request.Lines);
         LocalSpeechPlanner.Apply(result, request);
@@ -134,6 +165,10 @@ public sealed class OpenAiCompatibleTranslationService : ITranslationService, ID
     }
 
     public void Dispose() => _httpClient.Dispose();
+
+    private static InvalidOperationException InvalidResponse(AppLanguage language) => new(language == AppLanguage.English
+        ? "The translation was incomplete or its line IDs were invalid. This turn was skipped."
+        : "翻译未完整结束或逐行 ID 校验失败，已跳过本轮。");
 
     private async Task<HttpResponseMessage> SendAsync(
         Dictionary<string, object?> payload,

@@ -19,9 +19,12 @@
     "系统设置":"System settings","启动后最小化":"Minimize after start","关闭窗口时缩小到托盘":"Close window to tray","显示悬浮控制按钮":"Show floating controls","界面配色":"Interface palette","选择整套界面配色":"Choose an interface palette","瓷白":"Porcelain","黑白":"Black & white","纯白":"Pure white","珊瑚":"Coral","雾蓝":"Mist blue","青绿":"Teal","鼠尾草":"Sage","暖砂":"Warm sand","自定义":"Custom","自定义主题颜色":"Custom theme color","更多设置":"More settings","返回系统设置":"Back to system settings",
     "识别引擎":"Recognition engine","识别模式":"Recognition mode","本地 OCR（默认）":"Local OCR (default)","DeepSeek V4 Vision（实验）":"DeepSeek V4 Vision (experimental)","Vision 模式会把用户框选区域截图发送给 DeepSeek；不会发送全屏，也不会读取游戏内存。":"Vision sends the user-selected crop to DeepSeek. It never sends the full screen or reads game memory.","我同意将框选区域截图发送给 DeepSeek Vision":"I consent to sending the selected crop to DeepSeek Vision","请先确认 Vision 截图发送同意项。":"Confirm Vision screenshot consent first.","屏显与悬浮":"Overlay & display","输出方式":"Output mode","仅屏显":"Overlay only","仅播报":"Speech only","屏显 + 播报":"Overlay + speech","显示位置":"Display position","自动避让":"Automatic","识别区上方":"Above recognition area","识别区下方":"Below recognition area","识别区左侧":"Left of recognition area","识别区右侧":"Right of recognition area","自定义区域":"Custom region","文字透明度":"Text opacity",
     "玩家聊天语音":"Player chat speech","紧急提醒":"Urgent alerts","重点沟通":"Key messages","中性闲聊":"Neutral chat","系统 Ping 与固定通知":"System pings & fixed notices","击杀播报":"Kill feed","地图资源与建筑":"Map objectives & structures","防沉迷提示":"Wellness reminders","对局流程与系统":"Match flow & system","运行偏好":"Runtime preferences","保留情绪，不朗读脏话":"Keep emotion without reading abuse","仅在画面变化时识别":"Recognize only when the image changes","游戏中保持低占用":"Keep resource use low in game","预览悬浮译文":"Preview overlay","恢复默认设置":"Restore defaults",
-    "本次翻译总计{total}条，已播报{spoken}条":"This session: {total} translations · {spoken} spoken","版本号：RiftLens-{version}":"Version: RiftLens {version}"
+    "播报状态":"Speech status","已加入队列":"Queued","消息已过期":"Message expired","译文过长":"Text too long","已过滤攻击":"Abuse filtered","语义未通过":"Evidence check failed","当前策略不播报":"Speech tier off","未开语音":"Speech output off","固定 HUD 已拦截":"Fixed game text blocked","无可读摘要":"Nothing safe to read","翻译质量不确定":"Translation unverified",
+    "已加入播报队列，实际播放取决于消息时效和当前设置。":"Queued for speech; playback depends on message freshness and current settings.",
+    "本次翻译总计{total}条，已排队{spoken}条":"This session: {total} translations · {spoken} queued","版本号：RiftLens-{version}":"Version: RiftLens {version}"
   };
   const paletteLabels = { porcelain:"瓷白", mono:"黑白", pearl:"纯白", coral:"珊瑚", blue:"雾蓝", teal:"青绿", sage:"鼠尾草", sand:"暖砂", custom:"自定义" };
+  const silenceLabels = { expired:"消息已过期", speech_too_long:"译文过长", toxicity:"已过滤攻击", semantic:"语义未通过", policy:"当前策略不播报", overlay_only:"未开语音", hud:"固定 HUD 已拦截", empty:"无可读摘要", translation_quality:"翻译质量不确定" };
   const themedProperties = ["--page","--paper","--surface","--surface-2","--surface-soft","--surface-info","--ink","--ink-2","--ink-3","--accent","--accent-2","--accent-soft","--accent-ink","--card-1","--card-2","--card-3"];
   const state = {
     language:"zh-CN", onboardingCompleted:false, interfacePalette:"porcelain", customThemeColor:"#6f7f91",
@@ -38,6 +41,8 @@
   let sessionStartedAt = null;
   let toastTimer = 0;
   let bootAdvanceTimer = 0;
+  let renderedHistory = null;
+  let renderedHistoryLanguage = "";
   const testsDisableAutoAdvance = preview.has("testOnboarding") || preview.has("preview") || preview.has("testLanguage");
 
   const tr = value => state.language === "en-US" ? (english[value] || value) : value;
@@ -152,24 +157,42 @@
     $("#palette-name").textContent=tr(paletteLabels[state.interfacePalette]||"瓷白");
     $("#local-save-button").textContent=tr(state.saveTranslationHistory?"停止本地保存":"开启本地保存");
     $("#evaluation-button span").textContent=tr(state.evaluationRecording?"停止并保存评估记录":"开始真实评估记录");
+    const runtimeStatus=$("#runtime-status"),statusMessage=state.statusMessage||"";
+    if(runtimeStatus.textContent!==statusMessage)runtimeStatus.textContent=statusMessage;
+    runtimeStatus.hidden=!statusMessage;
     if(sessionStartedAt)$("#session-time").textContent=formatHour(sessionStartedAt);
     renderHistory();
   }
 
   function renderHistory(){
     const items=Array.isArray(state.history)?state.history:[];
+    if(renderedHistoryLanguage===state.language && renderedHistory?.length===items.length
+      && items.every((item,index)=>{
+        const previous=renderedHistory[index];
+        return item.time===previous.time && item.original===previous.original
+          && item.translation===previous.translation && item.spoken===previous.spoken
+          && item.silenceReasonCode===previous.silenceReasonCode && item.silenceReason===previous.silenceReason;
+      }))return;
+    renderedHistory=items.map(({time,original,translation,spoken,silenceReasonCode,silenceReason})=>({time,original,translation,spoken,silenceReasonCode,silenceReason}));
+    renderedHistoryLanguage=state.language;
     const tbody=$("#history-rows"); tbody.textContent="";
     const fragment=document.createDocumentFragment();
     items.forEach(item=>{
       const row=document.createElement("tr");
-      const values=[timeText(item.time),item.original||"",item.translation||"",tr(item.spoken?"已播报":"未播报")];
-      values.forEach((value,index)=>{const cell=document.createElement("td");cell.textContent=value;if(index===3)cell.className=item.spoken?"spoken-yes":"spoken-no";row.append(cell)});
+      const speechLabel=tr(item.spoken?"已加入队列":(silenceLabels[item.silenceReasonCode]||"未播报"));
+      const values=[timeText(item.time),item.original||"",item.translation||"",speechLabel];
+      values.forEach((value,index)=>{
+        const cell=document.createElement("td");cell.textContent=value;
+        if(index===2)cell.className="translation-text";
+        if(index===3){cell.className=item.spoken?"spoken-yes":"spoken-no";cell.title=item.spoken?tr("已加入播报队列，实际播放取决于消息时效和当前设置。"):(silenceLabels[item.silenceReasonCode]?speechLabel:(item.silenceReason||speechLabel))}
+        row.append(cell);
+      });
       fragment.append(row);
     });
     tbody.append(fragment);
     $("#empty-history").hidden=items.length>0;
     const spoken=items.filter(item=>item.spoken).length;
-    $("#history-summary").textContent=tr("本次翻译总计{total}条，已播报{spoken}条").replace("{total}",items.length).replace("{spoken}",spoken);
+    $("#history-summary").textContent=tr("本次翻译总计{total}条，已排队{spoken}条").replace("{total}",items.length).replace("{spoken}",spoken);
   }
 
   function applyState(next){

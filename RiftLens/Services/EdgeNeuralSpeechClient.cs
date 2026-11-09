@@ -7,7 +7,7 @@ using RiftLens.Models;
 
 namespace RiftLens.Services;
 
-internal sealed class EdgeNeuralSpeechClient
+internal sealed class EdgeNeuralSpeechClient : ISpeechSynthesizer
 {
     private const string TrustedClientToken = "6A5AA1D4EAFF4E9FB37E23D68491D6F4";
     private const string ProtocolVersion = "1-143.0.3650.75";

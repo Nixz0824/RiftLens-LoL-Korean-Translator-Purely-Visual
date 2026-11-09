@@ -12,6 +12,10 @@ public sealed class SettingsStore
     };
 
     private readonly string _settingsPath;
+    private readonly SemaphoreSlim _saveGate = new(1, 1);
+
+    public string? LoadWarning { get; private set; }
+    public string? RecoveryBackupPath { get; private set; }
 
     public SettingsStore(string? settingsPath = null)
     {
@@ -23,6 +27,8 @@ public sealed class SettingsStore
 
     public async Task<AppSettings> LoadAsync()
     {
+        LoadWarning = null;
+        RecoveryBackupPath = null;
         try
         {
             if (!File.Exists(_settingsPath))
@@ -141,22 +147,55 @@ public sealed class SettingsStore
             settings.OcrScale = Math.Clamp(settings.OcrScale, 3, 4);
             return settings;
         }
-        catch
+        catch (Exception exception)
         {
+            LoadWarning = "设置无法读取，已使用默认设置。 / Settings could not be read; defaults are in use.";
+            if (exception is JsonException or InvalidOperationException or NullReferenceException
+                or NotSupportedException or ArgumentException)
+            {
+                try
+                {
+                    var backup = _settingsPath + $".corrupt-{Guid.NewGuid():N}.bak";
+                    File.Copy(_settingsPath, backup);
+                    RecoveryBackupPath = backup;
+                }
+                catch (Exception backupError) when (backupError is IOException or UnauthorizedAccessException)
+                {
+                    LoadWarning += " 原文件备份失败。 / The original file could not be backed up.";
+                }
+            }
             return new AppSettings();
         }
     }
 
+    public async Task FlushAsync()
+    {
+        await _saveGate.WaitAsync().ConfigureAwait(false);
+        _saveGate.Release();
+    }
+
     public async Task SaveAsync(AppSettings settings)
     {
-        var directory = Path.GetDirectoryName(_settingsPath)!;
-        Directory.CreateDirectory(directory);
-        var temporaryPath = _settingsPath + ".tmp";
-        await using (var stream = File.Create(temporaryPath))
+        // Snapshot before yielding: later UI edits must not change an earlier save.
+        var json = JsonSerializer.Serialize(settings, JsonOptions);
+        await _saveGate.WaitAsync().ConfigureAwait(false);
+        var temporaryPath = _settingsPath + $".{Guid.NewGuid():N}.tmp";
+        try
         {
-            await JsonSerializer.SerializeAsync(stream, settings, JsonOptions);
+            Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(_settingsPath))!);
+            await File.WriteAllTextAsync(temporaryPath, json).ConfigureAwait(false);
+            File.Move(temporaryPath, _settingsPath, true);
         }
-
-        File.Move(temporaryPath, _settingsPath, true);
+        finally
+        {
+            try
+            {
+                if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
+            }
+            finally
+            {
+                _saveGate.Release();
+            }
+        }
     }
 }
