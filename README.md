@@ -6,7 +6,7 @@
   <a href="README.md">简体中文</a> · <a href="README.en.md">English</a>
   <br><br>
   <img alt="Platform Windows" src="https://img.shields.io/badge/Windows-10%2F11-082942?style=flat-square">
-  <img alt=".NET 8" src="https://img.shields.io/badge/.NET-8.0-7b72ff?style=flat-square">
+  <img alt=".NET 10" src="https://img.shields.io/badge/.NET-10.0-7b72ff?style=flat-square">
   <img alt="License MIT" src="https://img.shields.io/badge/License-MIT-08b982?style=flat-square">
   <img alt="Version 2.3.0" src="https://img.shields.io/badge/Version-2.3.0-7b72ff?style=flat-square">
   <img alt="Status MVP" src="https://img.shields.io/badge/Status-MVP-f0a24b?style=flat-square">
@@ -101,7 +101,7 @@ Full details in [PRIVACY.md](PRIVACY.md). Using online translation or online spe
 
 - **Windows 10 22H2 or Windows 11, x64.**<br>Windows 10 22H2 或 Windows 11，x64。
 - **Microsoft Edge WebView2 Runtime** — typically already present on current Windows / Edge.<br>Microsoft Edge WebView2 Runtime；当前 Windows/Edge 通常已包含。
-- **Smaller publish output** requires .NET 8 Desktop Runtime; the self-contained publish output does **not** need a preinstalled .NET.<br>小体积发布包需要 .NET 8 Desktop Runtime；自包含发布包不需要预装 .NET。
+- **Smaller publish output** requires .NET 10 Desktop Runtime; the self-contained publish output does **not** need a preinstalled .NET.<br>小体积发布包需要 .NET 10 Desktop Runtime；自包含发布包不需要预装 .NET。
 - **Borderless window mode is recommended** for games. Exclusive fullscreen does not guarantee third-party overlays can display.<br>游戏推荐无边框窗口模式。独占全屏不保证能显示第三方悬浮层。
 
 ### Download 2.3 · 下载 2.3
@@ -180,8 +180,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File ./build.ps1
 # 单独运行双语 WebUI 点击测试（需要 Microsoft Edge）
 node ./RiftLens.SelfTest/webui-interaction-test.js
 
-# Small output — depends on the target machine having .NET 8 Desktop Runtime
-# 小体积、依赖目标电脑的 .NET 8 Desktop Runtime
+# Small output — depends on the target machine having .NET 10 Desktop Runtime
+# 小体积、依赖目标电脑的 .NET 10 Desktop Runtime
 powershell -NoProfile -ExecutionPolicy Bypass -File ./publish.ps1
 
 # Larger output — self-contained, no preinstalled .NET required

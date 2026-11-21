@@ -4,8 +4,25 @@ All notable user-facing changes will be documented here. The project follows a l
 
 ## [Unreleased]
 
+### Added
+
+- Added an OpenAI-compatible API Base URL and Model editor directly in WebUI settings, plus a live Windows audio output device selector powered by NAudio.
+- Unified and refined the light WebUI workspace (`WebUI/`) with consistent surface hierarchy, hairline borders, compact titlebar layout, and accurate MIT License copy.
+- Upgraded all .NET projects and CI workflows from .NET 8 (EOL 2026-11-10) to **.NET 10 LTS** (`net10.0-windows`).
+
 ### Fixed
 
+- Fixed "Recognize only when image changes" (`ChangeOnly = false`): `ImageChangeDetector` now honors `ChangeThreshold <= 0` instead of clamping it back to `0.005`.
+- Fixed Vision mode double-deduplication: local OCR previews new lines without mutating `MessageDeduplicator` until the authoritative Vision pass (or local fallback) commits.
+- Hardened `NaturalSpeechService` so transient audio device or COM/SAPI exceptions are caught per utterance instead of terminating the background speech worker thread; synchronized queue mutation and disposal.
+- Fixed custom display region tracking (`OverlayPlacementService`, `TranslationOverlayForm`, `MainForm`) to resolve window-relative coordinates (`Resolve()`) rather than static absolute coordinates.
+- Fixed GDI+/WinForms resource leaks (`MainForm` detached legacy controls & undisposed `_historyList` cards, missing `_overlay`/`_historySaveLock`/`ContextMenuStrip` disposal, undisposed `StringFormat` in `TranslationOverlayForm`, undisposed `Process` handles in `SingleInstance`).
+- Hardened `WebWorkspace` WebView2 recovery path selection (uses writable `WebView2Cache` beside the app and falls back to `%TEMP%\RiftLens\WebView2Cache` in read-only install directories), and guarded `SettingsStore.LoadAsync` against null JSON properties.
+- Replaced the contradictory non-commercial notice in the WebUI with accurate MIT License copy, wired "Check for updates" to open GitHub Releases, and removed internal tooling copy from evaluation dialogs.
+- WebView2 startup now retries `0x800700AA` once, then uses a separate writable cache. Failed controllers are replaced and the original browser directory, settings and API key are preserved. The fallback page offers retry and recommends installing Runtime only when it is actually missing.
+- Refined the existing workspace with readable compact headers, larger range hit areas, contextual empty-history guidance, clearer speech badges and keyboard focus indicators while retaining its layout and palette.
+- API key saving now supports Enter, inline validation and host-reported errors, with pending states and duplicate-action guards for save/start. Missing-key setup focuses the visible WebView input. Saved keys are cleared from both UI buffers.
+- History/settings popovers dismiss consistently and restore focus with Escape. Clearing session history and restoring defaults use native accessible confirmation dialogs. English speech labels now match Jenny, and Chinese preview status reflects the Xiaoxiao voice lock.
 - WebUI history shows localized expiry, long-text and other silence reasons, refreshes reason-only changes, and retains translation line breaks. Queue decisions are labeled as queued rather than completed playback, and backend rejection/status messages are visible in the history footer.
 - Messages keep a capture-based deadline through OCR, aggregation, translation and TTS. Expired messages and late responses are skipped, requests use the remaining budget, and audio is checked again before playback.
 - Player turns complete after eight distinct lines or 2.5 seconds even during continuous chat, preserving the beginning of each turn and its evaluation IDs.
@@ -25,6 +42,12 @@ All notable user-facing changes will be documented here. The project follows a l
 
 ### Performance
 
+- Reused a single warmed-up `BundledOcrService` instance across listening sessions and OCR tests instead of reloading all three ONNX models (~34 MB) on every start.
+- Added on-demand second-recognizer skipping for high-confidence pure Hangul/ASCII segments, line-level crop-hash caching, and scratch BGR buffer reuse in `PaddleOcrEngine` (warm self-test OCR latency reduced from ~177 ms to ~46 ms).
+- Cached resolved game window `HWND` in `GameWindowLocator` (with `Win32Exception` protection for elevated processes) so 2–4 Hz polling no longer enumerates all desktop windows and processes on every frame.
+- Cached the rendered layered bitmap in `TranslationOverlayForm` across fade steps instead of re-drawing the full GDI+ surface 16 times per message.
+- Cached OpenAI-compatible 400/422 optional-parameter downgrades in `OpenAiCompatibleTranslationService` and `DeepSeekVisionOcrService`, and normalized `/chat/completions` base URLs.
+- Removed ~2,700 lines of unused legacy WinForms UI (`SpatialWorkspace.cs`, `DesignControls.cs`, detached `MainForm` controls) and ~5.1 MB of doubly-packaged unused reference PNGs (`home-reference.png`, `voice-reference.png`).
 - Korean and Chinese recognizers share one image resize and input tensor per segment. Dense ONNX outputs are read without copying, and detection/input scratch buffers are reused across frames.
 - Hidden windows stop serializing and posting full UI snapshots. Showing the window sends its latest state, including when WebView2 suspension was unavailable.
 - Unchanged history rows are retained during unrelated state updates. Record edits, clearing history, and language changes still refresh the table.

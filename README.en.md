@@ -6,7 +6,7 @@
   <a href="README.md">简体中文</a> · <a href="README.en.md">English</a>
   <br><br>
   <img alt="Platform Windows" src="https://img.shields.io/badge/Windows-10%2F11-082942?style=flat-square">
-  <img alt=".NET 8" src="https://img.shields.io/badge/.NET-8.0-7b72ff?style=flat-square">
+  <img alt=".NET 10" src="https://img.shields.io/badge/.NET-10.0-7b72ff?style=flat-square">
   <img alt="License MIT" src="https://img.shields.io/badge/License-MIT-08b982?style=flat-square">
   <img alt="Version 2.3.0" src="https://img.shields.io/badge/Version-2.3.0-7b72ff?style=flat-square">
   <img alt="Status MVP" src="https://img.shields.io/badge/Status-MVP-f0a24b?style=flat-square">
@@ -87,7 +87,7 @@ See [PRIVACY.md](PRIVACY.md) for the complete bilingual privacy notes. Text sent
 
 - Windows 10 22H2 or Windows 11, x64.
 - Microsoft Edge WebView2 Runtime, normally present on current Windows installations.
-- The smaller build requires .NET 8 Desktop Runtime; the self-contained build does not.
+- The smaller build requires .NET 10 Desktop Runtime; the self-contained build does not.
 - Borderless windowed mode is recommended. Third-party overlays are not guaranteed in exclusive fullscreen.
 
 ### Download 2.3
@@ -146,7 +146,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File ./build.ps1
 # Run bilingual WebUI click tests separately (Microsoft Edge required)
 node ./RiftLens.SelfTest/webui-interaction-test.js
 
-# Smaller output; .NET 8 Desktop Runtime required on the target PC
+# Smaller output; .NET 10 Desktop Runtime required on the target PC
 powershell -NoProfile -ExecutionPolicy Bypass -File ./publish.ps1
 
 # Larger standalone output

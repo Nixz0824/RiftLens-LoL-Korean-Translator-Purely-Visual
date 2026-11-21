@@ -22,13 +22,13 @@ jobs:
       - name: Set up .NET
         uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: 10.0.x
 
       - name: Restore
         shell: pwsh
         run: |
-          dotnet restore RiftLens.SelfTest/RiftLens.SelfTest.csproj --configfile NuGet.Config
-          dotnet restore RiftLens/RiftLens.csproj -r win-x64 --configfile NuGet.Config
+          dotnet restore RiftLens.SelfTest/RiftLens.SelfTest.csproj --configfile NuGet.Config -p:NuGetAudit=true
+          dotnet restore RiftLens/RiftLens.csproj -r win-x64 --configfile NuGet.Config -p:NuGetAudit=true
 
       - name: Build
         run: dotnet build RiftLens.SelfTest/RiftLens.SelfTest.csproj -c Release --no-restore
