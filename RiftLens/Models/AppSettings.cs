@@ -168,6 +168,7 @@ public sealed class AppSettings
     public bool ShowOriginalText { get; set; }
     public int SpeechVolume { get; set; } = 65;
     public int SpeechRate { get; set; } = 1;
+    public int OutputDeviceIndex { get; set; } = -1;
     public SpeechFilterLevel SpeechFilter { get; set; } = SpeechFilterLevel.Standard;
     [System.Text.Json.Serialization.JsonIgnore]
     public SystemMessageFilterMode SystemMessageFilter { get; set; } = SystemMessageFilterMode.Balanced;

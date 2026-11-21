@@ -48,6 +48,7 @@ public sealed class OpenAiCompatibleTranslationService : ITranslationService, ID
     private readonly HttpClient _httpClient;
     private readonly string _model;
     private readonly bool _isDeepSeek;
+    private int _omitOptionalParameters;
 
     public OpenAiCompatibleTranslationService(string baseUrl, string model, string apiKey, HttpMessageHandler? handler = null)
     {
@@ -55,9 +56,19 @@ public sealed class OpenAiCompatibleTranslationService : ITranslationService, ID
         _httpClient.Timeout = TimeSpan.FromSeconds(8);
         _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
         _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-        _httpClient.BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/", UriKind.Absolute);
+        _httpClient.BaseAddress = NormalizeBaseAddress(baseUrl);
         _model = model;
         _isDeepSeek = _httpClient.BaseAddress.Host.Contains("deepseek", StringComparison.OrdinalIgnoreCase);
+    }
+
+    internal static Uri NormalizeBaseAddress(string baseUrl)
+    {
+        var trimmed = (baseUrl ?? string.Empty).Trim().TrimEnd('/');
+        if (trimmed.EndsWith("/chat/completions", StringComparison.OrdinalIgnoreCase))
+        {
+            trimmed = trimmed[..^"/chat/completions".Length].TrimEnd('/');
+        }
+        return new Uri(trimmed + "/", UriKind.Absolute);
     }
 
     public async Task<TranslationResult> TranslateAsync(
@@ -95,18 +106,22 @@ public sealed class OpenAiCompatibleTranslationService : ITranslationService, ID
             new { role = "system", content = SystemPrompt },
             new { role = "user", content = userPayload }
         };
+        var omitOptional = Volatile.Read(ref _omitOptionalParameters) == 1;
         var payload = new Dictionary<string, object?>
         {
             ["model"] = _model,
             ["messages"] = messages,
             ["temperature"] = 0.15,
             ["max_tokens"] = Math.Clamp(128 + request.Lines.Sum(line => Math.Min(line.Length, 512) * 3 + 64), 384, 4096),
-            ["response_format"] = new { type = "json_object" },
             ["stream"] = false
         };
-        if (_isDeepSeek)
+        if (!omitOptional)
         {
-            payload["thinking"] = new { type = "disabled" };
+            payload["response_format"] = new { type = "json_object" };
+            if (_isDeepSeek)
+            {
+                payload["thinking"] = new { type = "disabled" };
+            }
         }
 
         using var response = await SendAsync(payload, cancellationToken);
@@ -175,12 +190,14 @@ public sealed class OpenAiCompatibleTranslationService : ITranslationService, ID
         CancellationToken cancellationToken)
     {
         var response = await PostAsync(payload, cancellationToken);
-        if (response.IsSuccessStatusCode || (int)response.StatusCode is not (400 or 422))
+        if (response.IsSuccessStatusCode || (int)response.StatusCode is not (400 or 422)
+            || (!payload.ContainsKey("thinking") && !payload.ContainsKey("response_format")))
         {
             return response;
         }
 
         response.Dispose();
+        Volatile.Write(ref _omitOptionalParameters, 1);
         payload.Remove("thinking");
         payload.Remove("response_format");
         return await PostAsync(payload, cancellationToken);

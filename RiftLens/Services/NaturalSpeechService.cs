@@ -19,6 +19,7 @@ public sealed class NaturalSpeechService : IDisposable
     private CancellationTokenSource? _currentSynthesis;
     private int _purgeRequested;
     private int _configuredVolume = 65;
+    private int _outputDeviceNumber = -1;
     private bool _disposed;
     private DateTimeOffset _onlineDisabledUntil;
     private bool _fallbackReported;
@@ -27,6 +28,34 @@ public sealed class NaturalSpeechService : IDisposable
     private int _currentPriority;
 
     public event Action<string>? StatusChanged;
+
+    public static IReadOnlyList<AudioOutputDeviceInfo> GetOutputDevices()
+    {
+        var devices = new List<AudioOutputDeviceInfo>();
+        try
+        {
+            var count = WaveOut.DeviceCount;
+            for (var index = 0; index < count; index++)
+            {
+                var caps = WaveOut.GetCapabilities(index);
+                var name = caps.ProductName?.Trim();
+                if (!string.IsNullOrEmpty(name))
+                {
+                    devices.Add(new AudioOutputDeviceInfo(index, name));
+                }
+            }
+        }
+        catch
+        {
+            // Audio subsystem may be unavailable in headless or remote sessions.
+        }
+        return devices;
+    }
+
+    public void SetOutputDevice(int deviceNumber)
+    {
+        Volatile.Write(ref _outputDeviceNumber, deviceNumber < 0 ? -1 : deviceNumber);
+    }
 
     public NaturalSpeechService(ISpeechSynthesizer? synthesizer = null)
     {
@@ -82,19 +111,34 @@ public sealed class NaturalSpeechService : IDisposable
             priority,
             lifetime,
             canSpeak);
-        if (_queue.TryAdd(item))
+        lock (_queueMutationGate)
         {
-            return;
-        }
+            if (_disposed || _queue.IsAddingCompleted)
+            {
+                return;
+            }
 
-        // Tactical information is optional and must never evict queued player speech.
-        if (isTactical)
-        {
-            return;
-        }
+            try
+            {
+                if (_queue.TryAdd(item))
+                {
+                    return;
+                }
 
-        _queue.TryTake(out _);
-        _queue.TryAdd(item);
+                // Tactical information is optional and must never evict queued player speech.
+                if (isTactical)
+                {
+                    return;
+                }
+
+                _queue.TryTake(out _);
+                _queue.TryAdd(item);
+            }
+            catch (InvalidOperationException)
+            {
+                // Shutdown completed adding concurrently.
+            }
+        }
     }
 
     public void SetVolume(int volume)
@@ -113,8 +157,11 @@ public sealed class NaturalSpeechService : IDisposable
     public void Clear()
     {
         Interlocked.Exchange(ref _purgeRequested, 1);
-        while (_queue.TryTake(out _))
+        lock (_queueMutationGate)
         {
+            while (_queue.TryTake(out _))
+            {
+            }
         }
 
         lock (_activeGate)
@@ -132,17 +179,25 @@ public sealed class NaturalSpeechService : IDisposable
 
     public void Dispose()
     {
-        if (_disposed)
+        lock (_queueMutationGate)
         {
-            return;
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+            _queue.CompleteAdding();
         }
 
         Clear();
-        _disposed = true;
-        _queue.CompleteAdding();
         if (_worker.Join(TimeSpan.FromSeconds(3)))
         {
             _queue.Dispose();
+        }
+        if (_neuralClient is IDisposable disposableClient)
+        {
+            disposableClient.Dispose();
         }
     }
 
@@ -193,6 +248,19 @@ public sealed class NaturalSpeechService : IDisposable
 
                     sapiVoice ??= CreateSapiVoice(out sapiObject, item.Language);
                     SpeakWithSapi(sapiVoice, item);
+                }
+                catch (Exception exception)
+                {
+                    // Never let a transient device/COM error terminate the speech worker thread.
+                    if (sapiObject is not null && Marshal.IsComObject(sapiObject))
+                    {
+                        try { Marshal.FinalReleaseComObject(sapiObject); } catch { }
+                        sapiObject = null;
+                        sapiVoice = null;
+                    }
+                    StatusChanged?.Invoke(currentLanguage == AppLanguage.English
+                        ? "Speech is temporarily unavailable: " + exception.Message
+                        : "语音暂时不可用：" + exception.Message);
                 }
                 finally
                 {
@@ -308,7 +376,15 @@ public sealed class NaturalSpeechService : IDisposable
         using var reader = new Mp3FileReader(stream);
         using var completed = new ManualResetEventSlim(false);
         Exception? playbackError = null;
-        using var player = new WaveOutEvent { Volume = Volatile.Read(ref _configuredVolume) / 100f };
+        var requestedDevice = Volatile.Read(ref _outputDeviceNumber);
+        var deviceNumber = requestedDevice >= 0 && requestedDevice < WaveOut.DeviceCount
+            ? requestedDevice
+            : -1;
+        using var player = new WaveOutEvent
+        {
+            DeviceNumber = deviceNumber,
+            Volume = Volatile.Read(ref _configuredVolume) / 100f
+        };
         player.PlaybackStopped += (_, eventArgs) =>
         {
             playbackError = eventArgs.Exception;
@@ -514,3 +590,5 @@ public sealed class NaturalSpeechService : IDisposable
         MessageLifetime Lifetime,
         Func<bool>? CanSpeak);
 }
+
+public sealed record AudioOutputDeviceInfo(int DeviceNumber, string Name);

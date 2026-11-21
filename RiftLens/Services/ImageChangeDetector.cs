@@ -18,6 +18,12 @@ public sealed class ImageChangeDetector
             return true;
         }
 
+        if (threshold <= 0)
+        {
+            _previous = current;
+            return true;
+        }
+
         var changed = 0;
         for (var index = 0; index < current.Length; index++)
         {

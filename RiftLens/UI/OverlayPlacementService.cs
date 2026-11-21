@@ -13,7 +13,7 @@ public static class OverlayPlacementService
     {
         if (settings.OverlayPlacement == OverlayPlacement.Custom && settings.DisplayRegion.IsValid)
         {
-            var custom = settings.DisplayRegion.ToRectangle();
+            var custom = settings.DisplayRegion.Resolve();
             return custom;
         }
 

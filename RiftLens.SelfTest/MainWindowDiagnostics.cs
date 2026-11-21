@@ -8,13 +8,14 @@ using RiftLens.UI;
 
 internal static class MainWindowDiagnostics
 {
-    public static Task<int> CaptureAsync(string output, int width = 1240, int height = 810, string page = "home")
+    public static Task<int> CaptureAsync(string output, int width = 1240, int height = 810, string page = "home", string? userDataFolder = null)
     {
         var completion = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
         var thread = new Thread(() =>
         {
             try
             {
+                System.Diagnostics.Trace.Listeners.Add(new System.Diagnostics.ConsoleTraceListener(useErrorStream: true));
                 Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
                 Application.EnableVisualStyles();
                 var outputPath = Path.GetFullPath(output);
@@ -22,7 +23,7 @@ internal static class MainWindowDiagnostics
                 Directory.CreateDirectory(directory);
                 var store = new SettingsStore(Path.Combine(directory, "capture-settings.json"));
                 store.SaveAsync(new AppSettings { OnboardingCompleted = true, CloseToTray = false }).GetAwaiter().GetResult();
-                using var form = new MainForm(store, Path.Combine(directory, "webview-profile"));
+                using var form = new MainForm(store, userDataFolder ?? Path.Combine(directory, "webview-profile"));
                 Exception? failure = null;
                 Task? shutdownProbe = null;
                 form.Shown += async (_, _) =>
@@ -33,9 +34,13 @@ internal static class MainWindowDiagnostics
                         form.Size = new Size(width, height);
                         var webView = FindWebView(form) ?? throw new InvalidOperationException("WebView2 control missing.");
                         var deadline = DateTime.UtcNow.AddSeconds(20);
-                        while (webView.CoreWebView2 is null
-                            || await webView.CoreWebView2.ExecuteScriptAsync("document.querySelector('.home-grid') !== null && !document.getElementById('home-screen').hidden") != "true")
+                        while (true)
                         {
+                            // Recovery replaces a failed WebView control; observe the
+                            // current renderer rather than retaining its disposed predecessor.
+                            webView = FindWebView(form) ?? throw new InvalidOperationException("WebView2 control missing during startup.");
+                            if (webView.CoreWebView2 is not null
+                                && await webView.CoreWebView2.ExecuteScriptAsync("document.querySelector('.home-grid') !== null && !document.getElementById('home-screen').hidden") == "true") break;
                             if (DateTime.UtcNow > deadline)
                             {
                                 var detail = webView.CoreWebView2 is null
@@ -51,6 +56,7 @@ internal static class MainWindowDiagnostics
                                 .Invoke(form, new object[] { page });
                         }
                         await Task.Delay(1500);
+                        await VerifyOperationFeedbackAsync(form, webView);
                         await VerifyHiddenUpdatesAsync(form, webView);
                         await using (var stream = File.Create(outputPath))
                         {
@@ -83,6 +89,7 @@ internal static class MainWindowDiagnostics
                         }
                         await File.WriteAllTextAsync(Path.ChangeExtension(outputPath, ".fonts.json"), JsonSerializer.Serialize(fonts));
                         Console.WriteLine($"Captured native WebView2: {outputPath} | window={form.Size} DPI={form.DeviceDpi} browserPID={webView.CoreWebView2.BrowserProcessId}");
+                        Console.WriteLine("Browser profile: " + webView.CoreWebView2.Environment.UserDataFolder);
                         // Reproduce the closing deadlock: a worker must resume on this UI
                         // synchronization context after cancellation before disposal can finish.
                         var lifetime = new CancellationTokenSource();
@@ -112,6 +119,45 @@ internal static class MainWindowDiagnostics
 
     private static WebView2? FindWebView(Control parent) => parent is WebView2 view ? view
         : parent.Controls.Cast<Control>().Select(FindWebView).FirstOrDefault(view => view is not null);
+
+    private static async Task VerifyOperationFeedbackAsync(MainForm form, WebView2 webView)
+    {
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        var workspace = typeof(MainForm).GetField("_workspace", flags)!.GetValue(form)!;
+        var type = workspace.GetType();
+        var push = type.GetMethod("PushState", flags)!;
+        void Set(string property, object value) => type.GetProperty(property)!.SetValue(workspace, value);
+        async Task Expect(string expression)
+        {
+            var deadline = DateTime.UtcNow.AddSeconds(3);
+            while (await webView.CoreWebView2.ExecuteScriptAsync(expression) != "true")
+            {
+                if (DateTime.UtcNow > deadline) throw new InvalidOperationException("Operation feedback did not reach WebView: " + expression);
+                await Task.Delay(25);
+            }
+        }
+        try
+        {
+            Set("PrimaryActionPending", true);
+            Set("ApiKeySavePending", true);
+            push.Invoke(workspace, null);
+            await Expect("document.getElementById('primary-action').disabled && document.getElementById('save-api').disabled");
+            Set("PrimaryActionPending", false);
+            Set("ApiKeySavePending", false);
+            Set("ApiKeySaveError", "test save failure");
+            push.Invoke(workspace, null);
+            await Expect("!document.getElementById('primary-action').disabled && !document.getElementById('save-api').disabled && document.getElementById('api-feedback').textContent === 'test save failure'");
+            Console.WriteLine("PASS: native operation states disable duplicate actions, recover, and display inline save errors.");
+        }
+        finally
+        {
+            Set("PrimaryActionPending", false);
+            Set("ApiKeySavePending", false);
+            Set("ApiKeySaveError", string.Empty);
+            push.Invoke(workspace, null);
+            await Expect("!document.getElementById('primary-action').disabled && !document.getElementById('save-api').disabled && document.getElementById('api-feedback').textContent !== 'test save failure'");
+        }
+    }
 
     private static async Task VerifyHiddenUpdatesAsync(MainForm form, WebView2 webView)
     {

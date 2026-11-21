@@ -6,29 +6,52 @@ namespace RiftLens.Services;
 public sealed partial class MessageDeduplicator
 {
     private static readonly TimeSpan RecentFallbackWindow = TimeSpan.FromSeconds(5);
+    private readonly TimeProvider _clock;
     private IReadOnlyList<string>? _previousEventKeys;
     private readonly List<RecentEventKey> _recent = new();
+
+    public MessageDeduplicator(TimeProvider? clock = null)
+    {
+        _clock = clock ?? TimeProvider.System;
+    }
 
     public IReadOnlyList<string> FindNewLines(string recognizedText) =>
         FindNewLineResults(recognizedText)
             .Select(line => line.NormalizedText)
             .ToArray();
 
-    public IReadOnlyList<DeduplicatedMessageLine> FindNewLineResults(string recognizedText)
+    public IReadOnlyList<DeduplicatedMessageLine> FindNewLineResults(string recognizedText) =>
+        EvaluateLineResults(recognizedText, commit: true);
+
+    /// <summary>
+    /// Computes which lines would be treated as new without mutating the
+    /// deduplication baseline or recent history. Used when an asynchronous
+    /// Vision pass will supply the authoritative transcription for this frame.
+    /// </summary>
+    public IReadOnlyList<DeduplicatedMessageLine> PeekNewLineResults(string recognizedText) =>
+        EvaluateLineResults(recognizedText, commit: false);
+
+    private IReadOnlyList<DeduplicatedMessageLine> EvaluateLineResults(string recognizedText, bool commit)
     {
         var current = SplitLineResults(recognizedText);
         var currentKeys = current.Select(line => CreateStableEventKey(line.NormalizedText)).ToArray();
         if (current.Count == 0)
         {
-            _previousEventKeys ??= Array.Empty<string>();
+            if (commit)
+            {
+                _previousEventKeys ??= Array.Empty<string>();
+            }
             return Array.Empty<DeduplicatedMessageLine>();
         }
 
-        var observedAt = DateTimeOffset.UtcNow;
+        var observedAt = _clock.GetUtcNow();
         if (_previousEventKeys is null)
         {
-            _previousEventKeys = currentKeys;
-            Remember(currentKeys, observedAt);
+            if (commit)
+            {
+                _previousEventKeys = currentKeys;
+                Remember(currentKeys, observedAt);
+            }
             return Array.Empty<DeduplicatedMessageLine>();
         }
 
@@ -37,8 +60,11 @@ public sealed partial class MessageDeduplicator
             ? current.Skip(overlap)
             : current.Where((_, index) => !WasRecentlySeen(currentKeys[index], observedAt));
         var result = candidates.ToArray();
-        _previousEventKeys = currentKeys;
-        Remember(currentKeys, observedAt);
+        if (commit)
+        {
+            _previousEventKeys = currentKeys;
+            Remember(currentKeys, observedAt);
+        }
         return result;
     }
 

@@ -125,6 +125,17 @@ public sealed class SettingsStore
                 settings.VisionPrivacyConsent = false;
                 settings.SchemaVersion = 11;
             }
+            settings.CaptureRegion ??= new ScreenRegion();
+            settings.DisplayRegion ??= new ScreenRegion();
+            settings.Presets ??= new List<CapturePreset>();
+            if (string.IsNullOrWhiteSpace(settings.ApiBaseUrl))
+            {
+                settings.ApiBaseUrl = "https://api.deepseek.com";
+            }
+            if (string.IsNullOrWhiteSpace(settings.ApiModel))
+            {
+                settings.ApiModel = "deepseek-v4-flash";
+            }
             if (!Enum.IsDefined(settings.RecognitionMode))
             {
                 settings.RecognitionMode = RecognitionPipelineMode.LocalOcr;
@@ -133,15 +144,25 @@ public sealed class SettingsStore
             {
                 "porcelain", "mono", "pearl", "coral", "blue", "teal", "sage", "sand", "custom"
             };
-            if (!supportedPalettes.Contains(settings.InterfacePalette))
+            if (string.IsNullOrWhiteSpace(settings.InterfacePalette)
+                || !supportedPalettes.Contains(settings.InterfacePalette))
             {
                 settings.InterfacePalette = "porcelain";
             }
-            if (settings.CustomThemeColor.Length != 7
-                || settings.CustomThemeColor[0] != '#'
-                || !settings.CustomThemeColor.Skip(1).All(Uri.IsHexDigit))
+            var color = settings.CustomThemeColor?.Trim() ?? string.Empty;
+            if (color.Length != 7
+                || color[0] != '#'
+                || !color.Skip(1).All(Uri.IsHexDigit))
             {
                 settings.CustomThemeColor = "#6f7f91";
+            }
+            else
+            {
+                settings.CustomThemeColor = color.ToLowerInvariant();
+            }
+            if (settings.OutputDeviceIndex < -1)
+            {
+                settings.OutputDeviceIndex = -1;
             }
             // 旧版本默认 2 倍放大，对游戏内 12-16px 韩文不足；读取时自动迁移到聊天优化值。
             settings.OcrScale = Math.Clamp(settings.OcrScale, 3, 4);

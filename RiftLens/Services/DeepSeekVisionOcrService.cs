@@ -37,12 +37,13 @@ public sealed class DeepSeekVisionOcrService : IVisionOcrService, IDisposable
     };
 
     private readonly HttpClient _httpClient;
+    private int _omitOptionalParameters;
 
     public DeepSeekVisionOcrService(string baseUrl, string apiKey, HttpMessageHandler? handler = null)
     {
         _httpClient = handler is null ? new HttpClient() : new HttpClient(handler, disposeHandler: true);
         _httpClient.Timeout = TimeSpan.FromSeconds(35);
-        _httpClient.BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/", UriKind.Absolute);
+        _httpClient.BaseAddress = OpenAiCompatibleTranslationService.NormalizeBaseAddress(baseUrl);
         _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
         _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
     }
@@ -52,7 +53,7 @@ public sealed class DeepSeekVisionOcrService : IVisionOcrService, IDisposable
         cancellationToken.ThrowIfCancellationRequested();
         using var stream = new MemoryStream();
         SaveJpeg(bitmap, stream);
-        var imageUrl = "data:image/jpeg;base64," + Convert.ToBase64String(stream.ToArray());
+        var imageUrl = "data:image/jpeg;base64," + Convert.ToBase64String(stream.GetBuffer(), 0, (int)stream.Length);
         var messages = new object[]
         {
             new { role = "system", content = SystemPrompt },
@@ -76,10 +77,13 @@ public sealed class DeepSeekVisionOcrService : IVisionOcrService, IDisposable
             ["messages"] = messages,
             ["temperature"] = 0,
             ["max_tokens"] = 1600,
-            ["response_format"] = new { type = "json_object" },
-            ["thinking"] = new { type = "disabled" },
             ["stream"] = false
         };
+        if (Volatile.Read(ref _omitOptionalParameters) == 0)
+        {
+            payload["response_format"] = new { type = "json_object" };
+            payload["thinking"] = new { type = "disabled" };
+        }
 
         using var response = await SendAsync(payload, cancellationToken);
         var responseText = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -90,12 +94,17 @@ public sealed class DeepSeekVisionOcrService : IVisionOcrService, IDisposable
         }
 
         using var document = JsonDocument.Parse(responseText);
-        var modelContent = document.RootElement
-            .GetProperty("choices")[0]
-            .GetProperty("message")
-            .GetProperty("content")
-            .GetString();
-        return ParseModelContent(modelContent ?? string.Empty);
+        if (!document.RootElement.TryGetProperty("choices", out var choices)
+            || choices.ValueKind != JsonValueKind.Array
+            || choices.GetArrayLength() == 0
+            || !choices[0].TryGetProperty("message", out var message)
+            || message.ValueKind != JsonValueKind.Object
+            || !message.TryGetProperty("content", out var content)
+            || content.ValueKind != JsonValueKind.String)
+        {
+            throw new InvalidOperationException("DeepSeek Vision returned an incomplete response.");
+        }
+        return ParseModelContent(content.GetString() ?? string.Empty);
     }
 
     public static OcrDocument ParseModelContent(string content)
@@ -127,12 +136,14 @@ public sealed class DeepSeekVisionOcrService : IVisionOcrService, IDisposable
         CancellationToken cancellationToken)
     {
         var response = await PostAsync(payload, cancellationToken);
-        if (response.IsSuccessStatusCode || (int)response.StatusCode is not (400 or 422))
+        if (response.IsSuccessStatusCode || (int)response.StatusCode is not (400 or 422)
+            || (!payload.ContainsKey("thinking") && !payload.ContainsKey("response_format")))
         {
             return response;
         }
 
         response.Dispose();
+        Volatile.Write(ref _omitOptionalParameters, 1);
         payload.Remove("thinking");
         payload.Remove("response_format");
         return await PostAsync(payload, cancellationToken);

@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using RiftLens.Models;
@@ -6,7 +7,9 @@ namespace RiftLens.Services;
 
 /// <summary>
 /// Finds the League client or game window so capture boxes can follow that
-/// client area instead of a one-off absolute pixel rectangle.
+/// client area instead of a one-off absolute pixel rectangle. Caches the
+/// resolved HWND briefly so 2-4 Hz polling avoids enumerating every window
+/// and process on the desktop on every frame.
 /// </summary>
 public static class GameWindowLocator
 {
@@ -17,9 +20,89 @@ public static class GameWindowLocator
         "LeagueClient"
     };
 
+    private static readonly TimeSpan CacheTtl = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan NegativeCacheTtl = TimeSpan.FromMilliseconds(1500);
+    private static readonly object CacheGate = new();
+    private static readonly Dictionary<string, CachedWindow> WindowCache = new(StringComparer.OrdinalIgnoreCase);
+
     public static bool TryGetClientBounds(string? preferredProcess, out Rectangle bounds)
     {
         bounds = Rectangle.Empty;
+        var cacheKey = preferredProcess?.Trim() ?? string.Empty;
+        var nowTicks = Environment.TickCount64;
+
+        lock (CacheGate)
+        {
+            if (WindowCache.TryGetValue(cacheKey, out var cached))
+            {
+                if (cached.Handle != IntPtr.Zero)
+                {
+                    if (nowTicks - cached.ObservedAtMs <= CacheTtl.TotalMilliseconds
+                        && IsWindow(cached.Handle)
+                        && IsWindowVisible(cached.Handle)
+                        && TryReadClient(cached.Handle, out bounds)
+                        && bounds.Width >= 160
+                        && bounds.Height >= 120)
+                    {
+                        return true;
+                    }
+                }
+                else if (nowTicks - cached.ObservedAtMs <= NegativeCacheTtl.TotalMilliseconds)
+                {
+                    return false;
+                }
+            }
+        }
+
+        var foundHandle = FindBestWindowHandle(preferredProcess);
+        var found = foundHandle != IntPtr.Zero && TryReadClient(foundHandle, out bounds);
+        lock (CacheGate)
+        {
+            WindowCache[cacheKey] = new CachedWindow(found ? foundHandle : IntPtr.Zero, Environment.TickCount64);
+        }
+
+        return found;
+    }
+
+    public static void InvalidateCache()
+    {
+        lock (CacheGate)
+        {
+            WindowCache.Clear();
+        }
+    }
+
+    public static bool TryBind(ScreenRegion region)
+    {
+        InvalidateCache();
+        var absolute = region.ToRectangle();
+        if (absolute.Width < 16 || absolute.Height < 12)
+        {
+            return region.HasRelative;
+        }
+
+        if (TryGetClientBounds(region.AnchorProcess, out var client) && client.IntersectsWith(absolute))
+        {
+            region.BindToClient(client, string.IsNullOrWhiteSpace(region.AnchorProcess)
+                ? "League of Legends"
+                : region.AnchorProcess);
+            return region.HasRelative;
+        }
+
+        foreach (var name in PreferredProcesses)
+        {
+            if (TryGetClientBounds(name, out client) && client.IntersectsWith(absolute))
+            {
+                region.BindToClient(client, name);
+                return region.HasRelative;
+            }
+        }
+
+        return false;
+    }
+
+    private static IntPtr FindBestWindowHandle(string? preferredProcess)
+    {
         var handles = new List<(IntPtr Handle, string ProcessName, int Area)>();
         EnumWindows((window, _) =>
         {
@@ -56,48 +139,23 @@ public static class GameWindowLocator
             catch (InvalidOperationException)
             {
             }
+            catch (Win32Exception)
+            {
+            }
 
             return true;
         }, IntPtr.Zero);
 
         if (handles.Count == 0)
         {
-            return false;
+            return IntPtr.Zero;
         }
 
-        var best = handles
+        return handles
             .OrderByDescending(item => MatchesPreferred(item.ProcessName, preferredProcess) ? 1 : 0)
             .ThenByDescending(item => item.Area)
-            .First();
-        return TryReadClient(best.Handle, out bounds);
-    }
-
-    public static bool TryBind(ScreenRegion region)
-    {
-        var absolute = region.ToRectangle();
-        if (absolute.Width < 16 || absolute.Height < 12)
-        {
-            return region.HasRelative;
-        }
-
-        if (TryGetClientBounds(region.AnchorProcess, out var client) && client.IntersectsWith(absolute))
-        {
-            region.BindToClient(client, string.IsNullOrWhiteSpace(region.AnchorProcess)
-                ? "League of Legends"
-                : region.AnchorProcess);
-            return region.HasRelative;
-        }
-
-        foreach (var name in PreferredProcesses)
-        {
-            if (TryGetClientBounds(name, out client) && client.IntersectsWith(absolute))
-            {
-                region.BindToClient(client, name);
-                return region.HasRelative;
-            }
-        }
-
-        return false;
+            .First()
+            .Handle;
     }
 
     private static bool IsGameProcess(string processName, string? preferred)
@@ -135,10 +193,15 @@ public static class GameWindowLocator
 
     private const uint GwOwner = 4;
 
+    private readonly record struct CachedWindow(IntPtr Handle, long ObservedAtMs);
+
     private delegate bool EnumWindowsProc(IntPtr window, IntPtr parameter);
 
     [DllImport("user32.dll")]
     private static extern bool EnumWindows(EnumWindowsProc callback, IntPtr parameter);
+
+    [DllImport("user32.dll")]
+    private static extern bool IsWindow(IntPtr window);
 
     [DllImport("user32.dll")]
     private static extern bool IsWindowVisible(IntPtr window);

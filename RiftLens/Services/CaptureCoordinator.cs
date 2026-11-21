@@ -9,8 +9,9 @@ public sealed class CaptureCoordinator : IAsyncDisposable
     private readonly AppSettings _settings;
     private readonly ScreenCaptureService _capture = new();
     private readonly ImageChangeDetector _changeDetector = new();
-    private readonly BundledOcrService _ocr = new();
-    private readonly MessageDeduplicator _deduplicator = new();
+    private readonly BundledOcrService _ocr;
+    private readonly bool _ownsOcr;
+    private readonly MessageDeduplicator _deduplicator;
     private readonly ChatMessageClassifier _classifier = new();
     private readonly HeroDictionary _heroes;
     private readonly PlayerHeroSessionTracker _playerHeroes;
@@ -77,7 +78,8 @@ public sealed class CaptureCoordinator : IAsyncDisposable
         HeroDictionary heroes,
         ITranslationService translator,
         IVisionOcrService? visionOcr = null,
-        TimeProvider? clock = null)
+        TimeProvider? clock = null,
+        BundledOcrService? ocr = null)
     {
         _settings = settings;
         _heroes = heroes;
@@ -86,6 +88,9 @@ public sealed class CaptureCoordinator : IAsyncDisposable
         _translator = translator;
         _visionOcr = visionOcr;
         _clock = clock ?? TimeProvider.System;
+        _deduplicator = new MessageDeduplicator(_clock);
+        _ocr = ocr ?? new BundledOcrService();
+        _ownsOcr = ocr is null;
     }
 
     public void Start()
@@ -161,30 +166,40 @@ public sealed class CaptureCoordinator : IAsyncDisposable
     {
         if (_cancellation is null)
         {
+            DropPendingVision();
             return;
         }
 
         InvalidateRequests();
         ClearPendingMessages();
-        DropPendingVision();
         _cancellation.Cancel();
+        DropPendingVision();
+        Task? visionTask;
+        lock (_visionScheduleLock)
+        {
+            visionTask = _visionWorkerTask;
+        }
         try
         {
             await Task.WhenAll(
                 _captureTask ?? Task.CompletedTask,
                 _translationTask ?? Task.CompletedTask,
-                _visionWorkerTask ?? Task.CompletedTask);
+                visionTask ?? Task.CompletedTask);
         }
         catch (OperationCanceledException)
         {
         }
         finally
         {
+            DropPendingVision();
             _cancellation.Dispose();
             _cancellation = null;
             _captureTask = null;
             _translationTask = null;
-            _visionWorkerTask = null;
+            lock (_visionScheduleLock)
+            {
+                _visionWorkerTask = null;
+            }
             Interlocked.Exchange(ref _visionWorkerRunning, 0);
             StatusChanged?.Invoke(L("监听已停止。", "Listening stopped."));
         }
@@ -250,67 +265,8 @@ public sealed class CaptureCoordinator : IAsyncDisposable
         && _settings.VisionPrivacyConsent
         && _visionOcr is not null;
 
-    /// <summary>
-    /// 过滤 OCR 噪声：太短/无意义字符/纯符号的行不发送给 AI。
-    /// </summary>
-    private static bool IsPlausibleGameChat(string line)
-    {
-        if (string.IsNullOrWhiteSpace(line) || line.Length < 3) return false;
-        if (!line.Any(char.IsLetter)) return false;
-        var simplifiedLine = OfficialPhraseNormalizer.Normalize(line).Trim();
-        if (simplifiedLine is "单/双排积分" or "法师之靴" or "魔法穿透") return false;
-        if (simplifiedLine.Contains("直播设置", StringComparison.Ordinal)
-            || simplifiedLine.Contains("中控台", StringComparison.Ordinal)
-            || simplifiedLine.Contains("素材库", StringComparison.Ordinal)
-            || simplifiedLine.Contains("绿幕直播", StringComparison.Ordinal)
-            || simplifiedLine.Contains("互动工具", StringComparison.Ordinal)
-            || simplifiedLine.Contains("直播流量", StringComparison.Ordinal)
-            || simplifiedLine.Contains("精品母带", StringComparison.Ordinal))
-        {
-            return false;
-        }
-        if (OfficialPhraseNormalizer.IsTruncatedGeneratedPayload(simplifiedLine)) return false;
-        if (System.Text.RegularExpressions.Regex.IsMatch(
-                simplifiedLine,
-                @"^\s*\d{1,2}\s*[-/.]\s*\d{1,2}\s+\d{1,2}\s*[:：]\s*\d{2}\s*(?:胜|负)\s*\d+\s*/\s*\d+\s*/\s*\d+",
-                System.Text.RegularExpressions.RegexOptions.CultureInvariant))
-        {
-            return false;
-        }
-
-        // 统计可读字符（韩文/中文/英文字母/数字）
-        var readable = 0;
-        var total = 0;
-        foreach (var ch in line)
-        {
-            if (char.IsWhiteSpace(ch)) continue;
-            total++;
-            if (IsReadableGameChar(ch)) readable++;
-        }
-
-        if (total == 0) return false;
-
-        // 可读字符占比低于 40% → 噪声
-        var ratio = readable / (double)total;
-        if (ratio < 0.40) return false;
-
-        // 全是同一字符的重复 → 噪声
-        var distinctCount = line.Where(c => !char.IsWhiteSpace(c)).Distinct().Count();
-        if (distinctCount <= 2 && line.Length > 4) return false;
-
-        return true;
-    }
-
-    private static bool IsReadableGameChar(char ch) =>
-        char.IsLetterOrDigit(ch)               // 英文/数字/各语言字母
-        || ch >= 0xAC00                         // 韩文音节起（0xAC00='가'）
-        || (ch >= 0x3130 && ch <= 0x318F)      // 韩文兼容字母
-        || (ch >= 0x4E00 && ch <= 0x9FFF)      // CJK 汉字
-        || (ch >= 0x3000 && ch <= 0x303F)      // CJK 标点
-        || (ch >= 0xFF00 && ch <= 0xFFEF)      // 全角字符/标点
-        || ch == ':' || ch == '：'              // 冒号（玩家名:消息格式）
-        || ch == '[' || ch == ']'               // 频道标签
-        || ch == '!' || ch == '？' || ch == '?'; // 标点
+    private static bool IsPlausibleGameChat(string line) =>
+        ChatNoiseFilter.IsPlausibleGameChat(line);
 
     public async ValueTask DisposeAsync()
     {
@@ -323,7 +279,10 @@ public sealed class CaptureCoordinator : IAsyncDisposable
         {
             visionDisposable.Dispose();
         }
-        _ocr.Dispose();
+        if (_ownsOcr)
+        {
+            _ocr.Dispose();
+        }
         _requestCancellation.Dispose();
     }
 
@@ -347,7 +306,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                     _settings.ChangeThreshold);
                 if (!meaningfulChange)
                 {
-                    var periodicAt = DateTimeOffset.UtcNow;
+                    var periodicAt = _clock.GetUtcNow();
                     if (EvaluationCaptureEnabled
                         && EvaluationFrameObserved is not null
                         && periodicAt - _lastEvaluationPeriodicSampleAt >= TimeSpan.FromSeconds(2))
@@ -389,11 +348,15 @@ public sealed class CaptureCoordinator : IAsyncDisposable
 
                     var frameSequence = Interlocked.Increment(ref _evaluationFrameSequence);
                     var frameId = $"frame-{frameSequence:000000}";
+                    // In Vision mode, inspect local OCR without mutating the deduplication
+                    // baseline yet so the async Vision pass can commit the authoritative text.
                     var observed = ObserveDocument(
                         localDocument,
                         capturedAt,
                         frameId,
-                        "local-ppocrv5", lifetime);
+                        "local-ppocrv5",
+                        lifetime,
+                        commitDeduplicator: !UsesVisionOcr);
                     localPipelineTimer.Stop();
 
                     var captureKind = "ocr_stable_frame";
@@ -402,6 +365,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                     {
                         if (VisionUploadGuard.Evaluate(stableBitmap).ShouldBlock)
                         {
+                            CommitDeduplicatorDocument(localDocument.RawText);
                             captureKind = "vision_upload_blocked_obstruction";
                             AnnounceVisionUploadBlocked();
                         }
@@ -423,6 +387,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                         }
                         else
                         {
+                            CommitDeduplicatorDocument(localDocument.RawText);
                             captureKind = "vision_skipped_local_hud";
                         }
                     }
@@ -564,7 +529,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
 
                 if (pendingSystemMessage is not null)
                 {
-                    var now = DateTimeOffset.UtcNow;
+                    var now = _clock.GetUtcNow();
                     if (now - lastPlayerObservedAt >= TimeSpan.FromMilliseconds(2200)
                         && _speechLimiter.CanSpeak(pendingSystemMessage, now)
                         && pendingSystemMessage.Lifetime is { IsExpired: false }
@@ -590,7 +555,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
 
             if (message.Kind == GameMessageKind.PlayerChat)
             {
-                lastPlayerObservedAt = DateTimeOffset.UtcNow;
+                lastPlayerObservedAt = _clock.GetUtcNow();
                 pendingSystemMessage = null;
                 partialWaitUsed = false;
                 var completed = turns.Add(message);
@@ -620,7 +585,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                 continue;
             }
 
-            var observedAt = DateTimeOffset.UtcNow;
+            var observedAt = _clock.GetUtcNow();
             if (turns.HasPending
                 || observedAt - lastPlayerObservedAt < TimeSpan.FromMilliseconds(2200)
                 || !_speechLimiter.CanSpeak(message, observedAt))
@@ -724,7 +689,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                         continue;
                     }
 
-                    var now = DateTimeOffset.UtcNow;
+                    var now = _clock.GetUtcNow();
                     if (rerouted.Lifetime!.IsExpired || !_speechLimiter.CanSpeak(rerouted, now))
                     {
                         continue;
@@ -1061,12 +1026,15 @@ public sealed class CaptureCoordinator : IAsyncDisposable
         DateTimeOffset capturedAt,
         string frameId,
         string recognitionEngine,
-        MessageLifetime? lifetime = null)
+        MessageLifetime? lifetime = null,
+        bool commitDeduplicator = true)
     {
         lock (_pipelineLock)
         {
-            return _deduplicator
-                .FindNewLineResults(document.RawText)
+            var lines = commitDeduplicator
+                ? _deduplicator.FindNewLineResults(document.RawText)
+                : _deduplicator.PeekNewLineResults(document.RawText);
+            return lines
                 .Where(line => IsPlausibleGameChat(line.NormalizedText))
                 .Select((line, index) => new ObservedLine(
                     line,
@@ -1081,6 +1049,14 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                             RecognitionEngine = recognitionEngine
                         }))))
                 .ToArray();
+        }
+    }
+
+    private void CommitDeduplicatorDocument(string rawText)
+    {
+        lock (_pipelineLock)
+        {
+            _ = _deduplicator.FindNewLineResults(rawText);
         }
     }
 
@@ -1172,7 +1148,10 @@ public sealed class CaptureCoordinator : IAsyncDisposable
         }
 
         var token = _cancellation?.Token ?? CancellationToken.None;
-        _visionWorkerTask = DrainVisionAsync(token);
+        lock (_visionScheduleLock)
+        {
+            _visionWorkerTask = DrainVisionAsync(token);
+        }
     }
 
     private void DropPendingVision()
@@ -1199,135 +1178,147 @@ public sealed class CaptureCoordinator : IAsyncDisposable
 
     private async Task DrainVisionAsync(CancellationToken cancellationToken)
     {
-        while (!cancellationToken.IsCancellationRequested)
+        try
         {
-            Bitmap? frame;
-            OcrDocument? localDocument;
-            DateTimeOffset capturedAt;
-            MessageLifetime? lifetime;
-            ClassifiedGameMessage[] held;
-            var workGeneration = 0;
-            lock (_visionScheduleLock)
+            while (!cancellationToken.IsCancellationRequested)
             {
-                frame = _pendingVisionBitmap;
-                localDocument = _pendingVisionLocalDocument;
-                capturedAt = _pendingVisionCapturedAt;
-                lifetime = _pendingVisionLifetime;
-                held = _pendingHeldPlayerChat;
-                workGeneration = _pendingVisionGeneration;
-                _pendingVisionBitmap = null;
-                _pendingVisionLocalDocument = null;
-                _pendingVisionLifetime = null;
-                _pendingHeldPlayerChat = Array.Empty<ClassifiedGameMessage>();
-            }
-
-            if (frame is null)
-            {
-                Interlocked.Exchange(ref _visionWorkerRunning, 0);
+                Bitmap? frame;
+                OcrDocument? localDocument;
+                DateTimeOffset capturedAt;
+                MessageLifetime? lifetime;
+                ClassifiedGameMessage[] held;
+                var workGeneration = 0;
                 lock (_visionScheduleLock)
                 {
-                    if (_pendingVisionBitmap is not null
-                        && Interlocked.CompareExchange(ref _visionWorkerRunning, 1, 0) == 0)
-                    {
-                        continue;
-                    }
+                    frame = _pendingVisionBitmap;
+                    localDocument = _pendingVisionLocalDocument;
+                    capturedAt = _pendingVisionCapturedAt;
+                    lifetime = _pendingVisionLifetime;
+                    held = _pendingHeldPlayerChat;
+                    workGeneration = _pendingVisionGeneration;
+                    _pendingVisionBitmap = null;
+                    _pendingVisionLocalDocument = null;
+                    _pendingVisionLifetime = null;
+                    _pendingHeldPlayerChat = Array.Empty<ClassifiedGameMessage>();
                 }
 
-                return;
-            }
-
-            try
-            {
-                using (frame)
+                if (frame is null)
                 {
-                    if (lifetime is null || lifetime.IsExpired
-                        || IsPaused || workGeneration != Volatile.Read(ref _stateGeneration))
+                    Interlocked.Exchange(ref _visionWorkerRunning, 0);
+                    lock (_visionScheduleLock)
                     {
-                        continue;
-                    }
-
-                    using var requestCancellation = CreateRequestCancellation(workGeneration, cancellationToken);
-                    requestCancellation.CancelAfter(lifetime.Remaining);
-                    requestCancellation.Token.ThrowIfCancellationRequested();
-                    var hybrid = await RecognizeVisionGivenLocalAsync(
-                        frame,
-                        localDocument,
-                        requestCancellation.Token);
-                    if (lifetime.IsExpired || requestCancellation.IsCancellationRequested
-                        || IsPaused || workGeneration != Volatile.Read(ref _stateGeneration))
-                    {
-                        continue;
-                    }
-
-                    if (hybrid.UploadBlocked)
-                    {
-                        AnnounceVisionUploadBlocked();
-                        continue;
-                    }
-
-                    if (hybrid.UsedVision)
-                    {
-                        Interlocked.Exchange(ref _visionFallbackAnnounced, 0);
-                        var frameId = $"frame-{Interlocked.Increment(ref _evaluationFrameSequence):000000}";
-                        var observed = ObserveDocument(
-                            hybrid.Document,
-                            capturedAt,
-                            frameId,
-                            DeepSeekVisionOcrService.ModelName + "+local-evidence", lifetime);
-                        var playerLines = observed
-                            .Where(item => !VisionDispatchPolicy.PublishImmediately(item.Message))
-                            .ToArray();
-                        if (playerLines.Length > 0)
+                        if (_pendingVisionBitmap is not null
+                            && Interlocked.CompareExchange(ref _visionWorkerRunning, 1, 0) == 0)
                         {
-                            await PublishObservedAsync(
+                            continue;
+                        }
+                    }
+
+                    return;
+                }
+
+                try
+                {
+                    using (frame)
+                    {
+                        if (lifetime is null || lifetime.IsExpired
+                            || IsPaused || workGeneration != Volatile.Read(ref _stateGeneration))
+                        {
+                            continue;
+                        }
+
+                        using var requestCancellation = CreateRequestCancellation(workGeneration, cancellationToken);
+                        requestCancellation.CancelAfter(lifetime.Remaining);
+                        requestCancellation.Token.ThrowIfCancellationRequested();
+                        var hybrid = await RecognizeVisionGivenLocalAsync(
+                            frame,
+                            localDocument,
+                            requestCancellation.Token);
+                        if (lifetime.IsExpired || requestCancellation.IsCancellationRequested
+                            || IsPaused || workGeneration != Volatile.Read(ref _stateGeneration))
+                        {
+                            continue;
+                        }
+
+                        if (hybrid.UploadBlocked)
+                        {
+                            if (localDocument is not null) CommitDeduplicatorDocument(localDocument.RawText);
+                            AnnounceVisionUploadBlocked();
+                            continue;
+                        }
+
+                        if (hybrid.UsedVision)
+                        {
+                            Interlocked.Exchange(ref _visionFallbackAnnounced, 0);
+                            var frameId = $"frame-{Interlocked.Increment(ref _evaluationFrameSequence):000000}";
+                            var observed = ObserveDocument(
                                 hybrid.Document,
-                                playerLines,
                                 capturedAt,
-                                cancellationToken);
+                                frameId,
+                                DeepSeekVisionOcrService.ModelName + "+local-evidence",
+                                lifetime,
+                                commitDeduplicator: true);
+                            var playerLines = observed
+                                .Where(item => !VisionDispatchPolicy.PublishImmediately(item.Message))
+                                .ToArray();
+                            if (playerLines.Length > 0)
+                            {
+                                await PublishObservedAsync(
+                                    hybrid.Document,
+                                    playerLines,
+                                    capturedAt,
+                                    cancellationToken);
+                            }
+                            else
+                            {
+                                await PublishMessagesAsync(held, capturedAt, cancellationToken);
+                            }
                         }
                         else
                         {
+                            if (localDocument is not null) CommitDeduplicatorDocument(localDocument.RawText);
+                            if (Interlocked.Exchange(ref _visionFallbackAnnounced, 1) == 0)
+                            {
+                                StatusChanged?.Invoke(L(
+                                    $"DeepSeek Vision 暂时不可用，已回退本地 OCR：{hybrid.VisionError}",
+                                    $"DeepSeek Vision is temporarily unavailable; using local OCR: {hybrid.VisionError}"));
+                            }
+
                             await PublishMessagesAsync(held, capturedAt, cancellationToken);
                         }
                     }
-                    else
-                    {
-                        if (Interlocked.Exchange(ref _visionFallbackAnnounced, 1) == 0)
-                        {
-                            StatusChanged?.Invoke(L(
-                                $"DeepSeek Vision 暂时不可用，已回退本地 OCR：{hybrid.VisionError}",
-                                $"DeepSeek Vision is temporarily unavailable; using local OCR: {hybrid.VisionError}"));
-                        }
-
-                        await PublishMessagesAsync(held, capturedAt, cancellationToken);
-                    }
                 }
-            }
-            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-            {
-                // Pause invalidates this frame; the worker remains available after resume.
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (Exception exception)
-            {
-                StatusChanged?.Invoke(L(
-                    $"Vision 识别暂时失败：{exception.Message}",
-                    $"Vision recognition temporarily failed: {exception.Message}"));
-                try
+                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
                 {
-                    await PublishMessagesAsync(held, capturedAt, cancellationToken);
+                    // Pause invalidates this frame; the worker remains available after resume.
                 }
                 catch (OperationCanceledException)
                 {
                     throw;
                 }
-                catch
+                catch (Exception exception)
                 {
+                    if (localDocument is not null) CommitDeduplicatorDocument(localDocument.RawText);
+                    StatusChanged?.Invoke(L(
+                        $"Vision 识别暂时失败：{exception.Message}",
+                        $"Vision recognition temporarily failed: {exception.Message}"));
+                    try
+                    {
+                        await PublishMessagesAsync(held, capturedAt, cancellationToken);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        throw;
+                    }
+                    catch
+                    {
+                    }
                 }
             }
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _visionWorkerRunning, 0);
         }
     }
 

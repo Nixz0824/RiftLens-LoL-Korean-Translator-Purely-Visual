@@ -14,12 +14,15 @@ internal static class SingleInstance
         {
             foreach (var process in Process.GetProcessesByName("RiftLens"))
             {
-                if (process.Id == Environment.ProcessId)
+                using (process)
                 {
-                    continue;
-                }
+                    if (process.Id == Environment.ProcessId)
+                    {
+                        continue;
+                    }
 
-                NativeMethods.AllowSetForegroundWindow(process.Id);
+                    NativeMethods.AllowSetForegroundWindow(process.Id);
+                }
             }
         }
         catch

@@ -29,6 +29,10 @@ internal sealed class PaddleOcrEngine : IDisposable
     private float[] _recognitionValues = Array.Empty<float>();
     private byte[] _detectionMask = Array.Empty<byte>();
     private int[] _componentQueue = Array.Empty<int>();
+    private byte[] _bgrScratch = Array.Empty<byte>();
+    private readonly Dictionary<LineCropKey, CachedLineResult> _lineCache = new();
+    private readonly Queue<LineCropKey> _lineCacheOrder = new();
+    private const int MaxLineCacheEntries = 32;
     private bool _disposed;
 
     public PaddleOcrEngine(string modelDirectory)
@@ -81,14 +85,32 @@ internal sealed class PaddleOcrEngine : IDisposable
         {
             cancellationToken.ThrowIfCancellationRequested();
             using var crop = bitmap.Clone(line, PixelFormat.Format24bppRgb);
+            var cropKey = ComputeCropKey(crop);
+            if (_lineCache.TryGetValue(cropKey, out var cached))
+            {
+                if (!string.IsNullOrWhiteSpace(cached.Text))
+                {
+                    recognized.Add(new OcrRecognizedLine(
+                        cached.Text,
+                        line,
+                        cached.Confidence,
+                        cached.ColorEvidence));
+                }
+                continue;
+            }
+
             var candidate = RecognizeLine(crop, cancellationToken);
+            var colorEvidence = string.IsNullOrWhiteSpace(candidate.Text)
+                ? null
+                : OcrColorAnalyzer.Analyze(crop, candidate.Text);
+            CacheLineResult(cropKey, new CachedLineResult(candidate.Text, candidate.Confidence, colorEvidence));
             if (!string.IsNullOrWhiteSpace(candidate.Text))
             {
                 recognized.Add(new OcrRecognizedLine(
                     candidate.Text,
                     line,
                     candidate.Confidence,
-                    OcrColorAnalyzer.Analyze(crop, candidate.Text)));
+                    colorEvidence));
             }
         }
         return new OcrDocument(
@@ -157,6 +179,10 @@ internal sealed class PaddleOcrEngine : IDisposable
             _koreanDictionary,
             OcrRecognitionModel.KoreanEnglish,
             tensor);
+        if (CanSkipChineseRecognizer(korean))
+        {
+            return korean;
+        }
         cancellationToken.ThrowIfCancellationRequested();
         var chinese = Recognize(
             _chineseRecognizer,
@@ -165,6 +191,52 @@ internal sealed class PaddleOcrEngine : IDisposable
             OcrRecognitionModel.ChineseEnglish,
             tensor);
         return TrilingualOcrFusion.Select(korean, chinese);
+    }
+
+    private static bool CanSkipChineseRecognizer(OcrTextCandidate korean)
+    {
+        if (korean.Confidence < 0.94f || string.IsNullOrWhiteSpace(korean.Text))
+        {
+            return false;
+        }
+
+        var hasHangul = false;
+        var hasDigitOrAscii = false;
+        var length = 0;
+        foreach (var ch in korean.Text)
+        {
+            if (char.IsWhiteSpace(ch))
+            {
+                continue;
+            }
+
+            length++;
+            if (ch is >= '\uAC00' and <= '\uD7A3')
+            {
+                hasHangul = true;
+            }
+            else if (ch is >= '0' and <= '9' or >= 'A' and <= 'Z' or >= 'a' and <= 'z')
+            {
+                hasDigitOrAscii = true;
+            }
+            else if (ch is ':' or '：' or '[' or ']' or '(' or ')' or '.' or ',' or '-' or '!' or '?' or '/' or '_')
+            {
+                continue;
+            }
+            else
+            {
+                return false;
+            }
+        }
+
+        if (length < 2)
+        {
+            return false;
+        }
+
+        // Pure Hangul or high-confidence Hangul+ASCII tokens are native to the Korean recognizer.
+        // Pure numeric/timestamp tokens also never benefit from running the Chinese model.
+        return hasHangul || (hasDigitOrAscii && korean.Confidence >= 0.96f);
     }
 
     private static OcrTextCandidate Recognize(
@@ -398,7 +470,7 @@ internal sealed class PaddleOcrEngine : IDisposable
         return merged.OrderBy(item => item.Top).ThenBy(item => item.Left).ToList();
     }
 
-    private static List<(int Start, int End)> SegmentWords(Bitmap bitmap)
+    private List<(int Start, int End)> SegmentWords(Bitmap bitmap)
     {
         var (pixels, stride) = ReadBgr(bitmap);
         var borderSamples = new List<(byte B, byte G, byte R)>(
@@ -518,7 +590,7 @@ internal sealed class PaddleOcrEngine : IDisposable
         return new DenseTensor<float>(values.AsMemory(0, plane * 3), new[] { 1, 3, bitmap.Height, bitmap.Width });
     }
 
-    private static (byte[] Pixels, int Stride) ReadBgr(Bitmap bitmap)
+    private (byte[] Pixels, int Stride) ReadBgr(Bitmap bitmap)
     {
         using var converted = bitmap.PixelFormat == PixelFormat.Format24bppRgb
             ? null
@@ -533,13 +605,56 @@ internal sealed class PaddleOcrEngine : IDisposable
         try
         {
             var stride = Math.Abs(data.Stride);
-            var pixels = new byte[stride * target.Height];
-            Marshal.Copy(data.Scan0, pixels, 0, pixels.Length);
-            return (pixels, stride);
+            var required = stride * target.Height;
+            if (_bgrScratch.Length < required)
+            {
+                _bgrScratch = new byte[required];
+            }
+            Marshal.Copy(data.Scan0, _bgrScratch, 0, required);
+            return (_bgrScratch, stride);
         }
         finally
         {
             target.UnlockBits(data);
+        }
+    }
+
+    private LineCropKey ComputeCropKey(Bitmap crop)
+    {
+        var (pixels, stride) = ReadBgr(crop);
+        var width = crop.Width;
+        var height = crop.Height;
+        ulong hash = 14695981039346656037UL;
+        var rowStep = Math.Max(1, height / 24);
+        var colStep = Math.Max(1, width / 96);
+        for (var y = 0; y < height; y += rowStep)
+        {
+            var rowOffset = y * stride;
+            for (var x = 0; x < width; x += colStep)
+            {
+                var offset = rowOffset + x * 3;
+                hash ^= pixels[offset];
+                hash *= 1099511628211UL;
+                hash ^= pixels[offset + 1];
+                hash *= 1099511628211UL;
+                hash ^= pixels[offset + 2];
+                hash *= 1099511628211UL;
+            }
+        }
+        return new LineCropKey(width, height, hash);
+    }
+
+    private void CacheLineResult(LineCropKey key, CachedLineResult value)
+    {
+        if (!_lineCache.ContainsKey(key))
+        {
+            _lineCacheOrder.Enqueue(key);
+        }
+        _lineCache[key] = value;
+        while (_lineCacheOrder.Count > MaxLineCacheEntries)
+        {
+            var evicted = _lineCacheOrder.Dequeue();
+            _lineCache.Remove(evicted);
         }
     }
 
@@ -617,4 +732,6 @@ internal sealed class PaddleOcrEngine : IDisposable
         Math.Max(multiple, ((value + multiple - 1) / multiple) * multiple);
 
     private sealed record DetectionComponent(int Left, int Top, int Right, int Bottom);
+    private readonly record struct LineCropKey(int Width, int Height, ulong Hash);
+    private sealed record CachedLineResult(string Text, float Confidence, OcrColorEvidence? ColorEvidence);
 }

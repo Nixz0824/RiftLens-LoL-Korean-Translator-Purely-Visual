@@ -37,6 +37,7 @@ public sealed class TranslationOverlayForm : Form
     private int _contentWidth = 410;
     private int _speakerHeight;
     private byte _surfaceOpacity;
+    private Bitmap? _cachedSurfaceBitmap;
 
     public event Action<Rectangle>? TranslationPositioned;
 
@@ -108,7 +109,7 @@ public sealed class TranslationOverlayForm : Form
 
         if (settings.OverlayPlacement == OverlayPlacement.Auto)
         {
-            var capture = settings.CaptureRegion.ToRectangle();
+            var capture = settings.CaptureRegion.Resolve();
             if (_lockedAutoPlacement is null || capture != _lockedCaptureRegion)
             {
                 _lockedAutoPlacement = OverlayPlacementService.ResolveAutoPlacement(settings, Size);
@@ -127,7 +128,7 @@ public sealed class TranslationOverlayForm : Form
         {
             Show();
         }
-        RenderLayeredSurface();
+        RenderLayeredSurface(redraw: true);
         await FadeAsync(0, settings.OverlayOpacity, 150, token);
         await Task.Delay(Math.Clamp(settings.OverlayDurationMs, 1500, 15000), token);
         await FadeAsync(settings.OverlayOpacity, 0, 220, token);
@@ -220,7 +221,7 @@ public sealed class TranslationOverlayForm : Form
     {
         var custom = settings.OverlayPlacement == OverlayPlacement.Custom
             && settings.DisplayRegion.IsValid
-                ? settings.DisplayRegion.ToRectangle()
+                ? settings.DisplayRegion.Resolve()
                 : Rectangle.Empty;
         var fixedWidth = custom.IsEmpty
             ? Math.Clamp(settings.CaptureRegion.Width, 280, 540)
@@ -430,13 +431,14 @@ public sealed class TranslationOverlayForm : Form
         using var path = UiTheme.RoundedPath(badge, 9);
         graphics.FillPath(fill, path);
         using var text = new SolidBrush(Color.FromArgb(235, 168, 214, 204));
-        graphics.DrawString(_silenceReason, badgeFont, text, badge, new StringFormat
+        using var badgeFormat = new StringFormat
         {
             Alignment = StringAlignment.Center,
             LineAlignment = StringAlignment.Center,
             Trimming = StringTrimming.EllipsisCharacter,
             FormatFlags = StringFormatFlags.NoWrap
-        });
+        };
+        graphics.DrawString(_silenceReason, badgeFont, text, badge, badgeFormat);
     }
 
     private static StringFormat CreateTextFormat() => new(StringFormat.GenericTypographic)
@@ -495,19 +497,27 @@ public sealed class TranslationOverlayForm : Form
             : line;
     }
 
-    private void RenderLayeredSurface()
+    private void RenderLayeredSurface(bool redraw = false)
     {
         if (Width <= 0 || Height <= 0)
         {
             return;
         }
 
-        using var bitmap = new Bitmap(Width, Height, PixelFormat.Format32bppPArgb);
-        using (var graphics = Graphics.FromImage(bitmap))
+        if (redraw || _cachedSurfaceBitmap is null
+            || _cachedSurfaceBitmap.Width != Width
+            || _cachedSurfaceBitmap.Height != Height)
         {
-            DrawSurface(graphics);
+            _cachedSurfaceBitmap?.Dispose();
+            var bitmap = new Bitmap(Width, Height, PixelFormat.Format32bppPArgb);
+            using (var graphics = Graphics.FromImage(bitmap))
+            {
+                DrawSurface(graphics);
+            }
+            _cachedSurfaceBitmap = bitmap;
         }
-        LayeredWindowSurface.Update(this, bitmap, _surfaceOpacity);
+
+        LayeredWindowSurface.Update(this, _cachedSurfaceBitmap, _surfaceOpacity);
     }
 
     private async Task FadeAsync(
@@ -525,7 +535,7 @@ public sealed class TranslationOverlayForm : Form
             var eased = 1 - Math.Pow(1 - progress, 3);
             var opacity = Math.Clamp(from + (to - from) * eased, 0, 1);
             _surfaceOpacity = (byte)Math.Round(opacity * 255);
-            RenderLayeredSurface();
+            RenderLayeredSurface(redraw: false);
             await Task.Delay(frameMs, cancellationToken);
         }
     }
@@ -539,6 +549,8 @@ public sealed class TranslationOverlayForm : Form
         {
             _animationCancellation?.Cancel();
             _animationCancellation?.Dispose();
+            _cachedSurfaceBitmap?.Dispose();
+            _cachedSurfaceBitmap = null;
             _cachedTranslationFont?.Dispose();
             _cachedOriginalFont?.Dispose();
             _cachedSpeakerFont?.Dispose();

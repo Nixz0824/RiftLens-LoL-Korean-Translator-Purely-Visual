@@ -411,6 +411,11 @@ if (args.Length >= 2 && string.Equals(args[0], "--render-translation", StringCom
     return 0;
 }
 
+if (args.Length >= 3 && string.Equals(args[0], "--render-main-profile", StringComparison.OrdinalIgnoreCase))
+{
+    return await MainWindowDiagnostics.CaptureAsync(args[1], userDataFolder: Path.GetFullPath(args[2]));
+}
+
 if (args.Length >= 2 && string.Equals(args[0], "--render-main", StringComparison.OrdinalIgnoreCase))
 {
     return await MainWindowDiagnostics.CaptureAsync(args[1],
@@ -423,6 +428,7 @@ await CheckAsync("暂停取消请求与继续监听", PipelineRegressionChecks.P
 await CheckAsync("混合轮次原文与译文配对", PipelineRegressionChecks.SourceAlignmentAsync);
 await CheckAsync("Vision 超时回退与恢复", PipelineRegressionChecks.VisionTimeoutAsync);
 await CheckAsync("并发设置保存与损坏恢复", PipelineRegressionChecks.ConcurrentSettingsAsync);
+await CheckAsync("WebView2 数据目录占用恢复", WebViewStartupRecoveryChecks.VerifyAsync);
 await CheckAsync("消息期限使用单调时钟", MessageDeliveryRegressionChecks.MonotonicLifetimeAsync);
 await CheckAsync("过期玩家消息与混合轮次过滤", MessageDeliveryRegressionChecks.ExpiredAndMixedTurnsAsync);
 await CheckAsync("翻译响应到达后的时效检查", MessageDeliveryRegressionChecks.ExpiryDuringTranslationAsync);
@@ -432,6 +438,10 @@ await CheckAsync("持续来消息时强制结束聚合", MessageDeliveryRegressi
 await CheckAsync("逐行 ID 与响应完成状态校验", MessageDeliveryRegressionChecks.TranslationProtocolAsync);
 await CheckAsync("缺行与长句播报安全", MessageDeliveryRegressionChecks.LiteralSpeechSafetyAsync);
 await CheckAsync("TTS 排队及合成后的过期检查", MessageDeliveryRegressionChecks.SpeechExpiryAsync);
+await CheckAsync("关闭画面变化检测时始终触发识别", AuditFixRegressionChecks.ChangeOnlyDisabledAlwaysDetectsChangeAsync);
+await CheckAsync("Vision 预览不污染去重器基线", AuditFixRegressionChecks.VisionPeekDoesNotPoisonDeduplicatorAsync);
+await CheckAsync("OpenAI 兼容接口降级缓存与路径规范化", AuditFixRegressionChecks.TranslationCompatibilityDowngradeIsCachedAsync);
+await CheckAsync("设置文件空字段安全回退不重置配置", AuditFixRegressionChecks.SettingsStoreSurvivesNullPropertiesAsync);
 
 await CheckAsync("英雄中韩映射", async () =>
 {
