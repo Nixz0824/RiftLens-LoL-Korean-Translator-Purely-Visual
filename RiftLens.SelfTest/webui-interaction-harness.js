@@ -13,6 +13,11 @@
     document.body.append(result);
 
     const delay = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
+    async function waitUntil(predicate, message) {
+      const deadline=performance.now()+1500;
+      while(!predicate()&&performance.now()<deadline)await delay(16);
+      verify(predicate(),message);
+    }
     function verify(condition, message) { if (!condition) throw new Error(message); }
     function click(selector) { const element = document.querySelector(selector); verify(element, `Missing control: ${selector}`); element.click(); return element; }
     function last(action) { return [...messages].reverse().find(message => message.action === action); }
@@ -103,16 +108,58 @@
       const apiKeyInput = document.querySelector("#api-key");
       verify(apiKeyInput.type === "password", "API key input is not permanently masked");
       verify(!document.querySelector("#reveal-key"), "API key reveal control still exists");
+      document.querySelector("#api-form").requestSubmit();
+      verify(apiKeyInput.getAttribute("aria-invalid")==="true"
+        && document.querySelector("#api-feedback").classList.contains("is-error")
+        && !last("saveApiKey"), "An empty API key was submitted or lacked inline feedback");
       apiKeyInput.value = "test-api-key-placeholder";
+      apiKeyInput.dispatchEvent(new Event("input", {bubbles:true}));
       click("#save-api"); expectMessage("saveApiKey", { apiKey: "test-api-key-placeholder" });
       verify(apiKeyInput.type === "password", "API key input became visible after saving");
       verify(apiKeyInput.value === "", "API key remained in the WebUI field after saving");
+      verify(document.querySelector("#save-api").disabled
+        && document.querySelector("#save-api").getAttribute("aria-busy")==="true", "Saving has no pending state");
+      document.querySelector("#api-form").requestSubmit();
+      verify(messages.filter(message=>message.action==="saveApiKey").length===1, "A pending API save was submitted twice");
+      const saveError=language==="en-US"?"The key could not be saved.":"密钥未能保存。";
+      window.__riftLensHostMessage({data:{type:"state",data:{apiKeySavePending:false,apiKeySaveError:saveError}}});
+      verify(!document.querySelector("#save-api").disabled
+        && document.querySelector("#api-feedback").textContent===saveError, "Host save errors were not shown next to the input");
+      apiKeyInput.dispatchEvent(new Event("input",{bubbles:true}));
+      verify(apiKeyInput.getAttribute("aria-invalid")==="false", "Correcting the input did not clear validation");
       click("#primary-action"); expectMessage("togglePrimary");
+      click("#primary-action");
+      verify(messages.filter(message=>message.action==="togglePrimary").length===1
+        && document.querySelector("#primary-action").disabled, "Start actions were not protected from repeated clicks");
+      window.__riftLensHostMessage({data:{type:"state",data:{primaryActionPending:false,apiKeySaveError:""}}});
+      verify(!document.querySelector("#primary-action").disabled, "Start action did not recover after host completion");
       click("#local-save-button"); expectMessage("saveTranslationHistoryChanged", true);
 
       click("#history-menu-button"); verify(!document.querySelector("#history-menu").hidden, "History actions did not open");
       click('#history-menu [data-action="exportDiagnostics"]'); expectMessage("exportDiagnostics");
+      verify(document.querySelector("#history-menu").hidden, "History actions did not close after selecting an item");
+      click("#history-menu-button");
       click('#history-menu [data-action="toggleEvaluationRecording"]'); expectMessage("toggleEvaluationRecording");
+      click("#history-menu-button");click(".history-card");
+      verify(document.querySelector("#history-menu").hidden, "History actions did not close after an outside click");
+      click("#history-menu-button");click('#history-menu [data-action="clearHistory"]');
+      verify(document.querySelector("#confirm-dialog").open&&!last("clearHistory"), "History cleared without explicit confirmation");
+      click('#confirm-dialog button[value="cancel"]');
+      await waitUntil(()=>!document.querySelector("#confirm-dialog").open
+        &&document.activeElement===document.querySelector("#history-menu-button"), "Cancel did not return focus");
+      verify(!last("clearHistory")&&document.activeElement===document.querySelector("#history-menu-button"),
+        "Cancel cleared history or failed to restore focus");
+      click("#history-menu-button");click('#history-menu [data-action="clearHistory"]');
+      click('#confirm-dialog button[value="confirm"]');
+      await waitUntil(()=>!!last("clearHistory"),"Confirmation did not submit the clear action");expectMessage("clearHistory");
+      click("#signal-options");
+      await waitUntil(()=>document.querySelector("#advanced-popover").classList.contains("is-open"),"Advanced settings did not finish opening");
+      document.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}));await delay(210);
+      verify(document.querySelector("#advanced-popover").hidden
+        &&document.activeElement===document.querySelector("#signal-options"), "Escape did not restore the advanced-settings trigger");
+      verify(parseFloat(getComputedStyle(document.querySelector("#voice-volume")).height)>=24, "Range input hit area is too small");
+      verify(document.querySelector('#output-mode button.active').getAttribute("aria-pressed")==="true",
+        "Output mode selection has no accessible pressed state");
 
       const otherLanguage = language === "en-US" ? "zh-CN" : "en-US";
       click("#language-button");

@@ -3,11 +3,12 @@ using System.Text.Json.Serialization;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
 using RiftLens.Models;
+using RiftLens.Services;
 
 namespace RiftLens.UI;
 
 /// <summary>
-/// WebView2 承载的高保真主工作区。OCR、翻译、语音、悬浮层仍由原生代码负责；
+/// WebView2 承载的主工作区。OCR、翻译、语音、悬浮层仍由原生代码负责；
 /// 此控件只承担主窗口的绘制、输入和状态映射。
 /// </summary>
 internal sealed class WebWorkspace : UserControl
@@ -18,10 +19,9 @@ internal sealed class WebWorkspace : UserControl
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 
-    private readonly WebView2 _webView = new() { Dock = DockStyle.Fill };
-    // WebView2 needs a short initialization window before the product-owned
-    // welcome screen can render. Keep that interval visually neutral instead
-    // of showing a second, competing loading page.
+    private WebView2 _webView = new() { Dock = DockStyle.Fill };
+    private readonly CancellationTokenSource _initializationLifetime = new();
+    private Control? _fallbackSurface;
     private readonly Panel _loadingSurface = new()
     {
         Dock = DockStyle.Fill,
@@ -43,20 +43,25 @@ internal sealed class WebWorkspace : UserControl
     public bool AiReady { get; set; }
     public bool IsRunning { get; set; }
     public bool IsPaused { get; set; }
+    public bool PrimaryActionPending { get; set; }
+    public bool ApiKeySavePending { get; set; }
+    public string ApiKeySaveError { get; set; } = string.Empty;
     public bool SpeechAvailable { get; set; } = true;
     public string StatusMessage { get; set; } = "正在读取配置…";
     public string RegionSummary { get; set; } = "尚未框选需要识别的文字区域";
-    public string ModelName { get; set; } = "deepseek-chat";
+    public string ApiBaseUrl { get; set; } = "https://api.deepseek.com";
+    public string ModelName { get; set; } = "deepseek-v4-flash";
     public string RecentOriginal { get; set; } = string.Empty;
     public string RecentTranslation { get; set; } = string.Empty;
     public string RecentMeta { get; set; } = string.Empty;
     public string RecentSilenceReason { get; set; } = string.Empty;
-    public string RegionPreview { get; set; } = string.Empty;
     public string AppVersion { get; set; } = "2.3.0";
     public int ActivePresetIndex { get; set; } = -1;
     public IReadOnlyList<string> PresetNames { get; set; } = Array.Empty<string>();
     public int Volume { get; set; } = 65;
     public int SpeechRate { get; set; } = 1;
+    public int OutputDeviceIndex { get; set; } = -1;
+    public IReadOnlyList<AudioOutputDeviceInfo> OutputDevices { get; set; } = Array.Empty<AudioOutputDeviceInfo>();
     public int OutputModeIndex { get; set; } = 2;
     public bool AutoSpeech { get; set; } = true;
     public bool ChangeOnly { get; set; } = true;
@@ -104,6 +109,16 @@ internal sealed class WebWorkspace : UserControl
         }
     }
 
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing && !IsDisposed)
+        {
+            _initializationLifetime.Cancel();
+            _initializationLifetime.Dispose();
+        }
+        base.Dispose(disposing);
+    }
+
     public void SetPage(SpatialPage page)
     {
         Page = page;
@@ -114,6 +129,7 @@ internal sealed class WebWorkspace : UserControl
     {
         Volume = settings.SpeechVolume;
         SpeechRate = settings.SpeechRate;
+        OutputDeviceIndex = settings.OutputDeviceIndex;
         OutputModeIndex = (int)settings.OutputMode;
         AutoSpeech = settings.OutputMode != OutputMode.OverlayOnly;
         ChangeOnly = settings.ChangeThreshold > 0;
@@ -132,6 +148,7 @@ internal sealed class WebWorkspace : UserControl
         CloseToTray = settings.CloseToTray;
         OverlayOpacity = (int)Math.Round(settings.OverlayOpacity * 100);
         OverlayPlacementIndex = (int)settings.OverlayPlacement;
+        ApiBaseUrl = settings.ApiBaseUrl;
         ModelName = settings.ApiModel;
         Language = settings.Language == AppLanguage.English ? "en-US" : "zh-CN";
         OnboardingCompleted = settings.OnboardingCompleted;
@@ -174,6 +191,23 @@ internal sealed class WebWorkspace : UserControl
         PushState();
     }
 
+    private static string ResolveRecoveryFolder()
+    {
+        var besideApp = Path.Combine(AppContext.BaseDirectory, "WebView2Cache");
+        try
+        {
+            Directory.CreateDirectory(besideApp);
+            var probe = Path.Combine(besideApp, $".write-probe-{Environment.ProcessId}");
+            using (File.Create(probe)) { }
+            File.Delete(probe);
+            return besideApp;
+        }
+        catch (Exception exception) when (exception is UnauthorizedAccessException or IOException)
+        {
+            return Path.Combine(Path.GetTempPath(), "RiftLens", "WebView2Cache");
+        }
+    }
+
     private async Task InitializeAsync()
     {
         if (_initializing || _webView.CoreWebView2 is not null)
@@ -182,16 +216,38 @@ internal sealed class WebWorkspace : UserControl
         }
 
         _initializing = true;
+        var initializationToken = _initializationLifetime.Token;
         try
         {
             var userDataFolder = _userDataFolder ?? Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "RiftLens",
                 "WebView2");
-            var options = new CoreWebView2EnvironmentOptions(
-                additionalBrowserArguments: "--disable-background-networking --disable-sync");
-            var environment = await CoreWebView2Environment.CreateAsync(null, userDataFolder, options);
-            await _webView.EnsureCoreWebView2Async(environment);
+            var recoveryFolder = ResolveRecoveryFolder();
+            var firstAttempt = true;
+            await WebViewStartupRecovery.InitializeAsync(userDataFolder, recoveryFolder, async folder =>
+            {
+                initializationToken.ThrowIfCancellationRequested();
+                if (!firstAttempt) ResetWebView();
+                firstAttempt = false;
+                var view = _webView;
+                var options = new CoreWebView2EnvironmentOptions(
+                    additionalBrowserArguments: "--disable-background-networking --disable-sync");
+                var stage = "environment";
+                try
+                {
+                    var environment = await CoreWebView2Environment.CreateAsync(null, folder, options);
+                    initializationToken.ThrowIfCancellationRequested();
+                    stage = "controller";
+                    await view.EnsureCoreWebView2Async(environment);
+                }
+                catch (Exception exception)
+                {
+                    System.Diagnostics.Trace.WriteLine($"WebView startup: stage={stage}, profile={folder}, error={exception.GetType().Name}, HRESULT=0x{exception.HResult:X8}");
+                    throw;
+                }
+            }, initializationToken);
+            initializationToken.ThrowIfCancellationRequested();
 
             var core = _webView.CoreWebView2
                 ?? throw new InvalidOperationException("WebView2 Runtime 初始化后未返回浏览器实例。");
@@ -216,7 +272,10 @@ internal sealed class WebWorkspace : UserControl
             _webView.DefaultBackgroundColor = Color.FromArgb(249, 248, 247);
             core.Navigate("https://riftlens.local/index.html");
         }
-        catch (Exception exception)
+        catch (OperationCanceledException) when (IsDisposed || _initializationLifetime.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception) when (!IsDisposed)
         {
             ShowFallback(exception);
         }
@@ -224,6 +283,17 @@ internal sealed class WebWorkspace : UserControl
         {
             _initializing = false;
         }
+    }
+
+    private void ResetWebView()
+    {
+        _webReady = false;
+        Controls.Remove(_webView);
+        _webView.Dispose();
+        _webView = new WebView2 { Dock = DockStyle.Fill };
+        Controls.Add(_webView);
+        _loadingSurface.Show();
+        _loadingSurface.BringToFront();
     }
 
     private void OnWebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
@@ -268,6 +338,7 @@ internal sealed class WebWorkspace : UserControl
             "selectDisplayRegion" => SpatialAction.SelectDisplayRegion,
             "testOcr" => SpatialAction.TestOcr,
             "saveApiKey" => SpatialAction.SaveApiKey,
+            "apiEndpointChanged" => SpatialAction.ApiEndpointChanged,
             "showApiHelp" => SpatialAction.ShowApiHelp,
             "clearHistory" => SpatialAction.ClearHistory,
             "exportDiagnostics" => SpatialAction.ExportDiagnostics,
@@ -281,6 +352,7 @@ internal sealed class WebWorkspace : UserControl
             "showAbout" => SpatialAction.ShowAbout,
             "volumeChanged" => SpatialAction.VolumeChanged,
             "speechRateChanged" => SpatialAction.SpeechRateChanged,
+            "outputDeviceChanged" => SpatialAction.OutputDeviceChanged,
             "speechFilterChanged" => SpatialAction.SpeechFilterChanged,
             "urgentPlayerSpeechChanged" => SpatialAction.UrgentPlayerSpeechChanged,
             "importantPlayerSpeechChanged" => SpatialAction.ImportantPlayerSpeechChanged,
@@ -321,9 +393,11 @@ internal sealed class WebWorkspace : UserControl
         object? value = action switch
         {
             "navigate" => ReadPage(message.Payload),
-            "volumeChanged" or "speechRateChanged" or "speechFilterChanged" or "outputModeChanged"
-                or "systemFilterChanged" or "overlayOpacityChanged" or "overlayPlacementChanged"
-                or "applyPreset" or "speechPresetChanged" or "recognitionModeChanged" => ReadInt(message.Payload),
+            "apiEndpointChanged" => ReadApiEndpoint(message.Payload),
+            "volumeChanged" or "speechRateChanged" or "outputDeviceChanged" or "speechFilterChanged"
+                or "outputModeChanged" or "systemFilterChanged" or "overlayOpacityChanged"
+                or "overlayPlacementChanged" or "applyPreset" or "speechPresetChanged"
+                or "recognitionModeChanged" => ReadInt(message.Payload),
             "toggleAutoSpeech" or "changeOnlyChanged" or "signalVoiceChanged"
                 or "urgentPlayerSpeechChanged" or "importantPlayerSpeechChanged" or "neutralPlayerSpeechChanged"
                 or "tacticalSignalsChanged" or "killEventsChanged" or "objectiveEventsChanged"
@@ -339,8 +413,6 @@ internal sealed class WebWorkspace : UserControl
 
     private void PushState()
     {
-        // Property/history updates still accumulate while hidden. Send one current
-        // snapshot when shown, rather than serializing history into a suspended view.
         if (!_webReady || _webView.CoreWebView2 is null || IsDisposed || !Visible)
         {
             return;
@@ -364,20 +436,25 @@ internal sealed class WebWorkspace : UserControl
                 aiReady = AiReady,
                 isRunning = IsRunning,
                 isPaused = IsPaused,
+                primaryActionPending = PrimaryActionPending,
+                apiKeySavePending = ApiKeySavePending,
+                apiKeySaveError = ApiKeySaveError,
                 speechAvailable = SpeechAvailable,
                 statusMessage = StatusMessage,
                 regionSummary = RegionSummary,
+                apiBaseUrl = ApiBaseUrl,
                 modelName = ModelName,
                 recentOriginal = RecentOriginal,
                 recentTranslation = RecentTranslation,
                 recentMeta = RecentMeta,
                 recentSilenceReason = RecentSilenceReason,
-                regionPreview = RegionPreview,
                 appVersion = AppVersion,
                 activePresetIndex = ActivePresetIndex,
                 presets = PresetNames,
                 volume = Volume,
                 speechRate = SpeechRate,
+                outputDeviceIndex = OutputDeviceIndex,
+                outputDevices = OutputDevices.Select(device => new { id = device.DeviceNumber, name = device.Name }).ToArray(),
                 outputModeIndex = OutputModeIndex,
                 autoSpeech = AutoSpeech,
                 changeOnly = ChangeOnly,
@@ -404,7 +481,6 @@ internal sealed class WebWorkspace : UserControl
                 recognitionMode = RecognitionMode,
                 visionPrivacyConsent = VisionPrivacyConsent,
                 evaluationRecording = EvaluationRecording,
-                filteredCount = 0,
                 history = _history.ToArray()
             }
         };
@@ -434,13 +510,10 @@ internal sealed class WebWorkspace : UserControl
         }
         catch
         {
-            // 窗口快速显示/隐藏时 Runtime 可能正在切换状态，下次事件会再次同步。
         }
         finally
         {
             _suspendPending = false;
-            // Suspension is best-effort. Refresh on show even when it failed or
-            // the window became visible while TrySuspendAsync was pending.
             if (Visible && !IsDisposed && _webView.CoreWebView2 is { } core)
             {
                 try
@@ -450,7 +523,6 @@ internal sealed class WebWorkspace : UserControl
                 }
                 catch (InvalidOperationException)
                 {
-                    // The browser may be shutting down with its parent window.
                 }
             }
         }
@@ -460,6 +532,7 @@ internal sealed class WebWorkspace : UserControl
     {
         _loadingSurface.Hide();
         _webView.Visible = false;
+        var runtimeMissing = exception is WebView2RuntimeNotFoundException;
         var label = new Label
         {
             Dock = DockStyle.Fill,
@@ -467,10 +540,36 @@ internal sealed class WebWorkspace : UserControl
             Font = new Font("Microsoft YaHei UI", 12f),
             ForeColor = Color.FromArgb(27, 66, 91),
             BackColor = Color.FromArgb(249, 248, 247),
-            Text = "RiftLens 主界面初始化失败\r\n\r\n" + exception.Message + "\r\n\r\n请确认 Microsoft Edge WebView2 Runtime 已安装。"
+            Text = (Language == "en-US" ? "RiftLens could not load its interface" : "RiftLens 主界面暂时无法加载")
+                + "\r\n\r\n" + exception.Message + "\r\n\r\n"
+                + (runtimeMissing
+                    ? Language == "en-US" ? "Install Microsoft Edge WebView2 Runtime, then retry." : "请安装 Microsoft Edge WebView2 Runtime 后重试。"
+                    : Language == "en-US" ? "You can retry loading the interface. Your app settings and API key are kept." : "可以重试加载界面，软件设置和 API Key 会保留。")
         };
-        Controls.Add(label);
-        label.BringToFront();
+        var surface = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2, Padding = new Padding(28), BackColor = label.BackColor };
+        surface.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        surface.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        surface.RowStyles.Add(new RowStyle(SizeType.Absolute, 60));
+        surface.Controls.Add(label, 0, 0);
+        var retry = new Button
+        {
+            Text = Language == "en-US" ? "Retry interface" : "重试加载界面",
+            AutoSize = true, Anchor = AnchorStyles.Top, Padding = new Padding(18, 8, 18, 8)
+        };
+        retry.Click += async (_, _) =>
+        {
+            if (_initializing) return;
+            Controls.Remove(surface);
+            surface.Dispose();
+            _fallbackSurface = null;
+            ResetWebView();
+            await InitializeAsync();
+        };
+        surface.Controls.Add(retry, 0, 1);
+        _fallbackSurface?.Dispose();
+        _fallbackSurface = surface;
+        Controls.Add(surface);
+        surface.BringToFront();
     }
 
     private static SpatialPage ReadPage(JsonElement? payload)
@@ -483,6 +582,17 @@ internal sealed class WebWorkspace : UserControl
             "settings" => SpatialPage.Settings,
             _ => SpatialPage.Home
         };
+    }
+
+    private static ApiEndpointUpdate? ReadApiEndpoint(JsonElement? payload)
+    {
+        if (payload is not { ValueKind: JsonValueKind.Object })
+        {
+            return null;
+        }
+        TryGetString(payload, "baseUrl", out var baseUrl);
+        TryGetString(payload, "model", out var model);
+        return new ApiEndpointUpdate(baseUrl, model);
     }
 
     private static int ReadInt(JsonElement? payload) =>

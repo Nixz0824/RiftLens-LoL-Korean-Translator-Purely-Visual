@@ -80,15 +80,18 @@
     <section class="home-screen" id="home-screen" hidden aria-label="RiftLens 首页" data-i18n-aria="RiftLens 首页">
       <div class="home-shell">
         <header class="titlebar drag-region">
-          <span class="brand">RiftLens</span>
+          <div class="brand-lockup">
+            <span class="brand">RiftLens</span>
+            <span class="brand-pill" data-i18n="LOL韩服·消息翻译工具">LOL韩服·消息翻译工具</span>
+          </div>
           <div class="window-controls no-drag" aria-label="窗口控制" data-i18n-aria="窗口控制">
+            <button class="language-button" id="language-button">中/ENG</button>
             <button class="window-button" data-action="minimize" aria-label="最小化窗口" data-i18n-aria="最小化窗口"><svg><use href="#i-minus"/></svg></button>
             <button class="window-button settings-button" id="settings-button" aria-label="打开系统设置" data-i18n-aria="打开系统设置" aria-expanded="false" aria-controls="settings-popover"><svg><use href="#i-settings"/></svg></button>
             <button class="window-button close" data-action="close" aria-label="关闭窗口" data-i18n-aria="关闭窗口"><svg><use href="#i-close"/></svg></button>
           </div>
         </header>
 
-        <div class="app-caption"><span data-i18n="LOL韩服·消息翻译工具">LOL韩服·消息翻译工具</span><button class="language-button" id="language-button">中/ENG</button></div>
         <nav class="quick-bar" aria-label="首页快速操作" data-i18n-aria="首页快速操作">
           <button class="quick-status" id="api-quick-status"><i></i><span data-i18n="连接api">连接api</span></button>
           <button class="quick-button" data-action="selectRegion" data-i18n="框选识别区">框选识别区</button>
@@ -99,26 +102,29 @@
         <div class="home-grid">
           <section class="left-stack" aria-label="连接、语音与系统信息" data-i18n-aria="连接、语音与系统信息">
             <article class="home-card api-card">
-              <header class="card-heading"><h2 data-i18n="API连接">API连接</h2><span id="api-model-label">DeepSeek V4</span></header>
-              <div class="api-row"><label for="api-key">API Key</label><span class="api-input-shell"><input id="api-key" type="password" autocomplete="new-password" autocapitalize="none" spellcheck="false"></span></div>
-              <div class="api-actions"><button class="text-action" data-action="showApiHelp" data-i18n="如何获取API Key?">如何获取API Key?</button><button class="pill-button" id="save-api" data-i18n="保存并连接">保存并连接</button></div>
+              <header class="card-heading"><h2 data-i18n="API连接">API连接</h2><span class="card-badge" id="api-model-label">DeepSeek V4</span></header>
+              <form id="api-form" novalidate>
+                <div class="api-row"><label for="api-key">API Key</label><span class="api-input-shell"><input id="api-key" type="password" autocomplete="new-password" autocapitalize="none" spellcheck="false" aria-describedby="api-feedback" required></span></div>
+                <p class="field-feedback" id="api-feedback" aria-live="polite" aria-atomic="true"></p>
+                <div class="api-actions"><button type="button" class="text-action" data-action="showApiHelp" data-i18n="如何获取API Key?">如何获取API Key?</button><button type="submit" class="pill-button" id="save-api">保存密钥</button></div>
+              </form>
             </article>
 
             <article class="home-card voice-card">
-              <header class="card-heading"><h2 data-i18n="语音播报">语音播报</h2><span data-i18n="Windows神经语音-晓晓">Windows神经语音-晓晓</span></header>
+              <header class="card-heading"><h2 data-i18n="语音播报">语音播报</h2><span class="card-badge" data-i18n="Windows神经语音-晓晓">Windows神经语音-晓晓</span></header>
               <div class="voice-controls">
-                <div class="voice-row"><span data-i18n="自动播报">自动播报</span><span></span><label class="switch"><input id="auto-speech" type="checkbox" checked aria-label="自动播报" data-i18n-aria="自动播报"><i></i></label></div>
+                <div class="voice-row"><label for="auto-speech" data-i18n="自动播报">自动播报</label><span></span><label class="switch"><input id="auto-speech" type="checkbox" checked aria-label="自动播报" data-i18n-aria="自动播报"><i></i></label></div>
                 <div class="voice-row"><label for="voice-volume" data-i18n="播报音量">播报音量</label><input id="voice-volume" type="range" min="0" max="100" value="65"><output id="voice-volume-value">65%</output></div>
                 <div class="voice-row"><label for="speech-rate" data-i18n="播报语速">播报语速</label><input id="speech-rate" type="range" min="-5" max="5" value="1"><output id="speech-rate-value" data-i18n="标准">标准</output></div>
                 <div class="voice-row"><button class="row-link" id="signal-options" data-i18n="信号播报">信号播报</button><span></span><label class="switch"><input id="tactical-signals" type="checkbox" aria-label="信号播报" data-i18n-aria="信号播报"><i></i></label></div>
-                <div class="voice-row"><span data-i18n="输出设备">输出设备</span><span></span><span class="device-pill" data-i18n="系统默认">系统默认</span></div>
+                <div class="voice-row"><label for="output-device" data-i18n="输出设备">输出设备</label><span></span><select id="output-device" class="device-select" aria-label="输出设备" data-i18n-aria="输出设备"><option value="-1" data-i18n="系统默认">系统默认</option></select></div>
               </div>
               <div class="voice-sample"><q data-i18n="“蕾欧娜提醒上路小心，并注意敌方打野”">“蕾欧娜提醒上路小心，并注意敌方打野”</q><button class="try-button" data-action="testSpeech"><svg><use href="#i-play"/></svg><span data-i18n="试听">试听</span></button></div>
             </article>
 
             <article class="home-card system-card">
               <header class="card-heading"><h2 data-i18n="系统信息">系统信息</h2><button class="author-button" data-action="showAbout" data-i18n="作者：github/Nixz0824">作者：github/Nixz0824</button></header>
-              <div class="system-copy"><p data-i18n="此软件作为个人开源实践项目，未经明确授权拒绝转载、商用。">此软件作为个人开源实践项目，未经明确授权拒绝转载、商用。</p><p id="recognition-model-text">识别：本地 PP-OCRv5（韩/中/英）</p><footer><span id="version-text">版本号：RiftLens-2.3.0</span><button class="pill-button" data-action="checkUpdate" data-i18n="检查更新">检查更新</button></footer></div>
+              <div class="system-copy"><p data-i18n="基于 MIT 协议开源的个人实践项目，支持自由查阅与合规使用。">基于 MIT 协议开源的个人实践项目，支持自由查阅与合规使用。</p><p id="recognition-model-text">识别：本地 PP-OCRv5（韩/中/英）</p><footer><span id="version-text">版本号：RiftLens-2.3.0</span><button class="pill-button" data-action="checkUpdate" data-i18n="检查更新">检查更新</button></footer></div>
             </article>
           </section>
 
@@ -126,7 +132,7 @@
             <header class="card-heading history-heading"><h2 data-i18n="翻译记录">翻译记录</h2><span><button class="history-menu-button" id="history-menu-button" aria-label="翻译记录操作" data-i18n-aria="翻译记录操作" aria-expanded="false" aria-controls="history-menu"><svg><use href="#i-more"/></svg></button><time id="session-time">--</time></span></header>
             <div class="history-table-wrap" tabindex="0" aria-label="本次翻译记录，可滚动" data-i18n-aria="本次翻译记录，可滚动">
               <table><colgroup><col class="col-time"><col class="col-source"><col class="col-translation"><col class="col-spoken"></colgroup><thead><tr><th scope="col" data-i18n="时间">时间</th><th scope="col" data-i18n="OCR识别原文">OCR识别原文</th><th scope="col" data-i18n="翻译内容">翻译内容</th><th scope="col" data-i18n="播报状态">播报状态</th></tr></thead><tbody id="history-rows"></tbody></table>
-              <div class="empty-history" id="empty-history" data-i18n="暂无记录">暂无记录</div>
+              <div class="empty-history" id="empty-history"><strong id="empty-history-title">暂无记录</strong><p id="empty-history-hint"></p></div>
             </div>
             <footer class="history-footer"><div class="history-feedback"><span id="history-summary">本次翻译总计0条，已排队0条</span><p id="runtime-status" role="status" aria-live="polite" aria-atomic="true" hidden></p></div><button class="local-save-button" id="local-save-button" aria-pressed="false" data-i18n="开启本地保存">开启本地保存</button></footer>
             <div class="mini-menu" id="history-menu" hidden><button data-action="clearHistory"><svg><use href="#i-trash"/></svg><span data-i18n="清空记录">清空记录</span></button><button data-action="exportDiagnostics"><svg><use href="#i-export"/></svg><span data-i18n="导出诊断">导出诊断</span></button><button id="evaluation-button" data-action="toggleEvaluationRecording"><svg><use href="#i-history"/></svg><span data-i18n="开始真实评估记录">开始真实评估记录</span></button></div>
@@ -157,8 +163,14 @@
 
         <aside class="advanced-popover" id="advanced-popover" role="dialog" aria-modal="false" aria-labelledby="advanced-title" hidden>
           <header><button id="advanced-back" aria-label="返回系统设置" data-i18n-aria="返回系统设置"><svg><use href="#i-chevron"/></svg></button><h2 id="advanced-title" data-i18n="更多设置">更多设置</h2></header>
+          <section class="endpoint-section">
+            <h3 data-i18n="翻译接口（OpenAI 兼容）">翻译接口（OpenAI 兼容）</h3>
+            <div class="advanced-row"><label for="api-base-url" data-i18n="接口地址">接口地址</label><input id="api-base-url" class="advanced-input" type="url" spellcheck="false" value="https://api.deepseek.com" placeholder="https://api.deepseek.com"></div>
+            <div class="advanced-row"><label for="api-model-input" data-i18n="模型名称">模型名称</label><input id="api-model-input" class="advanced-input" type="text" spellcheck="false" value="deepseek-v4-flash" placeholder="deepseek-v4-flash"></div>
+            <div class="endpoint-actions"><button type="button" class="pill-button" id="save-api-endpoint" data-i18n="保存端点设置">保存端点设置</button></div>
+          </section>
           <section class="vision-experiment-section"><h3 data-i18n="识别引擎">识别引擎</h3><div class="advanced-row"><label for="recognition-mode" data-i18n="识别模式">识别模式</label><select id="recognition-mode"><option value="0" data-i18n="本地 OCR（默认）">本地 OCR（默认）</option><option value="1" data-i18n="DeepSeek V4 Vision（实验）">DeepSeek V4 Vision（实验）</option></select></div><p class="vision-note" id="vision-note" data-i18n="Vision 模式会把用户框选区域截图发送给 DeepSeek；不会发送全屏，也不会读取游戏内存。" hidden>Vision 模式会把用户框选区域截图发送给 DeepSeek；不会发送全屏，也不会读取游戏内存。</p><label class="advanced-check vision-consent" id="vision-consent-row" hidden><input id="vision-consent" type="checkbox"><span data-i18n="我同意将框选区域截图发送给 DeepSeek Vision">我同意将框选区域截图发送给 DeepSeek Vision</span></label></section>
-          <section><h3 data-i18n="屏显与悬浮">屏显与悬浮</h3><div class="advanced-row"><span data-i18n="输出方式">输出方式</span><div class="segment" id="output-mode"><button data-value="0" data-i18n="仅屏显">仅屏显</button><button data-value="1" data-i18n="仅播报">仅播报</button><button data-value="2" data-i18n="屏显 + 播报">屏显 + 播报</button></div></div><div class="advanced-row"><label for="overlay-placement" data-i18n="显示位置">显示位置</label><select id="overlay-placement"><option value="0" data-i18n="自动避让">自动避让</option><option value="1" data-i18n="识别区上方">识别区上方</option><option value="2" data-i18n="识别区下方">识别区下方</option><option value="3" data-i18n="识别区左侧">识别区左侧</option><option value="4" data-i18n="识别区右侧">识别区右侧</option><option value="5" data-i18n="自定义区域">自定义区域</option></select></div><div class="advanced-row"><label for="overlay-opacity" data-i18n="文字透明度">文字透明度</label><input id="overlay-opacity" type="range" min="20" max="90" value="68"><output id="opacity-value">68%</output></div></section>
+          <section><h3 data-i18n="屏显与悬浮">屏显与悬浮</h3><div class="advanced-row"><span data-i18n="输出方式">输出方式</span><div class="segment" id="output-mode" role="group" aria-label="输出方式" data-i18n-aria="输出方式"><button data-value="0" data-i18n="仅屏显">仅屏显</button><button data-value="1" data-i18n="仅播报">仅播报</button><button data-value="2" data-i18n="屏显 + 播报">屏显 + 播报</button></div></div><div class="advanced-row"><label for="overlay-placement" data-i18n="显示位置">显示位置</label><select id="overlay-placement"><option value="0" data-i18n="自动避让">自动避让</option><option value="1" data-i18n="识别区上方">识别区上方</option><option value="2" data-i18n="识别区下方">识别区下方</option><option value="3" data-i18n="识别区左侧">识别区左侧</option><option value="4" data-i18n="识别区右侧">识别区右侧</option><option value="5" data-i18n="自定义区域">自定义区域</option></select></div><div class="advanced-row"><label for="overlay-opacity" data-i18n="文字透明度">文字透明度</label><input id="overlay-opacity" type="range" min="20" max="90" value="68"><output id="opacity-value">68%</output></div></section>
           <section><h3 data-i18n="玩家聊天语音">玩家聊天语音</h3><label class="advanced-check"><input id="urgent-player-speech" type="checkbox" checked><span data-i18n="紧急提醒">紧急提醒</span></label><label class="advanced-check"><input id="important-player-speech" type="checkbox" checked><span data-i18n="重点沟通">重点沟通</span></label><label class="advanced-check"><input id="neutral-player-speech" type="checkbox"><span data-i18n="中性闲聊">中性闲聊</span></label></section>
           <section id="system-category-section"><h3 data-i18n="系统 Ping 与固定通知">系统 Ping 与固定通知</h3><label class="advanced-check"><input id="kill-events" type="checkbox"><span data-i18n="击杀播报">击杀播报</span></label><label class="advanced-check"><input id="objective-events" type="checkbox"><span data-i18n="地图资源与建筑">地图资源与建筑</span></label><label class="advanced-check"><input id="client-reminders" type="checkbox"><span data-i18n="防沉迷提示">防沉迷提示</span></label><label class="advanced-check"><input id="other-system-events" type="checkbox"><span data-i18n="对局流程与系统">对局流程与系统</span></label></section>
           <section><h3 data-i18n="运行偏好">运行偏好</h3><label class="advanced-check"><input id="keep-emotion" type="checkbox" checked><span data-i18n="保留情绪，不朗读脏话">保留情绪，不朗读脏话</span></label><label class="advanced-check"><input id="change-only" type="checkbox" checked><span data-i18n="仅在画面变化时识别">仅在画面变化时识别</span></label><label class="advanced-check"><input id="low-usage" type="checkbox" checked><span data-i18n="游戏中保持低占用">游戏中保持低占用</span></label></section>
@@ -167,6 +179,12 @@
       </div>
     </section>
   </main>
+  <dialog id="confirm-dialog" class="confirm-dialog" aria-labelledby="confirm-title" aria-describedby="confirm-description">
+    <form method="dialog">
+      <h2 id="confirm-title"></h2><p id="confirm-description"></p>
+      <footer><button value="cancel" autofocus data-i18n="取消">取消</button><button value="confirm" class="confirm-action" id="confirm-action" data-i18n="确认">确认</button></footer>
+    </form>
+  </dialog>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <script src="app.js" defer></script>
 </body>
